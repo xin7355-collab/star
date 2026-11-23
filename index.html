@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="手機上離線計算的星座手帳：本命星盤、每日運勢、星座配對、塔羅抽牌。">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="星座手帳">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <title>星座手帳</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="page-title">星座手帳</h1>
+  </header>
+
+  <main id="main">
+    <section id="view-me" class="view" aria-label="我的星盤"></section>
+    <section id="view-fortune" class="view" aria-label="運勢" hidden></section>
+    <section id="view-match" class="view" aria-label="配對" hidden></section>
+    <section id="view-tarot" class="view" aria-label="塔羅" hidden></section>
+    <p class="footnote">星座內容僅供娛樂參考。行星位置以 astronomy-engine 在手機上計算，生日不會上傳。</p>
+  </main>
+
+  <nav class="tabbar" aria-label="主選單">
+    <button type="button" data-view="me"><span class="tab-ico" aria-hidden="true">☉</span><span>我的</span></button>
+    <button type="button" data-view="fortune"><span class="tab-ico" aria-hidden="true">✦</span><span>運勢</span></button>
+    <button type="button" data-view="match"><span class="tab-ico" aria-hidden="true">♡</span><span>配對</span></button>
+    <button type="button" data-view="tarot"><span class="tab-ico" aria-hidden="true">✧</span><span>塔羅</span></button>
+  </nav>
+
+  <div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="分享圖卡">
+    <div class="sheet-panel">
+      <div class="sheet-top"><b>分享圖卡</b><button type="button" id="sheet-close" class="link">關閉</button></div>
+      <div id="sheet-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <noscript><p class="footnote">請開啟 JavaScript 才能使用。</p></noscript>
+</body>
+</html>
