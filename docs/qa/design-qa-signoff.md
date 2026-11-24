@@ -60,6 +60,8 @@
   快速配對欄寬改 2:3。修正後 CI 的 E2E 18/18（Chromium 9＋WebKit 9）通過
 - 改版（今日、時運、命盤、占卜、我的）後 CI run 45334665526：E2E 28/28（Chromium 14＋WebKit 14，沒有重試）、
   design-qa 56 張 CLEAN
+- 新增工作方向、開運佈置、血型、解惑後 CI run 45380479737：E2E 34/34（Chromium 17＋WebKit 17，沒有重試）、
+  design-qa 76 張 CLEAN
 
 ## 4. 腳本量不到的（要人工）
 
