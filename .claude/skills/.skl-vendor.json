@@ -1,0 +1,41 @@
+{
+  "skills": [
+    "ai-model-router",
+    "app-guardrails-audit",
+    "commit-craft",
+    "dependency-auditor",
+    "design-qa",
+    "e2e-testing",
+    "idea-precheck",
+    "performance-optimization",
+    "source-driven-development",
+    "zh-tw-humanizer"
+  ],
+  "source_repo": "https://github.com/xin7355-collab/skl",
+  "source_commit": "6e56231",
+  "updated_at": "2026-11-24T00:00:18Z",
+  "packs": [],
+  "extra_skills": [
+    "community/skills/performance-optimization",
+    "community/skills/source-driven-development",
+    "community/skills/zh-tw-humanizer",
+    "ecc/skills/e2e-testing",
+    "engineering/skills/commit-craft",
+    "engineering/skills/dependency-auditor",
+    "product-team/skills/design-qa",
+    "xin-toolkit/skills/ai-model-router",
+    "xin-toolkit/skills/idea-precheck"
+  ],
+  "hashes": {
+    "ai-model-router": "38c93008520ec3d834f63bf8cb7589192ea43383fcacc2c008770ad86a89e244",
+    "app-guardrails-audit": "b1bef1b2680a1630c889d0579542c22e6451585ef4ef9cada876467428fa973b",
+    "commit-craft": "2b35f0f4e8bd95da49a3bdfba5e20fe5ad165e8b931b624f863a3e037620383f",
+    "dependency-auditor": "728ac3cabd83c85debb2654c5ab1557abe043c28d368707f859855dd41a91649",
+    "design-qa": "adb74a83a0f65698f3fb68e5fb50be9a015aeb6e5d93fa69d8d29e9415999389",
+    "e2e-testing": "b1048eeaa3e5a7bb0244cad46831715d2c64f8d92f98ff74d4b12dff897fbe74",
+    "idea-precheck": "3e1980189e7e01d013add3b55a0ca044644fe6eb243f58094739dc434eab7ed9",
+    "performance-optimization": "f8b8eaf2e2c75f48f30f647d9193bf90620619f57b1805c17466c63a4236d202",
+    "source-driven-development": "2d8958f0a7239a1d2127c8178980dfd7f0d505bc292549b1802268af30e8f78a",
+    "zh-tw-humanizer": "817fd773312419a3e5b31d3f241d4f0d9404a18314dcdb18b3e7e9fe818ae7a7"
+  }
+}
