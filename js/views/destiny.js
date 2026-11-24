@@ -1,24 +1,31 @@
-// 「命理」：選人＋選工具（下拉），八字命盤、流年大運太歲、紫微命盤、瑪雅密碼、生命靈數、袁天罡稱骨。
-// 各工具的函式庫用到才載入（紫微最大，約 51KB gzip）。結果可「存到紀錄」（只存在手機）或存成圖卡。
+// 「命盤」：選人＋選工具（下拉）：綜合解讀（多系統一起看）、八字命盤、流年大運太歲、紫微命盤、姓名分析、
+// 瑪雅密碼、生命靈數、袁天罡稱骨。各工具的函式庫用到才載入（紫微約 51KB、康熙筆畫約 85KB gzip）。
+// 結果可「存到紀錄」（只存在手機）或存成圖卡。多胞胎依「我的」裡填的出生順序套用紫微借宮。
 
-import { h, clear, segmented } from '../ui/dom.js';
+import { h, clear, segmented, fill } from '../ui/dom.js';
 import { load, save } from '../ui/storage.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
+import { cardHead } from '../ui/icons.js';
+import { reveal, order, ringTo } from '../ui/motion.js';
 
 const TOOLS = [
+  { id: 'reading', label: '綜合解讀（多系統一起看）' },
   { id: 'bazi', label: '八字命盤' },
   { id: 'liunian', label: '流年・大運・太歲' },
   { id: 'ziwei', label: '紫微命盤' },
+  { id: 'name', label: '姓名分析' },
   { id: 'maya', label: '瑪雅密碼' },
   { id: 'numerology', label: '生命靈數' },
   { id: 'chenggu', label: '袁天罡稱骨' },
 ];
+// 紫微某一宮要看星曜的哪一段白話
+const PALACE_FIELD = { 命宮: 'ming', 官祿: 'career', 夫妻: 'love', 財帛: 'wealth' };
 const WX_CLASS = { 木: 'wx-wood', 火: 'wx-fire', 土: 'wx-earth', 金: 'wx-metal', 水: 'wx-water' };
 const MUTAGEN_CLASS = { 化祿: 'mg-lu', 化權: 'mg-quan', 化科: 'mg-ke', 化忌: 'mg-ji' };
 
 export function mountDestiny(root, ctx) {
-  let tool = load('destinyTool', 'bazi');
-  if (!TOOLS.some((t) => t.id === tool)) tool = 'bazi';
+  let tool = load('destinyTool', 'reading');
+  if (!TOOLS.some((t) => t.id === tool)) tool = 'reading';
   let personId = null;
   let compareId = null;
   let twin = false;
@@ -58,6 +65,8 @@ export function mountDestiny(root, ctx) {
           h('p', { class: 'field-label', text: '時間校正' }),
           segmented({ name: 'solar', label: '時間校正', value: settings.solarTime, options: [{ value: 'standard', label: '標準時間（預設）' }, { value: 'true', label: '真太陽時' }], onChange: (v) => ctx.saveSettings({ solarTime: v }) }),
           h('p', { class: 'hint', text: '日光節約時間出生會自動減回標準時間。真太陽時依出生地經度與均時差調整（需要出生地）。0 點換日時，23 點後的時柱依隔天日干起子時（lunar-typescript 的作法）。' }),
+          h('p', { class: 'field-label', text: '多胞胎的紫微借宮看法（在「我的」填出生順序才會用到）' }),
+          segmented({ name: 'twin', label: '借宮看法', value: settings.twinMethod, options: [{ value: 'sibling', label: '弟妹借兄弟宮' }, { value: 'travel', label: '老二借遷移宮' }], onChange: (v) => ctx.saveSettings({ twinMethod: v }) }),
         ),
       ),
     );
@@ -65,11 +74,13 @@ export function mountDestiny(root, ctx) {
     root.append(out);
     const input = ctx.inputOf(p);
     if (!input) {
-      out.replaceChildren(warnCard('這個人的生日資料不完整，請到「我的」編輯後重新儲存。'));
+      fill(out, warnCard('這個人的生日資料不完整，請到「我的」編輯後重新儲存。'));
       return;
     }
     const opts = { gender: p.gender || null, sect: settings.sect, solarTime: settings.solarTime, today: zoneToday(DEFAULT_TZ) };
     const draw = {
+      reading: () => drawReading(p, input, opts),
+      name: () => drawName(p, input, opts),
       bazi: () => drawBazi(p, input, opts),
       liunian: () => drawLiunian(p, input, opts),
       ziwei: () => drawZiwei(p, input, opts),
@@ -79,10 +90,10 @@ export function mountDestiny(root, ctx) {
     }[tool];
     draw()
       .then((nodes) => {
-        if (my === token) out.replaceChildren(...[].concat(nodes));
+        if (my === token) fill(out, ...reveal([].concat(nodes)));
       })
       .catch((err) => {
-        if (my === token) out.replaceChildren(warnCard(`計算失敗：${err && err.message ? err.message : '請確認網路後重新開啟 App'}`));
+        if (my === token) fill(out, warnCard(`計算失敗：${err && err.message ? err.message : '請確認網路後重新開啟 App'}`));
       });
   }
 
@@ -109,9 +120,10 @@ export function mountDestiny(root, ctx) {
 
   // ── 八字命盤
   async function drawBazi(p, input, opts) {
-    const { buildBazi, WUXING } = await import('../core/bazi.js');
+    const [{ buildBazi, WUXING }, { dominantShishen }, { DAYMASTER, SHISHEN_GROUPS }] = await Promise.all([import('../core/bazi.js'), import('../core/reading.js'), import('../core/reading-texts.js')]);
     const b = buildBazi(input, opts);
     if (!b.ok) return warnCard(b.error, true);
+    const dom = dominantShishen(b);
     const cols = b.pillars;
     const cell = (fn) => cols.map((c) => h('td', {}, c ? fn(c) : '—'));
     const table = h(
@@ -155,7 +167,11 @@ export function mountDestiny(root, ctx) {
       [...b.uncertain, ...b.notes].map((t) => h('p', { class: 'hint', text: t })),
       h('div', { class: 'table-wrap' }, table),
       h('h3', { text: `日主：${b.dayMaster.gan}${b.dayMaster.wx}（${b.dayMaster.yinYang}）` }),
-      h('p', { text: b.dayMaster.text }),
+      h('p', { text: DAYMASTER[b.dayMaster.gan].text }),
+      h('p', { class: 'muted', text: b.dayMaster.text }),
+      h('h3', { text: `十神分布：${dom.group}最多` }),
+      h('p', { text: SHISHEN_GROUPS[dom.group].text }),
+      h('p', { class: 'muted small', text: `天干算 1、藏干算 0.5：${Object.entries(dom.score).map(([k, v]) => `${k} ${v}`).join('、')}。` }),
       h('h3', { text: '五行（八字字面）' }),
       wxBars,
       h('p', { text: b.wuxing.missing.length ? `字面上缺：${b.wuxing.missing.join('、')}` : '五行俱全' }),
@@ -215,12 +231,14 @@ export function mountDestiny(root, ctx) {
 
   // ── 紫微命盤
   async function drawZiwei(p, input, opts) {
-    const { buildZiwei, STAR_TEXT } = await import('../core/ziwei.js');
-    const z = buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today });
-    if (!z.ok) return warnCard(z.error, true);
+    const [{ buildZiwei, STAR_TEXT }, { rotateZiwei, twinsInfo }, { PALACE_TEXT, ZIWEI_STARS, MUTAGEN_TEXT }] = await Promise.all([import('../core/ziwei.js'), import('../core/reading.js'), import('../core/reading-texts.js')]);
+    const z0 = buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today });
+    if (!z0.ok) return warnCard(z0.error, true);
+    const twins = p.birthOrder ? twinsInfo({ birthOrder: p.birthOrder, hasTime: true, method: ctx.getSettings().twinMethod }) : null;
+    const z = twins && twins.shift ? rotateZiwei(z0, twins.shift) : z0;
     const detail = h('div', { class: 'palace-detail' }, h('p', { class: 'hint', text: '點命盤上任一宮看詳細星曜。' }));
     const hs = z.horoscope;
-    const cells = z.palaces.map((pal) => {
+    const cells = order(z.palaces.map((pal) => {
       const cls = ['palace'];
       if (pal.name === '命宮') cls.push('soul');
       if (hs && pal.index === hs.decadalIndex) cls.push('decadal');
@@ -240,12 +258,14 @@ export function mountDestiny(root, ctx) {
         h('div', { class: 'pal-foot' }, h('span', { text: `${pal.stem}${pal.branch}` }), h('span', { text: `${pal.decadal[0]}–${pal.decadal[1]}` })),
       );
       return el;
-    });
+    }));
     function showPalace(pal) {
-      detail.replaceChildren(
-        h('h3', { text: `${pal.name}（${pal.stem}${pal.branch}）${pal.isBody ? '・身宮' : ''}` }),
+      const field = PALACE_FIELD[pal.name] || 'ming';
+      fill(detail, 
+        h('h3', { text: `${pal.name}（${pal.stem}${pal.branch}）${pal.isBody ? '・身宮' : ''}${pal.originalName ? `・原本的${pal.originalName}` : ''}` }),
+        h('p', { class: 'muted', text: PALACE_TEXT[pal.name] || '' }),
         h('p', { class: 'muted small', text: `大限 ${pal.decadal[0]}–${pal.decadal[1]} 歲` }),
-        pal.major.length ? h('ul', { class: 'plain' }, pal.major.map((s) => h('li', {}, h('b', { text: `${s.name}${s.brightness ? `（${s.brightness}）` : ''}${s.mutagen ? ` ${s.mutagen}` : ''}` }), h('span', { text: `：${STAR_TEXT[s.name] || ''}` })))) : h('p', { text: '空宮：借對宮主星來看。' }),
+        pal.major.length ? h('ul', { class: 'plain' }, pal.major.map((s) => h('li', {}, h('b', { text: `${s.name}${s.brightness ? `（${s.brightness}）` : ''}${s.mutagen ? ` ${s.mutagen}` : ''}` }), h('span', { text: `：${ZIWEI_STARS[s.name]?.[field] || STAR_TEXT[s.name] || ''}` }), s.mutagen ? h('div', { class: 'muted small', text: MUTAGEN_TEXT[s.mutagen] || '' }) : null))) : h('p', { text: '空宮：沒有主星，傳統上借對宮的主星來看，這一宮的事比較受環境影響。' }),
         pal.minor.length ? h('p', { text: `輔星：${pal.minor.map((s) => s.name + (s.mutagen ? `（${s.mutagen}）` : '')).join('、')}` }) : null,
         pal.adjective.length ? h('p', { class: 'muted small', text: `雜曜：${pal.adjective.join('、')}` }) : null,
       );
@@ -266,6 +286,7 @@ export function mountDestiny(root, ctx) {
       { class: 'card' },
       h('h2', { text: `${p.name}的紫微命盤` }),
       z.notes.map((t) => h('p', { class: 'hint', text: t })),
+      twins && twins.shift ? h('p', { class: 'warn', text: `多胞胎第 ${p.birthOrder} 個出生：依「${ctx.getSettings().twinMethod === 'travel' && p.birthOrder === 2 ? '老二借遷移宮' : '弟妹借兄弟宮'}」的看法，宮名已輪轉（點宮位可看原本是哪一宮）。兩派沒有定論，可在上方「排盤設定」切換。` }) : null,
       h('div', { class: 'ziwei-grid' }, cells, center),
       h('div', { class: 'legend small' }, h('span', { class: 'mg mg-lu', text: '祿' }), ' 化祿 ', h('span', { class: 'mg mg-quan', text: '權' }), ' 化權 ', h('span', { class: 'mg mg-ke', text: '科' }), ' 化科 ', h('span', { class: 'mg mg-ji', text: '忌' }), ' 化忌・', h('span', { class: 'legend-box decadal' }), ' 目前大限・', h('span', { class: 'legend-box yearly' }), ' 今年流年'),
       hs ? h('p', { class: 'small', text: `今年流年四化：${hs.yearlyMutagen.map((s, i) => `${s}化${'祿權科忌'[i]}`).join('、')}` }) : null,
@@ -277,7 +298,7 @@ export function mountDestiny(root, ctx) {
 
   // ── 瑪雅密碼
   async function drawMaya(p, input) {
-    const { computeMaya, compareMaya } = await import('../core/maya.js');
+    const [{ computeMaya, compareMaya }, { MAYA_POSITION_TEXT, MAYA_KEYWORD_TEXT }] = await Promise.all([import('../core/maya.js'), import('../core/reading-texts.js')]);
     const twinTime = twin && input.time ? input.time : null;
     const r = computeMaya(input.date, twinTime);
     const others = ctx.getPeople().filter((x) => x.id !== p.id);
@@ -303,6 +324,7 @@ export function mountDestiny(root, ctx) {
       h('h2', { text: `${p.name}的瑪雅密碼` }),
       h('div', { class: 'maya-grid' }, r.items.map((it) => h('div', { class: `maya-cell${it.key === 'C' ? ' wide' : ''}` }, h('div', { class: 'muted small', text: it.label }), h('div', { class: 'maya-value', text: it.value === null ? '—' : String(it.value) }), h('div', { text: it.keyword ? `${it.value % 10}｜${it.keyword}` : '不適用' })))),
       r.exception ? h('p', { class: 'hint', text: '1910–1921、2010–2021 年出生：依規則 A、B 不適用，C 為 10。' }) : null,
+      h('details', { class: 'more', open: true }, h('summary', { text: '白話解說：每個位置代表什麼' }), h('ul', { class: 'plain' }, r.items.map((it) => h('li', {}, h('b', { text: MAYA_POSITION_TEXT[it.key] }), it.keyword ? h('div', { class: 'muted', text: `你的數字 ${it.value}「${it.keyword}」：${MAYA_KEYWORD_TEXT[it.keyword]}` }) : null)))),
       h('label', { class: 'check', for: 'maya-twin' }, twinBox, h('span', { text: input.time ? '雙胞胎分流（加上出生的時＋分）' : '雙胞胎分流需要出生時間' })),
       compareBlock,
       h('p', { class: 'hint', text: '計算規則依你提供的 V1 計算器重寫（規則原始出處沒驗到）；數字的關鍵字依個位數對照，文字為本 App 撰寫，可能與其他老師的版本不同。' }),
@@ -312,7 +334,7 @@ export function mountDestiny(root, ctx) {
 
   // ── 生命靈數
   async function drawNumerology(p, input) {
-    const { lifePath, grid } = await import('../core/numerology.js');
+    const [{ lifePath, grid }, { LIFEPATH_DETAIL }] = await Promise.all([import('../core/numerology.js'), import('../core/reading-texts.js')]);
     const lp = lifePath(input.date);
     const g = grid(input.date);
     const LAYOUT = [3, 6, 9, 2, 5, 8, 1, 4, 7];
@@ -320,7 +342,8 @@ export function mountDestiny(root, ctx) {
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的生命靈數` }),
-      h('div', { class: 'score-hero' }, h('div', { class: 'score-ring lv-mid' }, h('b', { text: lp.label }), h('small', { text: '主命數' })), h('div', {}, h('h3', { text: lp.title }), h('p', { text: lp.text }))),
+      h('div', { class: 'score-hero' }, ringTo(h('div', { class: 'score-ring lv-mid' }, h('b', { text: lp.label }), h('small', { text: '主命數' })), 100), h('div', {}, h('h3', { text: lp.title }), h('p', { text: lp.text }))),
+      h('ul', { class: 'reasons' }, h('li', { class: 'tone-info', text: `事業：${LIFEPATH_DETAIL[lp.number].career}` }), h('li', { class: 'tone-info', text: `感情：${LIFEPATH_DETAIL[lp.number].love}` })),
       h('h3', { text: '九宮格' }),
       h('div', { class: 'nine-grid' }, LAYOUT.map((n) => h('div', { class: `nine-cell${g.counts[n] ? ' on' : ''}` }, h('b', { text: String(n) }), g.counts[n] > 1 ? h('small', { text: `×${g.counts[n]}` }) : null))),
       h('p', { text: g.lines.length ? `連線：${g.lines.map((l) => `${l.nums.join('-')} ${l.name}`).join('、')}` : '沒有完整連線' }),
@@ -333,7 +356,7 @@ export function mountDestiny(root, ctx) {
   // ── 袁天罡稱骨
   async function drawChenggu(p, input, opts) {
     if (!input.time) return warnCard('稱骨需要出生時間（時辰）。請到「我的」補上時間。', true);
-    const [{ buildBazi, baziClock }, { solarToLunar }, { chengGu }] = await Promise.all([import('../core/bazi.js'), import('../core/calendar.js'), import('../core/chenggu.js')]);
+    const [{ buildBazi, baziClock }, { solarToLunar }, { chengGu }, { CHENGGU_PLAIN }] = await Promise.all([import('../core/bazi.js'), import('../core/calendar.js'), import('../core/chenggu.js'), import('../core/reading-texts.js')]);
     const clk = baziClock(input, { solarTime: opts.solarTime });
     if (!clk.ok) return warnCard(clk.error, true);
     const b = buildBazi(input, opts);
@@ -353,9 +376,167 @@ export function mountDestiny(root, ctx) {
         h('tr', {}, h('th', { scope: 'row', text: `時（${r.shichen}時）` }), h('td', { text: w(r.parts.hour) })),
         h('tr', { class: 'same' }, h('th', { scope: 'row', text: '合計' }), h('td', {}, h('b', { text: r.text }))))),
       h('blockquote', { class: 'poem', text: r.poem }),
+      CHENGGU_PLAIN[r.total] ? h('p', {}, h('b', { text: '白話：' }), h('span', { text: CHENGGU_PLAIN[r.total] })) : null,
       h('p', { class: 'hint', text: '民俗娛樂，不代表命運。年份以立春為界、閏月以本月計、23 點後日期以當天計（各家規則不同，結果可能和其他網站不一樣）。' }),
       actions(p, 'chenggu', '稱骨', `${r.text}：${r.poem}`, { title: `${p.name}的稱骨`, big: r.text, lines: [r.poem] }),
     );
+  }
+
+  // ── 綜合解讀：星座、八字、紫微、生命靈數、瑪雅、姓名、稱骨一起看
+  async function drawReading(p, input, opts) {
+    const [B, Z, M, C, CAL, R, NM] = await Promise.all([
+      import('../core/bazi.js'), import('../core/ziwei.js'), import('../core/maya.js'), import('../core/chenggu.js'),
+      import('../core/calendar.js'), import('../core/reading.js'), import('../core/name.js'),
+    ]);
+    const natal = ctx.natalOf(p);
+    const bz = B.buildBazi(input, opts);
+    const bazi = bz.ok ? bz : null;
+    const zw = input.time && (p.gender === '男' || p.gender === '女') ? Z.buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today }) : null;
+    let chenggu = null;
+    if (input.time && bazi) {
+      const clk = B.baziClock(input, { solarTime: opts.solarTime });
+      if (clk.ok) {
+        const l = CAL.solarToLunar(clk.clock);
+        chenggu = C.chengGu({ yearGanZhi: bazi.pillars[0].gan + bazi.pillars[0].zhi, lunarMonth: l.month, lunarDay: l.day, hour: clk.clock.h });
+      }
+    }
+    let name = null;
+    if (p.fullName) {
+      try {
+        name = NM.analyzeName(p.fullName, await NM.loadNameData(), { bazi });
+      } catch {
+        name = null; // 康熙筆畫資料載入失敗時，其他系統照常解讀
+      }
+    }
+    const r = R.buildReading({
+      natal, bazi, ziwei: zw && zw.ok ? zw : null, birth: input.date, maya: M.computeMaya(input.date), name, chenggu,
+      today: opts.today, gender: p.gender || null, birthOrder: p.birthOrder || 0, twinMethod: ctx.getSettings().twinMethod,
+    });
+    const missing = [];
+    if (!input.time) missing.push('出生時間（上升星座、紫微、稱骨）');
+    if (!p.gender) missing.push('性別（紫微、大運）');
+    if (!p.fullName) missing.push('本名（姓名學）');
+    const traitList = h('div', { class: 'traits' }, r.traits.map((t) => h(
+      'div',
+      { class: 'trait' },
+      h('div', { class: 'trait-head' }, h('b', { text: t.label }), h('span', { class: 'count', text: `${t.count} 個系統` })),
+      h('div', { class: 'muted small', text: t.sources.join('・') }),
+    )));
+    const areas = r.areas.map((a, i) => h(
+      'details',
+      { class: 'area', open: i === 0 },
+      h('summary', { text: a.title }),
+      h('div', { class: 'area-body' },
+        a.summary ? h('p', { class: 'gold', text: a.summary }) : null,
+        a.points.map((pt) => h('div', { class: 'point' }, h('span', { class: `sys sys-${pt.system}`, text: pt.system }), h('span', { text: pt.text })))),
+    ));
+    const cards = [
+      h(
+        'section',
+        { class: 'card feature' },
+        cardHead(h, 'book', `${p.name}的綜合解讀`, '星座・八字・紫微・生命靈數・瑪雅・姓名・稱骨'),
+        h('h3', { text: '各系統的共同點' }),
+        r.traits.length ? traitList : h('p', { class: 'muted', text: '資料還不夠多，補上出生時間與性別會更準。' }),
+        h('p', { class: 'hint', text: '同一個特質被兩個以上的系統提到，代表比較可信；只出現一次的看法列在各面向裡當參考。' }),
+        missing.length ? h('p', { class: 'warn', text: `補上這些資料會更完整：${missing.join('、')}。` }) : null,
+        missing.length ? h('button', { type: 'button', class: 'btn small', text: '到「我的」補資料', onclick: () => ctx.go('me') }) : null,
+      ),
+      h('section', { class: 'card' }, cardHead(h, 'star', '七個面向', '點開看各系統怎麼說'), areas, h('p', { class: 'hint', text: '解讀文字由本 App 撰寫，命理與星座僅供參考；健康相關請以醫師意見為準。' }),
+        actions(p, 'reading', '綜合解讀', r.traits.map((t) => `${t.label}（${t.count} 系統）`).join('、') || '綜合解讀', { title: `${p.name}的綜合解讀`, subtitle: '多個命理系統的共同點', lines: [...r.traits.map((t) => `${t.label}｜${t.sources.join('、')}`), ...r.areas.slice(1, 4).map((a) => `${a.title}：${a.summary}`)] })),
+    ];
+    if (r.twins) {
+      cards.push(h('section', { class: 'card' }, cardHead(h, 'twins', '多胞胎怎麼看', `第 ${p.birthOrder} 個出生`), h('ul', { class: 'reasons' }, r.twins.lines.map((t) => h('li', { class: 'tone-info', text: t })))));
+    }
+    return cards;
+  }
+
+  // ── 姓名分析（熊崎式五格＋三才＋81 數理＋唸法＋與八字搭配）
+  async function drawName(p, input, opts) {
+    const [NM, B] = await Promise.all([import('../core/name.js'), import('../core/bazi.js')]);
+    // 暱稱像「媽媽」不是本名；看起來像 2～4 字中文姓名才拿來預填
+    const looksLikeName = /^\p{Script=Han}{2,4}$/u.test(p.name) && !/^(媽媽|爸爸|阿公|阿嬤|哥哥|姊姊|姐姐|弟弟|妹妹|老公|老婆|寶貝|兒子|女兒)$/.test(p.name);
+    const nameInput = h('input', { type: 'text', maxlength: 6, value: p.fullName || (looksLikeName ? p.name : ''), 'aria-label': '姓名（含姓氏）', placeholder: '例如：王小明' });
+    const surSel = h('select', { 'aria-label': '姓氏字數' }, h('option', { value: '0', text: '姓氏：自動判斷' }), h('option', { value: '1', text: '單姓（1 個字）' }), h('option', { value: '2', text: '複姓／雙姓（2 個字）' }));
+    const out = h('div', {});
+    const overrides = {};
+    const bz = B.buildBazi(input, opts);
+    const bazi = bz.ok ? bz : null;
+    let data;
+    try {
+      data = await NM.loadNameData();
+    } catch {
+      return warnCard('康熙筆畫資料載入失敗，請確認網路後重新開啟 App。');
+    }
+    const analyze = () => {
+      const r = NM.analyzeName(nameInput.value, data, { surnameLength: Number(surSel.value), bazi, overrides });
+      if (!r.ok) {
+        fill(out, h('p', { class: 'warn', text: r.error }), r.needStrokes ? h('div', {}, r.needStrokes.map((ch) => {
+          const box = h('input', { type: 'text', inputmode: 'numeric', maxlength: 2, 'aria-label': `「${ch}」的康熙筆畫`, placeholder: `「${ch}」幾畫`, onchange: (e) => { const n = parseInt(e.target.value, 10); if (n > 0) overrides[ch] = n; } });
+          return h('div', { class: 'field' }, h('span', { class: 'field-label', text: `「${ch}」的康熙筆畫（可查教育部異體字字典）` }), box);
+        }), h('button', { type: 'button', class: 'btn small', text: '用這些筆畫分析', onclick: analyze })) : null);
+        return;
+      }
+      fill(out, ...reveal(nameResult(p, r)));
+    };
+    const card = h(
+      'section',
+      { class: 'card feature' },
+      cardHead(h, 'pen', '姓名分析', '康熙筆畫・五格・三才・81 數理・唸法'),
+      h('div', { class: 'row2' }, h('div', { class: 'field' }, h('span', { class: 'field-label', text: '姓名' }), nameInput), h('div', { class: 'field' }, h('span', { class: 'field-label', text: '姓氏' }), surSel)),
+      h('div', { class: 'actions' },
+        h('button', { type: 'button', class: 'btn primary', text: '分析', onclick: analyze }),
+        h('button', {
+          type: 'button',
+          class: 'btn',
+          text: '設為本名',
+          onclick: () => {
+            const v = nameInput.value.trim();
+            if (!/^\p{Script=Han}{2,6}$/u.test(v)) return ctx.toast('本名請輸入 2～6 個中文字');
+            const saved = ctx.savePerson({ ...p, fullName: v });
+            ctx.toast(saved.ok ? '已存成本名（只在這支手機），綜合解讀會一起分析' : saved.error);
+          },
+        })),
+      h('p', { class: 'hint', text: '多胞胎、同生日的人，命盤可能一樣，但名字一定不同，姓名學是最能區分的一項。' }),
+      out,
+    );
+    if (nameInput.value) analyze();
+    return card;
+  }
+
+  function nameResult(p, r) {
+    const chars = order(r.surname.concat(r.given).map((c) => h('div', { class: 'name-char' }, h('div', { class: 'zy', text: c.zhuyin || '—' }), h('div', { class: 'hz', text: c.char }), h('div', { class: 'st', text: `${c.strokes} 畫` }))));
+    const gridOrder = ['天格', '人格', '地格', '外格', '總格'];
+    const ring = ringTo(h('div', { class: `score-ring ${r.score >= 80 ? 'lv-high' : r.score >= 65 ? 'lv-mid' : 'lv-low'}` }, h('b', { text: String(r.score) }), h('small', { text: '綜合' })), r.score);
+    const gridCards = h('div', { class: 'grids' }, gridOrder.map((k) => h('div', { class: `grid-cell ${r.grids[k].grade}` }, h('div', { class: 'gv', text: String(r.grids[k].value) }), h('div', { class: 'gl', text: k }), h('div', { class: 'gl', text: `${r.grids[k].element}・${r.grids[k].gradeText}` }))));
+    const gridDetails = h('ul', { class: 'plain' }, gridOrder.map((k) => {
+      const g = r.grids[k];
+      return h('li', {}, h('b', { text: `${k} ${g.value}${g.n81 !== g.value ? `（${g.n81}）` : ''}・${g.title}・${g.gradeText}` }), h('div', { class: 'muted small', text: `${g.scope}。${g.note}` }), h('div', { text: g.text }), g.disputed ? h('div', { class: 'muted small', text: '這個數各家書籍的吉凶說法不一，參考就好。' }) : null);
+    }));
+    return [
+      h('section', { class: 'card' },
+        h('div', { class: 'name-chars' }, chars),
+        h('div', { class: 'score-hero' }, ring, h('ul', { class: 'reasons' }, r.summary.slice(0, 3).map((t) => h('li', { class: 'tone-info', text: t })))),
+        gridCards),
+      h('section', { class: 'card' }, cardHead(h, 'book', '五格白話', '人格最重要，天格由姓氏決定、不計分'), gridDetails),
+      h('section', { class: 'card' },
+        cardHead(h, 'compass', `三才「${r.sancai.elements}」・${r.sancai.gradeText}`, '天格、人格、地格的五行生剋'),
+        h('p', { text: r.sancai.summary }),
+        h('ul', { class: 'reasons' }, r.sancai.lines.map((t) => h('li', { class: 'tone-info', text: t }))),
+        h('p', { class: 'hint', text: '三才依五行生剋推算，和部分書上的固定表會有出入（例如有的派別把「木剋土」當成「樹種在土裡」的好搭配）。' })),
+      h('section', { class: 'card' },
+        cardHead(h, 'star', '唸法與音律', r.phonetics.ok ? `平仄：${r.phonetics.pattern}` : ''),
+        h('ul', { class: 'reasons' }, (r.phonetics.ok ? r.phonetics.notes : [r.phonetics.text]).map((t) => h('li', { class: 'tone-info', text: t }))),
+        r.bazi ? h('h3', { text: '和八字五行的搭配' }) : null,
+        r.bazi ? h('ul', { class: 'reasons' }, r.bazi.lines.map((t) => h('li', { class: 'tone-info', text: t }))) : null,
+        r.bazi ? h('p', { class: 'hint', text: '真正的喜用神要看日主強弱與季節格局，這裡用五行數量做簡化判斷。' }) : null,
+        h('details', { class: 'more' }, h('summary', { text: '計算規則' }), h('ul', { class: 'plain small' },
+          h('li', { text: '台灣最常見的熊崎式：筆畫用康熙字典筆畫（部首還原本字：氵4、扌4、忄4、艹6、阝左 8 右 7、王字旁 5）。' }),
+          h('li', { text: '國字數字一～十以數值計（「四」算 4 畫）。罕用字查不到時可以手動輸入筆畫。' }),
+          h('li', { text: '天格＝單姓＋1（複姓兩字相加）；人格＝姓末字＋名首字；地格＝單名＋1（複名相加）；總格＝全部相加；外格＝天格＋地格－人格。' }),
+          h('li', { text: '超過 81 減 80；五行看個位數：1、2 木，3、4 火，5、6 土，7、8 金，9、0 水。' }),
+          h('li', { text: '筆畫資料由 Unicode Unihan 換算；約 1% 的字各家筆畫不同（多為異體字）。' }))),
+        actions(p, 'name', `姓名分析（${r.fullName}）`, `人格${r.grids.人格.value}${r.grids.人格.gradeText}、總格${r.grids.總格.value}${r.grids.總格.gradeText}、三才${r.sancai.elements}${r.sancai.gradeText}`, { title: `${r.fullName}・姓名分析`, big: String(r.score), bigScore: r.score, bigLabel: '綜合分', lines: r.summary.slice(0, 4) })),
+    ];
   }
 
   ctx.onProfile(render);

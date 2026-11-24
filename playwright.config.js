@@ -15,6 +15,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
+    // 預設關掉動畫（系統「減少動態效果」）：測的是功能與結果，避免等動畫；另有一組測試專門開著動畫跑
+    reducedMotion: 'reduce',
     baseURL: 'http://127.0.0.1:4173',
     locale: 'zh-TW',
     timezoneId: 'Asia/Taipei',

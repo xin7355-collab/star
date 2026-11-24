@@ -30,6 +30,16 @@ export function clear(el) {
   return el;
 }
 
+/**
+ * 換掉全部子元素。null／false 會略過、陣列會攤平。
+ * 不要直接用原生 replaceChildren：它會把 null 印成文字「null」（農民曆卡片曾經出現過「nullnullnull」）。
+ */
+export function fill(el, ...children) {
+  clear(el);
+  append(el, children);
+  return el;
+}
+
 export function $(selector, root = document) {
   return root.querySelector(selector);
 }

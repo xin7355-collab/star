@@ -4,7 +4,7 @@
 
 export const SCHEMA = 1;
 export const LIMITS = { people: 50, history: 300, name: 20, title: 60, summary: 400, detailBytes: 4000 };
-export const HISTORY_TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu', 'name', 'reading', 'windfall', 'lottery', 'timing'];
+export const HISTORY_TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu', 'name', 'reading', 'lottery'];
 
 const ID_RE = /^[a-z]{1,2}-[0-9a-f]{8,32}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;

@@ -87,7 +87,7 @@ export function twinsInfo({ birthOrder, natal = null, hasTime = false, method = 
   if (!birthOrder || birthOrder < 1) return null;
   const lines = [
     '同一天出生的多胞胎：八字、生命靈數、稱骨通常完全一樣（除非出生時間跨過時辰，例如一個 12:50、一個 13:05）。',
-    '真正會不一樣的：①上升星座與宮位——上升星座平均每 2 小時換一個，差幾分鐘也可能不同；②姓名，每個人的姓名學都不同；③紫微斗數的傳統借宮看法；④瑪雅曆會把出生的時與分加進去計算。',
+    '真正會不一樣的：①上升星座與宮位（上升星座平均每 2 小時換一個，差幾分鐘也可能不同）；②姓名，每個人的姓名學都不同；③紫微斗數的傳統借宮看法；④瑪雅曆會把出生的時與分加進去計算。',
     '個性與人生也大量受環境與選擇影響，同卵雙胞胎也會長成不同的人，命盤只是其中一個角度。',
   ];
   if (birthOrder >= 2) {
@@ -304,6 +304,6 @@ function socialLine(bazi) {
 function mayaLine(maya) {
   const d = maya.items.find((x) => x.key === 'D');
   const e = maya.items.find((x) => x.key === 'E');
-  const kw = (x) => (x && x.keyword ? `${x.keyword}（${MAYA_KEYWORD_TEXT[x.keyword]}）` : '—');
+  const kw = (x) => (x && x.keyword ? `${x.keyword}（${MAYA_KEYWORD_TEXT[x.keyword].replace(/。$/, '')}）` : '—');
   return `表象 D 是「${kw(d)}」，別人看到的你；小宇宙 E 是「${kw(e)}」，你內在真正的核心。`;
 }

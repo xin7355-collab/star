@@ -71,6 +71,13 @@ test('畫面文字不使用 innerHTML（避免注入）', () => {
   }
 });
 
+test('畫面程式不直接用 replaceChildren（它會把 null 印成文字「null」，請改用 dom.js 的 fill）', () => {
+  for (const f of walk(join(ROOT, 'js'))) {
+    const code = readFileSync(f, 'utf8').replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
+    assert.ok(!/\.replaceChildren\(/.test(code), `${rel(f)} 直接用了 replaceChildren`);
+  }
+});
+
 test('index.html 的 modulepreload 清單與實際 import 關係同步（改了 import 請跑 node scripts/gen-preload.mjs）', async () => {
   const { preloadBlock } = await import('../scripts/gen-preload.mjs');
   assert.ok(readFileSync(join(ROOT, 'index.html'), 'utf8').includes(preloadBlock()));

@@ -3,7 +3,7 @@
 // 發佈新版時 VERSION 要跟 js/version.js 的 APP_VER、version.json 一致（tests/pwa.test.js 會檢查），
 // 舊快取會在新版啟用時清除。
 
-const VERSION = '2026.11.24-5';
+const VERSION = '2026.11.24-6';
 
 const ASSETS = [
   './',
@@ -37,6 +37,7 @@ const ASSETS = [
   './js/core/windfall.js',
   './js/core/reading.js',
   './js/core/reading-texts.js',
+  './js/core/daily.js',
   './js/core/date.js',
   './js/core/fortune.js',
   './js/core/natal.js',
@@ -55,11 +56,17 @@ const ASSETS = [
   './js/ui/records-store.js',
   './js/ui/storage.js',
   './js/ui/update.js',
+  './js/ui/motion.js',
+  './js/ui/icons.js',
+  './js/ui/widgets.js',
   './js/views/destiny.js',
   './js/views/fortune.js',
   './js/views/match.js',
   './js/views/me.js',
   './js/views/tarot.js',
+  './js/views/today.js',
+  './js/views/oracle.js',
+  './js/views/lotto.js',
 ];
 
 // version.json 用來偵測新版，必須每次都問伺服器，不能被快取住

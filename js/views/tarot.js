@@ -1,8 +1,9 @@
-// 「塔羅」：單張／三張／五張；使用裝置加密亂數、均勻不放回抽牌。問題不儲存、不上傳。
+// 「塔羅」（在「占卜」分頁裡）：單張／三張／五張；使用裝置加密亂數、均勻不放回抽牌。問題不儲存、不上傳。
 
 import { h, clear, segmented } from '../ui/dom.js';
 import { drawSpread, SPREADS } from '../core/tarot.js';
 import { load, save } from '../ui/storage.js';
+import { order } from '../ui/motion.js';
 
 export function mountTarot(root, ctx) {
   let spread = load('tarotSpread', 'three');
@@ -48,7 +49,8 @@ export function mountTarot(root, ctx) {
         h(
           'ol',
           { class: 'tarot-list' },
-          r.cards.map((c) =>
+          // 一張一張翻開（CSS flip-in，--i 控制先後）
+          order(r.cards.map((c) =>
             h(
               'li',
               { class: c.orientation === '逆位' ? 'rev' : '' },
@@ -56,7 +58,7 @@ export function mountTarot(root, ctx) {
               h('div', { class: 'tarot-name' }, h('b', { text: c.card }), h('span', { class: 'badge', text: c.orientation }), c.major ? h('span', { class: 'badge alt', text: '大牌' }) : null),
               h('p', { text: c.keywords }),
             ),
-          ),
+          )),
         ),
         h('div', { class: 'actions' }, h('button', {
           type: 'button',

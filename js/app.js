@@ -1,20 +1,26 @@
 // 主程式：分頁切換、名單／紀錄狀態、提示訊息與分享面板。
-// 命理分頁（八字、紫微等）用到才載入，讓第一次開啟更快。
+// 五個分頁：今日（預設）、時運、命盤、占卜、我的。時運、命盤、占卜第一次打開才載入，讓開 App 更快。
 
-import { $ } from './ui/dom.js';
+import { $, clear } from './ui/dom.js';
 import { load, save } from './ui/storage.js';
 import { readRaw } from './ui/birthform.js';
 import { buildNatal } from './core/natal.js';
 import { sharePoster, shareFile } from './ui/poster.js';
 import * as store from './ui/records-store.js';
 import { mountMe } from './views/me.js';
-import { mountFortune } from './views/fortune.js';
-import { mountMatch } from './views/match.js';
-import { mountTarot } from './views/tarot.js';
+import { mountToday } from './views/today.js';
 import { startUpdateWatcher } from './ui/update.js';
+import { enterView } from './ui/motion.js';
 
-const VIEWS = ['me', 'fortune', 'destiny', 'match', 'tarot'];
-const TITLES = { me: '我的', fortune: '運勢', destiny: '命理', match: '配對', tarot: '塔羅' };
+const VIEWS = ['today', 'fortune', 'destiny', 'oracle', 'me'];
+const TITLES = { today: '今日', fortune: '時運', destiny: '命盤', oracle: '占卜', me: '我的' };
+// 第一次打開才載入的分頁
+const LAZY = {
+  fortune: () => import('./views/fortune.js').then((m) => m.mountFortune),
+  destiny: () => import('./views/destiny.js').then((m) => m.mountDestiny),
+  oracle: () => import('./views/oracle.js').then((m) => m.mountOracle),
+};
+const viewApis = {};
 
 let state = store.loadAll();
 const natalCache = new Map();
@@ -92,37 +98,55 @@ function todayStamp() {
 // ── 分頁
 const mounted = new Set();
 async function ensureMounted(view) {
-  if (mounted.has(view)) return;
+  if (mounted.has(view)) return viewApis[view];
   mounted.add(view);
   const el = $(`#view-${view}`);
-  if (view === 'destiny') {
-    el.textContent = '載入中…';
+  if (LAZY[view]) {
+    clear(el);
+    const loading = document.createElement('p');
+    loading.className = 'muted center';
+    loading.textContent = '載入中…';
+    el.append(loading);
     try {
-      const { mountDestiny } = await import('./views/destiny.js');
-      el.textContent = '';
-      mountDestiny(el, ctx);
+      const mount = await LAZY[view]();
+      clear(el);
+      viewApis[view] = mount(el, ctx) || {};
     } catch {
       mounted.delete(view);
       el.textContent = '載入失敗，請確認網路後重新開啟 App。';
     }
   }
+  return viewApis[view];
 }
 
-function go(view) {
-  if (!VIEWS.includes(view)) view = 'me';
-  for (const v of VIEWS) {
+let current = null;
+async function go(view, opts) {
+  if (!VIEWS.includes(view)) view = state.people.length ? 'today' : 'me';
+  const changed = view !== current;
+  current = view;
+  VIEWS.forEach((v, i) => {
     $(`#view-${v}`).hidden = v !== view;
     const tab = $(`.tabbar [data-view="${v}"]`);
-    if (v === view) tab.setAttribute('aria-current', 'page');
-    else tab.removeAttribute('aria-current');
-  }
+    if (v === view) {
+      tab.setAttribute('aria-current', 'page');
+      $('.tabbar').style.setProperty('--tab', String(i));
+    } else tab.removeAttribute('aria-current');
+  });
   $('#page-title').textContent = TITLES[view];
+  $('#page-sub').textContent = view === 'today' ? todayLabel() : '';
   document.body.dataset.view = view;
   save('view', view);
   window.scrollTo(0, 0);
-  ensureMounted(view);
+  if (changed) enterView($(`#view-${view}`));
+  const api = await ensureMounted(view);
+  if (opts && api && api.open) api.open(opts);
 }
 document.querySelectorAll('.tabbar [data-view]').forEach((btn) => btn.addEventListener('click', () => go(btn.dataset.view)));
+
+function todayLabel() {
+  const d = new Date();
+  return `${d.getMonth() + 1}/${d.getDate()}（${'日一二三四五六'[d.getDay()]}）`;
+}
 
 const ctx = {
   getPeople: () => state.people,
@@ -199,14 +223,12 @@ const ctx = {
 };
 
 mountMe($('#view-me'), ctx);
-mountFortune($('#view-fortune'), ctx);
-mountMatch($('#view-match'), ctx);
-mountTarot($('#view-tarot'), ctx);
-['me', 'fortune', 'match', 'tarot'].forEach((v) => mounted.add(v));
+viewApis.today = mountToday($('#view-today'), ctx);
+['me', 'today'].forEach((v) => mounted.add(v));
 
-// 有資料就直接看運勢；沒有就先填生日
+// 有資料就打開上次看的分頁（預設「今日」）；沒有就先填生日
 const lastView = load('view');
-go(state.people.length ? (VIEWS.includes(lastView) && lastView !== 'me' ? lastView : 'fortune') : 'me');
+go(state.people.length ? (VIEWS.includes(lastView) && lastView !== 'me' ? lastView : 'today') : 'me');
 
 // 離線快取（只在 https 或 localhost 註冊）＋偵測新版自動更新
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {

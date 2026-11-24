@@ -1,4 +1,5 @@
-/* 星座手帳：手機優先（iPhone 為主），深色星空主題。顏色變數在 tokens.css。 */
+/* 星座手帳：手機優先（iPhone 為主），主題「星夜鎏金」。顏色變數在 tokens.css。
+   動畫原則：只動 transform 與 opacity（iPhone 上最順），進場依序出現；系統設定「減少動態效果」時全部關掉（檔尾）。 */
 * { box-sizing: border-box; }
 [hidden] { display: none !important; } /* 避免 display:grid/flex 蓋掉 hidden 屬性 */
 html { -webkit-text-size-adjust: 100%; }
@@ -9,30 +10,45 @@ body {
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
   font-size: 16px;
-  line-height: 1.6;
+  line-height: 1.65;
   padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 24px);
   /* 名字、紀錄、AI 短評可能有很長、沒有空格的英文或網址，不斷行會撐出水平捲動（長內容快照實測 3356px）；
      word-break 是 iOS 15.4 以前的退路 */
   word-break: break-word;
   overflow-wrap: anywhere;
+  -webkit-tap-highlight-color: transparent;
 }
-/* 裝飾用星空光暈放在獨立的固定圖層：內容底下都是實心底色，文字對比才能實際量測（design-qa） */
-body::before {
+/* 星空背景：獨立的固定圖層（內容底下都是實心底色，文字對比才能實際量測）。
+   星星用小的放射漸層平鋪，光暈三層；::after 那層星星會慢慢閃爍 */
+body::before,
+body::after {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(1000px 600px at 80% -10%, var(--glow-1), transparent 60%),
-    radial-gradient(800px 600px at -10% 110%, var(--glow-2), transparent 60%);
 }
+body::before {
+  background:
+    radial-gradient(900px 520px at 85% -8%, var(--glow-1), transparent 62%),
+    radial-gradient(760px 560px at -12% 108%, var(--glow-2), transparent 60%),
+    radial-gradient(520px 380px at 50% 45%, var(--glow-3), transparent 70%),
+    radial-gradient(1.2px 1.2px at 20% 30%, var(--star-dim), transparent 100%) 0 0 / 180px 180px,
+    radial-gradient(1px 1px at 70% 80%, var(--star-dim), transparent 100%) 0 0 / 240px 240px;
+}
+body::after {
+  background:
+    radial-gradient(1.6px 1.6px at 40% 60%, var(--star), transparent 100%) 0 0 / 260px 260px,
+    radial-gradient(1.3px 1.3px at 85% 15%, var(--star), transparent 100%) 0 0 / 320px 320px;
+  animation: twinkle 6s ease-in-out infinite alternate;
+}
+@keyframes twinkle { from { opacity: 0.35; } to { opacity: 0.95; } }
+
 /* 鍵盤移動焦點時，不要被固定的頂部標題、底部分頁與期間列擋住（WCAG 2.4.11） */
 html {
-  scroll-padding-top: calc(var(--safe-t) + 64px);
+  scroll-padding-top: calc(var(--safe-t) + 72px);
   scroll-padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + 24px);
 }
-/* 運勢頁多一條固定的期間切換列 */
 html:has(body[data-view="fortune"]) { scroll-padding-bottom: calc(var(--tabbar-h) + var(--period-h) + var(--safe-b) + 24px); }
 body[data-view="fortune"] { padding-bottom: calc(var(--tabbar-h) + var(--period-h) + var(--safe-b) + 24px); }
 
@@ -40,35 +56,62 @@ body[data-view="fortune"] { padding-bottom: calc(var(--tabbar-h) + var(--period-
   position: sticky;
   top: 0;
   z-index: 20;
-  padding: calc(var(--safe-t) + 10px) 16px 10px;
+  padding: calc(var(--safe-t) + 12px) 16px 10px;
   background: var(--bar-bg);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--hairline);
 }
-.topbar h1 { margin: 0; font-size: 20px; letter-spacing: 0.5px; }
+.topbar-inner { max-width: 640px; margin: 0 auto; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.topbar h1 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: 0.08em; }
+.topbar .top-sub { color: var(--muted); font-size: 13px; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-main { max-width: 640px; margin: 0 auto; padding: 12px 16px 0; }
-.view { display: flex; flex-direction: column; gap: 12px; }
+main { max-width: 640px; margin: 0 auto; padding: 14px 16px 0; }
+.view { display: flex; flex-direction: column; gap: 14px; }
 .view[hidden] { display: none; }
+.view.entering, .subview.entering { animation: view-in 0.38s var(--ease-out) both; }
+.subview { display: flex; flex-direction: column; gap: 14px; }
+@keyframes view-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-h2 { font-size: 20px; margin: 0 0 8px; }
-h3 { font-size: 17px; margin: 4px 0 8px; }
+h2 { font-size: 19px; margin: 0 0 8px; font-weight: 800; letter-spacing: 0.02em; }
+h3 { font-size: 16px; margin: 6px 0 8px; font-weight: 700; }
 p { margin: 6px 0; }
+b, strong { font-weight: 700; }
 
 .card {
+  position: relative;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 14px 34px var(--shadow);
 }
+.card.feature { border-color: var(--hairline-strong); }
 .card.tip { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .card.tip p { margin: 0; }
+/* 進場：每張卡依序浮上來（--i 由 motion.js 設定） */
+.rv { animation: rise 0.5s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 70ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(16px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+.card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.card-head h2 { margin: 0; font-size: 18px; }
+.card-head .sub { color: var(--muted); font-size: 13px; }
+.ico {
+  width: 36px; height: 36px; flex: none;
+  display: inline-grid; place-items: center;
+  border-radius: 11px;
+  background: var(--ico-bg);
+  color: var(--gold);
+  border: 1px solid var(--hairline);
+}
+.ico svg { width: 20px; height: 20px; }
+.kicker { color: var(--gold); font-size: 12px; font-weight: 700; letter-spacing: 0.18em; }
 
 .hint { color: var(--muted); font-size: 14px; }
 .muted { color: var(--muted); }
 .center { text-align: center; }
 .warn { color: var(--mid); font-size: 15px; }
+.gold { color: var(--gold); }
 .footnote { color: var(--muted); font-size: 12px; text-align: center; margin: 20px 0 8px; }
 
 /* ── 表單 */
@@ -80,16 +123,17 @@ input[type="text"], input[type="time"], select, textarea {
   /* WebKit 不把下拉選單、輸入框當「可壓縮」元素，最小寬度＝最長選項（「♐ 射手座（11/22–12/21）」），
      320 寬的 iPhone 會被撐出水平捲動（CI 的 WebKit 實測 57px）；Chromium 會自動壓縮所以看不出來 */
   min-width: 0;
-  min-height: 44px;
+  min-height: 46px;
   padding: 10px 12px;
   font-size: 16px; /* 16px 以上 iPhone 才不會自動放大畫面 */
   color: var(--text);
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-s);
   font-family: inherit;
   -webkit-appearance: none;
   appearance: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 select {
   /* 選中的文字比選單寬時（配對頁「♌ 獅子座（7/23–8/22）」），WebKit 雖然畫面上裁掉，版面仍把文字算進可捲動範圍，
@@ -97,27 +141,27 @@ select {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-image: linear-gradient(45deg, transparent 50%, var(--gold) 50%), linear-gradient(135deg, var(--gold) 50%, transparent 50%);
   background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
   background-size: 5px 5px;
   background-repeat: no-repeat;
   padding-right: 30px;
 }
 textarea { resize: vertical; margin-top: 10px; }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); outline-offset: 1px; border-color: var(--gold); }
 .row3 { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 /* 快速配對：名字通常很短，星座選單需要比較寬，320 寬時星座名稱才不會被截成「獅子…」 */
 .row2.name-sign { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
-.time-section { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.time-section { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: var(--radius-s); }
 .time-section[hidden] { display: none; }
 .check { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 8px 0; cursor: pointer; }
-.check input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.check input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--gold); flex: none; }
 .fold-box { display: flex; flex-wrap: wrap; gap: 8px; }
 .fold-box[hidden] { display: none; }
 
-/* ── 分段切換 */
-.seg { position: relative; display: flex; background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 3px; gap: 3px; }
+/* ── 分段切換：選到的那格是金色 */
+.seg { position: relative; display: flex; background: var(--bg2); border: 1px solid var(--line); border-radius: 14px; padding: 3px; gap: 3px; }
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
 .seg label {
   flex: 1;
@@ -126,37 +170,40 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9px;
+  border-radius: 11px;
   color: var(--muted);
   font-size: 15px;
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
+  transition: background-color 0.25s var(--ease-out), color 0.25s;
 }
-.seg input:checked + label { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.seg input:checked + label { background: var(--gold); color: var(--on-accent); font-weight: 800; }
 .seg input:focus-visible + label { outline: 2px solid var(--accent2); }
 
 /* ── 按鈕 */
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .btn {
-  min-height: 44px;
+  min-height: 46px;
   padding: 10px 18px;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid var(--line);
   background: var(--bg2);
   color: var(--text);
   font-size: 16px;
   font-family: inherit;
   cursor: pointer;
+  transition: transform 0.15s var(--ease-out), background-color 0.2s, border-color 0.2s;
 }
-.btn.primary { background: var(--accent); color: var(--on-accent); border: 0; font-weight: 700; flex: 1; }
+.btn.primary { background: var(--gold); color: var(--on-accent); border: 0; font-weight: 800; flex: 1; box-shadow: 0 8px 22px rgba(233, 196, 106, 0.25); }
 .btn.ghost { background: transparent; }
 .btn.small { min-height: 40px; padding: 8px 14px; font-size: 15px; }
-.btn:active { transform: scale(0.98); }
+.btn:active { transform: scale(0.97); }
 /* 送出中：避免重複按（design-qa submitting／busy） */
 .btn:disabled { opacity: 0.6; cursor: progress; transform: none; }
-.link { background: none; border: 0; color: var(--accent); font-size: 15px; padding: 10px 4px; min-height: 44px; cursor: pointer; font-family: inherit; }
+.link { background: none; border: 0; color: var(--gold); font-size: 15px; padding: 10px 4px; min-height: 44px; cursor: pointer; font-family: inherit; }
 .link.danger { color: var(--poor); }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 /* ── 我的 */
 .summary-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 15px; }
@@ -164,80 +211,101 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .glyph {
   width: 64px; height: 64px; flex: none;
   display: flex; align-items: center; justify-content: center;
-  font-size: 36px; border-radius: 50%;
+  font-size: 34px; border-radius: 50%;
   background: var(--glyph-1);
-  border: 1px solid var(--line);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: 0 0 24px rgba(233, 196, 106, 0.18);
 }
-.hero-title { font-size: 24px; font-weight: 800; }
+.hero-title { font-size: 24px; font-weight: 800; letter-spacing: 0.04em; }
 .hero-sub { color: var(--muted); font-size: 14px; }
 ul.plain { list-style: none; padding: 0; margin: 8px 0; }
-ul.plain li { padding: 6px 0; border-bottom: 1px solid var(--divider); }
+ul.plain li { padding: 7px 0; border-bottom: 1px solid var(--divider); }
 ul.plain li:last-child { border-bottom: 0; }
 .notes { margin: 6px 0; }
 .privacy { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--muted); font-size: 14px; }
 
 details.more { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 4px; }
-details.more summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent); font-size: 15px; }
+details.more summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--gold); font-size: 15px; }
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { width: 100%; border-collapse: collapse; font-size: 15px; }
 th, td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--divider); white-space: nowrap; }
 thead th { color: var(--muted); font-weight: 500; font-size: 13px; }
 tbody th { font-weight: 600; }
 
-/* ── 運勢 */
-.sign-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.sign-btn {
-  position: relative;
-  min-height: 64px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  background: var(--card); color: var(--text);
-  border: 1px solid var(--line); border-radius: 14px;
-  font-size: 14px; font-family: inherit; cursor: pointer;
-}
-.sign-btn .sign-glyph { font-size: 22px; line-height: 1; }
-.sign-btn.selected { border-color: var(--accent); background: var(--selected-bg); box-shadow: 0 0 0 2px var(--accent-ring); }
-.me-badge {
-  position: absolute; top: 4px; right: 4px;
-  font-size: 11px; line-height: 1; padding: 3px 5px;
-  border-radius: 8px; background: var(--accent2); color: var(--on-accent); font-weight: 700;
-}
-.fortune-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.score-hero { display: flex; align-items: center; gap: 14px; margin: 8px 0 12px; }
+/* ── 分數環：conic-gradient 畫進度，--p 由 0 動到分數（@property 讓瀏覽器能補間） */
+/* inherits: true：進度弧畫在 ::before，偽元素要繼承得到 --p（設成不繼承時弧永遠是 0，整圈灰色） */
+@property --p { syntax: '<number>'; inherits: true; initial-value: 0; }
+.score-hero { display: flex; align-items: center; gap: 16px; margin: 8px 0 12px; }
 .score-ring {
-  width: 84px; height: 84px; flex: none; border-radius: 50%;
+  --p: 0;
+  position: relative;
+  width: 92px; height: 92px; flex: none; border-radius: 50%;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  border: 6px solid currentColor;
+  color: var(--gold);
+  transition: --p 1.3s var(--ease-out);
 }
-.score-ring b { font-size: 28px; line-height: 1; color: var(--text); }
-.score-ring small { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.score-ring::before {
+  content: '';
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(currentColor calc(var(--p) * 1%), var(--track) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 8px), var(--mask-solid) calc(100% - 7px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 8px), var(--mask-solid) calc(100% - 7px));
+}
+.score-ring b { position: relative; font-size: 28px; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.score-ring small { position: relative; font-size: 12px; color: var(--muted); margin-top: 3px; }
+.score-ring.big { width: 118px; height: 118px; }
+.score-ring.big b { font-size: 36px; }
 .summary { margin: 0; font-size: 15px; }
 .lv-high { color: var(--good); }
 .lv-mid { color: var(--mid); }
 .lv-low { color: var(--low); }
 .lv-poor { color: var(--poor); }
 
+/* ── 運勢 */
+.sign-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.sign-btn {
+  position: relative;
+  min-height: 66px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--line); border-radius: 16px;
+  font-size: 14px; font-family: inherit; cursor: pointer;
+  transition: transform 0.2s var(--ease-out), border-color 0.2s, background-color 0.2s;
+}
+.sign-btn:active { transform: scale(0.95); }
+.sign-btn .sign-glyph { font-size: 22px; line-height: 1; }
+.sign-btn.selected { border-color: var(--gold); background: var(--selected-bg); box-shadow: 0 0 0 2px var(--accent-ring), 0 8px 20px rgba(233, 196, 106, 0.15); }
+.me-badge {
+  position: absolute; top: 4px; right: 4px;
+  font-size: 11px; line-height: 1; padding: 3px 5px;
+  border-radius: 8px; background: var(--accent2); color: var(--on-accent); font-weight: 800;
+}
+.fortune-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+
 .bar { margin: 10px 0; }
 .bar-head { display: flex; justify-content: space-between; color: var(--text); font-size: 15px; }
-.bar-head b { color: inherit; }
+.bar-head b { color: inherit; font-variant-numeric: tabular-nums; }
 .bar.lv-high .bar-head b { color: var(--good); }
 .bar.lv-mid .bar-head b { color: var(--mid); }
 .bar.lv-low .bar-head b { color: var(--low); }
 .bar.lv-poor .bar-head b { color: var(--poor); }
 .bar-track { height: 10px; background: var(--track); border-radius: 6px; overflow: hidden; margin-top: 4px; }
-.bar-fill { height: 100%; border-radius: 6px; background: currentColor; transition: width 0.4s ease; }
+.bar-fill { height: 100%; border-radius: 6px; background: currentColor; transform-origin: left; animation: grow 0.9s var(--ease-out) both; }
+@keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 ol.days { list-style: none; padding: 0; margin: 4px 0; }
 ol.days li { display: grid; grid-template-columns: 92px 1fr 32px; align-items: center; gap: 8px; padding: 4px 0; font-size: 14px; }
 .day-label { color: var(--text); }
 .day-track { height: 8px; background: var(--track); border-radius: 5px; overflow: hidden; }
-.day-fill { display: block; height: 100%; background: currentColor; border-radius: 5px; }
-ol.days b { text-align: right; }
+.day-fill { display: block; height: 100%; background: currentColor; border-radius: 5px; transform-origin: left; animation: grow 0.8s var(--ease-out) both; }
+ol.days b { text-align: right; font-variant-numeric: tabular-nums; }
 
 ul.reasons { list-style: none; padding: 0; margin: 4px 0; }
 ul.reasons li { padding: 6px 0 6px 18px; position: relative; font-size: 15px; }
 ul.reasons li::before { content: ''; position: absolute; left: 2px; top: 14px; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 ul.reasons li.tone-good::before { background: var(--good); }
 ul.reasons li.tone-bad::before { background: var(--poor); }
+ul.reasons li.tone-info::before { background: var(--accent2); }
 
 .period-bar {
   position: fixed;
@@ -246,11 +314,123 @@ ul.reasons li.tone-bad::before { background: var(--poor); }
   z-index: 25;
   padding: 6px 16px;
   background: var(--bar-bg-strong);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  border-top: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid var(--hairline);
 }
 .period-bar .seg { max-width: 608px; margin: 0 auto; }
+
+/* ── 今日：吉時條（13 格，顏色代表吉凶；點一格看建議） */
+.hours { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 3px; margin: 10px 0 4px; }
+.hour {
+  position: relative;
+  min-height: 56px; padding: 6px 0 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px;
+  border: 1px solid transparent; border-radius: 9px;
+  background: var(--bg2); color: var(--muted);
+  font-family: inherit; font-size: 11px; cursor: pointer;
+  transform-origin: bottom;
+  animation: hour-in 0.5s var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 35ms);
+}
+@keyframes hour-in { from { transform: scaleY(0.2); opacity: 0; } to { transform: none; opacity: 1; } }
+.hour::before { content: ''; width: 70%; border-radius: 4px; background: var(--track); height: 16px; }
+.hour.good::before { background: var(--good); height: 28px; }
+.hour.bad::before { background: var(--poor); height: 10px; }
+.hour.clash::before { background: var(--low); height: 10px; }
+.hour.now { border-color: var(--gold); color: var(--text); }
+.hour.now::after { content: ''; position: absolute; top: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: pulse 1.6s ease-in-out infinite; }
+.hour[aria-pressed="true"] { border-color: var(--accent2); color: var(--text); background: var(--selected-bg); }
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.8); opacity: 0.4; } }
+.hour-detail { background: var(--bg2); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin-top: 8px; }
+.hour-detail h3 { margin: 0 0 4px; }
+.legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 4px 0 8px; vertical-align: middle; }
+
+/* ── 樂透彩球：一顆一顆彈出來 */
+.balls { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.ball {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: inline-grid; place-items: center;
+  background: var(--ball); color: var(--ball-text);
+  font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums;
+  box-shadow: inset -5px -6px 10px rgba(0, 0, 0, 0.18), inset 4px 4px 8px rgba(255, 255, 255, 0.55), 0 6px 14px var(--shadow);
+  animation: ball-drop 0.6s var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+.ball.alt { background: var(--ball-alt); }
+@keyframes ball-drop { from { transform: translateY(-36px) scale(0.4) rotate(-90deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.ball-sep { align-self: center; color: var(--muted); font-size: 14px; }
+
+/* ── 擇日：30 天熱度格 */
+.heat { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 10px 0; }
+.heat button {
+  min-height: 46px; border: 1px solid transparent; border-radius: 10px;
+  color: var(--text); font-family: inherit; font-size: 13px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2;
+  animation: rise 0.4s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 18ms);
+}
+.heat button span { white-space: nowrap; }
+.heat button small { font-size: 11px; color: var(--text); opacity: 1; font-variant-numeric: tabular-nums; }
+.heat .h0 { background: var(--heat-0); }
+.heat .h1 { background: var(--heat-1); }
+.heat .h2 { background: var(--heat-2); }
+.heat .h3 { background: var(--heat-3); }
+.heat .h4 { background: var(--heat-4); }
+.heat button[aria-pressed="true"] { border-color: var(--gold); }
+.heat .pad { visibility: hidden; }
+.heat-head { text-align: center; font-size: 12px; color: var(--muted); }
+
+/* ── 近期提醒：直式時間軸 */
+ol.timeline { list-style: none; margin: 6px 0; padding: 0 0 0 18px; position: relative; }
+ol.timeline::before { content: ''; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; background: var(--line); border-radius: 2px; }
+ol.timeline li { position: relative; padding: 6px 0 10px 8px; }
+ol.timeline li::before { content: ''; position: absolute; left: -17px; top: 12px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent2); border: 2px solid var(--card); }
+ol.timeline li.warn::before { background: var(--low); }
+ol.timeline li.good::before { background: var(--good); }
+ol.timeline .tl-title { font-weight: 700; }
+ol.timeline .tl-basis { color: var(--muted); font-size: 13px; }
+
+/* ── 綜合解讀 */
+.traits { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.trait { background: var(--bg2); border: 1px solid var(--hairline); border-radius: 14px; padding: 10px 12px; }
+.trait-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.trait-head b { color: var(--gold); font-size: 16px; }
+.count { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--gold-2); white-space: nowrap; }
+details.area { border: 1px solid var(--line); border-radius: 16px; background: var(--bg2); padding: 0 12px; margin: 8px 0; }
+details.area > summary { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; font-weight: 800; list-style: none; }
+details.area > summary::-webkit-details-marker { display: none; }
+details.area > summary::after { content: '＋'; color: var(--gold); font-weight: 400; transition: transform 0.3s var(--ease-out); }
+details.area[open] > summary::after { transform: rotate(45deg); }
+details.area[open] > .area-body { animation: rise 0.35s var(--ease-out) both; }
+.area-body { padding-bottom: 10px; }
+.sys { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--badge-bg); color: var(--text); margin-right: 6px; white-space: nowrap; }
+.sys-占星 { background: var(--sys-astro); }
+.sys-八字 { background: var(--sys-bazi); }
+.sys-紫微 { background: var(--sys-ziwei); }
+.sys-生命靈數 { background: var(--sys-number); }
+.sys-瑪雅 { background: var(--sys-maya); }
+.sys-姓名 { background: var(--sys-name); }
+.sys-稱骨 { background: var(--sys-bone); }
+.point { padding: 6px 0; border-bottom: 1px solid var(--divider); }
+.point:last-child { border-bottom: 0; }
+
+/* ── 姓名 */
+.name-chars { display: flex; justify-content: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+.name-char {
+  width: 76px; padding: 8px 4px; border-radius: 16px; text-align: center;
+  background: var(--bg2); border: 1px solid var(--hairline);
+  animation: rise 0.5s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 90ms);
+}
+.name-char .zy { color: var(--muted); font-size: 13px; }
+.name-char .hz { font-size: 34px; font-weight: 800; line-height: 1.2; }
+.name-char .st { color: var(--gold); font-size: 13px; font-variant-numeric: tabular-nums; }
+.grids { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 10px 0; }
+.grid-cell { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 2px; text-align: center; }
+.grid-cell .gv { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.grid-cell .gl { font-size: 12px; color: var(--muted); }
+.grid-cell.good .gv { color: var(--good); }
+.grid-cell.mixed .gv { color: var(--mid); }
+.grid-cell.bad .gv { color: var(--poor); }
 
 /* ── 配對 */
 .person { display: flex; flex-direction: column; gap: 8px; }
@@ -260,45 +440,67 @@ ul.reasons li.tone-bad::before { background: var(--poor); }
 .tips { margin-top: 8px; }
 ol.pairs { list-style: none; padding: 0; margin: 8px 0; }
 ol.pairs li { display: flex; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--divider); }
-ol.pairs li span { color: var(--text); }
+ol.pairs li span { color: var(--text); min-width: 0; }
+ol.pairs li b { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .match-result:empty { display: none; }
 
-/* ── 塔羅 */
-ol.tarot-list { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 10px; }
-ol.tarot-list li { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+/* ── 塔羅：翻牌 */
+ol.tarot-list { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 12px; perspective: 1000px; }
+ol.tarot-list li {
+  background: var(--bg2); border: 1px solid var(--hairline); border-radius: 16px; padding: 12px;
+  transform-origin: center;
+  animation: flip-in 0.7s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 220ms);
+  backface-visibility: hidden;
+}
+@keyframes flip-in { 0% { transform: rotateY(90deg) translateY(10px); opacity: 0; } 60% { opacity: 1; } 100% { transform: none; opacity: 1; } }
 ol.tarot-list li.rev { border-style: dashed; }
 .pos { font-size: 13px; color: var(--muted); }
 .tarot-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 18px; }
 .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--badge-bg); color: var(--text); }
 .badge.alt { background: var(--badge-alt-bg); }
 
-/* ── 底部分頁 */
+/* ── 底部分頁：金色小膠囊跟著選到的分頁滑動 */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
   display: grid; grid-template-columns: repeat(5, 1fr);
   height: calc(var(--tabbar-h) + var(--safe-b));
   padding-bottom: var(--safe-b);
   background: var(--tabbar-bg);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  border-top: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--hairline);
+}
+.tabbar::before {
+  content: '';
+  position: absolute; top: 6px; left: 0;
+  width: 20%; height: calc(var(--tabbar-h) - 12px);
+  pointer-events: none;
+  transform: translateX(calc(var(--tab, 0) * 100%));
+  transition: transform 0.45s var(--ease-spring);
+  background: radial-gradient(closest-side, rgba(233, 196, 106, 0.22), transparent 85%);
 }
 .tabbar button {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   background: none; border: 0; color: var(--muted); font-size: 12px; font-family: inherit; cursor: pointer;
+  transition: color 0.25s;
 }
-.tabbar .tab-ico { font-size: 20px; line-height: 1; }
-.tabbar .tab-text { font-size: 17px; font-weight: 700; }
-.tabbar button[aria-current="page"] { color: var(--accent); font-weight: 700; }
+.tabbar svg { width: 24px; height: 24px; transition: transform 0.35s var(--ease-spring); }
+.tabbar button[aria-current="page"] { color: var(--gold); font-weight: 800; }
+.tabbar button[aria-current="page"] svg { transform: translateY(-2px) scale(1.12); }
 
 /* ── 分享面板與提示 */
-.sheet { position: fixed; inset: 0; z-index: 50; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { position: fixed; inset: 0; z-index: 50; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; animation: fade 0.25s both; }
 .sheet[hidden] { display: none; }
 .sheet-panel {
   width: 100%; max-width: 640px; max-height: 90vh; overflow: auto;
-  background: var(--card); border-radius: 20px 20px 0 0;
+  background: var(--card); border-radius: 24px 24px 0 0;
+  border-top: 1px solid var(--hairline-strong);
   padding: 12px 16px calc(16px + var(--safe-b));
+  animation: sheet-up 0.4s var(--ease-out) both;
 }
+@keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 .sheet-top { display: flex; justify-content: space-between; align-items: center; }
 .sheet-img { width: 100%; height: auto; border-radius: 12px; display: block; -webkit-touch-callout: default; }
 .toast {
@@ -306,17 +508,20 @@ ol.tarot-list li.rev { border-style: dashed; }
   bottom: calc(var(--tabbar-h) + var(--safe-b) + 16px);
   max-width: 560px; margin: 0 auto;
   background: var(--toast-bg); color: var(--on-accent);
-  padding: 12px 16px; border-radius: 12px;
-  font-size: 15px; box-shadow: 0 8px 24px var(--shadow);
+  padding: 12px 16px; border-radius: 14px;
+  font-size: 15px; box-shadow: 0 10px 28px var(--shadow);
+  animation: rise 0.35s var(--ease-out) both;
 }
 body[data-view="fortune"] .toast { bottom: calc(var(--tabbar-h) + var(--period-h) + var(--safe-b) + 16px); }
 .toast[hidden] { display: none; }
 
+/* 載入中的骨架：一道光掃過 */
+.skeleton { border-radius: 12px; background: var(--bg2); position: relative; overflow: hidden; min-height: 18px; margin: 8px 0; }
+.skeleton::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent); animation: shimmer 1.3s infinite; }
+@keyframes shimmer { to { transform: translateX(100%); } }
+
 @media (min-width: 700px) {
   body { font-size: 17px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .bar-fill { transition: none; }
 }
 
 /* ── 共用小元件 */
@@ -324,22 +529,29 @@ body[data-view="fortune"] .toast { bottom: calc(var(--tabbar-h) + var(--period-h
 .field-label { font-size: 14px; color: var(--muted); display: block; margin: 8px 0 4px; }
 .visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .badge.danger { background: var(--danger-bg); }
+.badge.good { background: var(--good-bg); }
 details.more.first { margin-top: 0; border-top: 0; padding-top: 0; }
 .controls .row2 { align-items: end; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.stat-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.stat { background: var(--bg2); border: 1px solid var(--line); border-radius: 14px; padding: 10px 6px; text-align: center; }
+.stat .sv { font-size: 18px; font-weight: 800; color: var(--gold); }
+.stat .sl { font-size: 12px; color: var(--muted); }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--line); }
 
 /* ── 我的：切換、名單、紀錄 */
 .person-switch { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .person-switch select { flex: 1; }
 ul.people { list-style: none; padding: 0; margin: 4px 0; }
 ul.people li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--divider); flex-wrap: wrap; }
-ul.people li.active .people-main b { color: var(--accent); }
+ul.people li.active .people-main b { color: var(--gold); }
 .people-main { min-width: 0; flex: 1 1 60%; }
 .people-main .badge { margin-left: 6px; }
 .people-actions { display: flex; gap: 4px; align-items: center; }
 ul.history { list-style: none; padding: 0; margin: 4px 0; }
 ul.history li { border-bottom: 1px solid var(--divider); padding: 4px 0; }
 ul.history summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-.import-box { border: 1px dashed var(--line); border-radius: 12px; padding: 8px 12px; margin-top: 8px; }
+.import-box { border: 1px dashed var(--line); border-radius: var(--radius-s); padding: 8px 12px; margin-top: 8px; }
 
 /* ── 農民曆 */
 .almanac-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px; }
@@ -353,7 +565,7 @@ ul.history summary { cursor: pointer; min-height: 44px; display: flex; align-ite
 /* ── 八字 */
 table.pillars th, table.pillars td { text-align: center; white-space: normal; }
 table.pillars tbody th { text-align: left; color: var(--muted); font-weight: 500; font-size: 13px; }
-table.pillars tr.big td { font-size: 26px; font-weight: 800; }
+table.pillars tr.big td { font-size: 28px; font-weight: 800; }
 table.pillars tr.small td { font-size: 13px; color: var(--muted); }
 .wx-wood { color: var(--wx-wood); }
 .wx-fire { color: var(--wx-fire); }
@@ -364,21 +576,22 @@ table.pillars tr.small td { font-size: 13px; color: var(--muted); }
 .wx-row b { color: var(--text); text-align: right; }
 ol.dayun, ol.liunian { list-style: none; padding: 0; margin: 6px 0; }
 ol.dayun li { padding: 6px 0; border-bottom: 1px solid var(--divider); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-ol.dayun li.current { color: var(--accent); }
+ol.dayun li.current { color: var(--gold); }
 ol.liunian li { padding: 10px 0; border-bottom: 1px solid var(--divider); }
 .ln-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .taisui li.mine { color: var(--mid); }
-blockquote.poem { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var(--accent2); background: var(--bg2); border-radius: 0 12px 12px 0; line-height: 1.9; }
+blockquote.poem { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var(--gold); background: var(--bg2); border-radius: 0 12px 12px 0; line-height: 1.9; }
 
 /* ── 紫微命盤（4×4，外圈 12 宮、中間 2×2 放基本資料） */
 .ziwei-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, auto); gap: 3px; margin: 8px 0; }
 .palace {
   min-width: 0; min-height: 96px; padding: 4px; text-align: left;
   display: flex; flex-direction: column; gap: 2px;
-  background: var(--bg2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg2); color: var(--text); border: 1px solid var(--line); border-radius: 9px;
   font-family: inherit; font-size: 12px; line-height: 1.35; cursor: pointer;
+  animation: rise 0.45s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 40ms);
 }
-.palace.soul { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.palace.soul { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
 .palace.decadal { background: var(--highlight-bg); }
 .palace.yearly { outline: 2px dashed var(--mid); outline-offset: -3px; }
 .pal-name { display: flex; justify-content: space-between; align-items: center; }
@@ -387,32 +600,52 @@ blockquote.poem { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var
 .pal-stars .major { display: flex; gap: 2px; align-items: center; font-weight: 600; white-space: nowrap; }
 .pal-minor { color: var(--muted); font-size: 11px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .pal-foot { margin-top: auto; display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
-.palace-center { grid-row: 2 / 4; grid-column: 2 / 4; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; text-align: center; font-size: 12px; padding: 6px; border: 1px dashed var(--line); border-radius: 8px; }
+.palace-center { grid-row: 2 / 4; grid-column: 2 / 4; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; text-align: center; font-size: 12px; padding: 6px; border: 1px dashed var(--hairline-strong); border-radius: 9px; }
 .palace-center b { font-size: 16px; }
 .mg { display: inline-block; font-size: 10px; line-height: 1.4; padding: 0 3px; border-radius: 4px; color: var(--on-accent); font-weight: 700; }
 .mg-lu { background: var(--good); }
 .mg-quan { background: var(--accent2); }
-.mg-ke { background: var(--accent); }
+.mg-ke { background: var(--teal); }
 .mg-ji { background: var(--poor); }
 .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--muted); }
 .legend-box { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
 .legend-box.decadal { background: var(--highlight-bg); border: 1px solid var(--line); }
 .legend-box.yearly { border: 2px dashed var(--mid); }
 .palace-detail { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+/* 窄螢幕：吉時條改成兩排（7＋6），每格才有 24px 以上好點（WCAG 2.5.8） */
+@media (max-width: 379px) {
+  .hours { grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 6px; }
+  .hour { min-height: 48px; }
+}
 @media (max-width: 359px) {
   .pal-minor { display: none; }
   .palace { min-height: 84px; font-size: 11px; }
+  .hours { gap: 2px; }
+  .hour { font-size: 10px; }
+  .name-char { width: 64px; }
+  .grids .gv { font-size: 19px; }
 }
 
 /* ── 瑪雅、生命靈數 */
 .maya-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 8px 0; }
-.maya-cell { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
+.maya-cell { background: var(--bg2); border: 1px solid var(--line); border-radius: 14px; padding: 10px; text-align: center; animation: rise 0.45s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 70ms); }
 .maya-cell.wide { grid-column: 1 / -1; }
-.maya-value { font-size: 30px; font-weight: 800; color: var(--accent); line-height: 1.2; }
+.maya-value { font-size: 30px; font-weight: 800; color: var(--gold); line-height: 1.2; }
 table.compare tr.same td, table.compare tr.same th { background: var(--accent-soft); }
 .nine-grid { display: grid; grid-template-columns: repeat(3, 64px); gap: 8px; justify-content: center; margin: 8px 0; }
 .nine-cell { width: 64px; height: 64px; border-radius: 50%; border: 1px dashed var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); }
 .nine-cell b { font-size: 22px; }
-.nine-cell.on { border: 2px solid var(--accent); color: var(--text); background: var(--accent-soft); }
+.nine-cell.on { border: 2px solid var(--gold); color: var(--text); background: var(--accent-soft); animation: rise 0.4s var(--ease-spring) both; }
 .nine-cell small { font-size: 11px; }
-.score-ring b { font-size: 24px; }
+
+/* 系統設定「減少動態效果」：所有動畫與轉場直接跳到結果 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  body::after { animation: none; }
+}

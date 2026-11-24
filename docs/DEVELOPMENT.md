@@ -14,18 +14,23 @@
 | `npm test` | 單元測試（計算核心、紀錄、Worker、PWA 規則） | 只要 Node 20 以上，不用安裝套件 |
 | `npm ci --ignore-scripts` | 安裝開發套件（版本固定在 package-lock.json） | 下面幾個指令都要先跑 |
 | `npm run test:e2e` | 手機尺寸端對端測試（Playwright，iPhone 13） | 加 `PW_WEBKIT=1` 另跑 WebKit |
-| `npm run qa:design` | design-qa 版面稽核：320／390／1440 與長內容 34 張快照，全部要 CLEAN | Python 3 |
+| `npm run qa:design` | design-qa 版面稽核：320／390／1440 與長內容 56 張快照，全部要 CLEAN | Python 3 |
 | `npm run build` | 重新打包 `vendor/`（農曆、紫微、天文函式庫）與 `worker/dist/` | |
 | `node scripts/gen-preload.mjs` | 重新產生 `index.html` 的 modulepreload 清單 | |
 | `python3 scripts/gen-zh-map.py` | 重新產生簡轉繁對照表 `js/core/zh-data.js` | `pip install -r requirements-dev.txt` |
+| `python3 scripts/gen-kangxi.py` | 重新產生康熙筆畫與讀音 `js/core/kangxi-data.js`（自動下載 cjk-unihan 0.0.3、核對 sha512） | npm |
 
 ## 改前端時的規則
 
 - 新增前端檔案（`js/`、`css/`、`vendor/`）要加進 `sw.js` 的 `ASSETS`，否則離線打不開（`tests/pwa.test.js` 會擋）。
 - 每次改前端都把 `js/version.js`、`version.json`、`sw.js` 的版本號一起改（測試檢查三者一致）；
   手機上的舊頁面看到新版本號會自動更新。
-- 改了 import 關係後跑 `node scripts/gen-preload.mjs`（測試檢查清單同步）。
-- 畫面文字一律用 `textContent`，不用 `innerHTML`（測試會擋）。
+- 改了 import 關係後跑 `node scripts/gen-preload.mjs`（測試檢查清單同步）。預設分頁「今日」一定會動態載入的模組列在
+  `EAGER`，也一起預載；其他分頁的模組維持用到才載入。
+- 畫面文字一律用 `textContent`，不用 `innerHTML`（測試會擋）。換掉子元素用 `dom.js` 的 `fill()`，
+  不要直接用 `replaceChildren`（它會把 null 印成文字「null」，測試會擋）。
+- 動畫只動 transform／opacity；要尊重「減少動態效果」（`css/app.css` 檔尾、`js/ui/motion.js`）。
+  分數環的 `--p` 要是可繼承的（進度弧畫在 `::before`）。
 - 函式庫輸出的簡體字經 `js/core/zh.js` 的 `tw()` 轉成台灣繁中。
 - 不得新增任何把名單、生日、紀錄送出去的請求（E2E 的隱私測試會擋）。
 
@@ -34,17 +39,18 @@
 每次 push 都跑：
 
 1. **unit**：`npm test`，再重新打包並確認 `vendor/`、`worker/dist/`、`index.html` 和 repo 裡的一樣（防止改了原始碼忘記重打包）。
-2. **e2e**：Chromium 與 WebKit（Safari 的引擎）各跑一次 E2E，再跑 design-qa；報告與快照上傳成 Actions 附件（保留 7 天）。
+2. **e2e**：Chromium 與 WebKit（Safari 的引擎）各跑一次 E2E（預設在「減少動態效果」下跑，另有一組開著動畫），
+   再跑 design-qa；報告與快照上傳成 Actions 附件（保留 7 天）。
 
 結果在 https://github.com/xin7355-collab/star/actions 。
 
 ## 檔案結構
 
 ```
-index.html, manifest.webmanifest, sw.js, version.json, icons/   PWA 外殼
-css/tokens.css        顏色等設計變數（全站只從這裡取色）
-css/app.css           樣式（手機優先）
-js/app.js             分頁切換、分享面板、提示訊息、本機資料
+index.html, manifest.webmanifest, sw.js, version.json, icons/   PWA 外殼（分頁圖示是 index.html 裡的 SVG）
+css/tokens.css        顏色等設計變數（全站只從這裡取色；主題「星夜鎏金」）
+css/app.css           樣式與動畫（手機優先，檔尾是「減少動態效果」）
+js/app.js             分頁切換（今日、時運、命盤、占卜、我的）、分享面板、提示訊息、本機資料
 js/config.js          AI Worker 網址（公開設定，不放金鑰）
 js/version.js         版本號
 js/core/              計算核心（不碰畫面，可在 Node 測試）
@@ -55,13 +61,19 @@ js/core/              計算核心（不碰畫面，可在 Node 測試）
   calendar.js                 農曆換算、農民曆
   bazi.js ziwei.js            八字（大運流年、犯太歲）、紫微
   maya.js numerology.js chenggu.js  瑪雅曆、生命靈數、稱骨
+  name.js name-texts.js zhuyin.js kangxi-data.js  姓名學（康熙筆畫、五格三才、81 數理、注音）
+  timing.js                   吉時表、擇日、近期提醒（逆行、日月食、月相、換流月）
+  windfall.js                 偏財指數、樂透幸運號碼
+  daily.js                    今日綜合指數、幸運色與方位
+  reading.js reading-texts.js 多系統綜合解讀、多胞胎、各系統白話內容
   records.js                  名單與紀錄的驗證、備份格式
   zh.js zh-data.js            簡轉台灣繁中
-js/ui/                共用元件（生日表單、圖卡、儲存、AI 佇列、自動更新）
-js/views/             五個分頁
+js/ui/                共用元件（生日表單、圖卡、儲存、AI 佇列、自動更新、動畫 motion.js、圖示 icons.js、
+                      吉時條／彩球／時間軸／擇日格 widgets.js）
+js/views/             today（今日）、fortune（時運）、destiny（命盤）、oracle（占卜：tarot、lotto、match）、me（我的）
 vendor/               打包好的第三方函式庫（來源與授權見 NOTICE.md）
 worker/               Cloudflare Worker（AI 代理，選用）
-scripts/              打包、產生清單、本機伺服器、design-qa
+scripts/              打包、產生清單與資料、本機伺服器、design-qa
 tests/                單元測試；tests/e2e/ 手機尺寸端對端測試
 docs/qa/              design-qa 狀態表、豁免、簽核、效能紀錄
 .claude/skills/       開發用技能（見下）

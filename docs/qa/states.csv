@@ -41,9 +41,9 @@ AI 短評卡,data_view,populated,DONE,手動 E2E（模擬 Worker 回應，先 20
 塔羅抽牌,action,disabled,NA,,沒有停用狀態
 塔羅抽牌,action,busy,NA,,同步抽牌
 塔羅抽牌,action,failure,NA,,只用手機內建加密亂數，沒有外部呼叫
-整頁,page,narrow_320,DONE,e2e:版面：320px 寬的手機，五個分頁都沒有水平捲動,CI 上 Chromium 與 WebKit 都跑
-整頁,page,wide_1440,DONE,npm run qa:design（wide-* 6 張 1440 快照 CLEAN）,
-整頁,page,long_content,DONE,npm run qa:design（long-* 12 張 320／390 快照 CLEAN）,名單 50 人、紀錄 300 筆、名字 20 字無空格英文
+整頁,page,narrow_320,DONE,e2e:版面：320px 寬的手機，各分頁與面板都沒有水平捲動、沒有「null／undefined」字樣,CI 上 Chromium 與 WebKit 都跑
+整頁,page,wide_1440,DONE,npm run qa:design（wide-* 10 張 1440 快照 CLEAN）,
+整頁,page,long_content,DONE,npm run qa:design（long-* 20 張 320／390 快照 CLEAN）,名單 50 人、紀錄 300 筆、名字 20 字無空格英文
 運勢卡,data_view,long_content,DONE,npm run qa:design（long-fortune：今年 12 個月與 AI 短評 200 字）,
 農民曆卡,data_view,long_content,DONE,npm run qa:design（long-fortune：2027-12-31 宜 30 項，兩年內最多）,
 AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模擬 200 字含無空格長網址；Worker 上限 200 字）,
@@ -56,3 +56,45 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 精準配對,action,disabled,DONE,code:js/views/match.js 計算中按鈕停用,與生日表單同一做法（生日表單有 E2E）
 精準配對,action,busy,DONE,code:js/views/match.js「計算中…」,與生日表單同一做法（生日表單有 E2E）
 精準配對,action,failure,DONE,code:js/views/match.js「第 N 位：錯誤原因」提示,
+今日儀表板,data_view,loading,DONE,code:js/views/today.js 骨架＋「計算今天的運勢中…」,
+今日儀表板,data_view,empty,DONE,npm run qa:design（empty-today：「輸入生日，打開你的專屬運勢」）,
+今日儀表板,data_view,error,DONE,code:js/views/today.js「今日運勢需要的元件載入失敗，請確認網路後重新開啟 App。」,
+今日儀表板,data_view,populated,DONE,e2e:今日：綜合指數有依據、吉時表可點、偏財與幸運號碼可再換一組,
+今日儀表板,data_view,long_content,DONE,npm run qa:design（long-today：AI 短評與宜忌最多的一天）,
+吉時表,control,default,DONE,e2e:今日：綜合指數有依據、吉時表可點、偏財與幸運號碼可再換一組,
+吉時表,control,hover,NA,,觸控裝置為主
+吉時表,control,focus_visible,DONE,npm run qa:design（today 快照鍵盤 Tab 實測）,
+吉時表,control,active,DONE,e2e:點選後 aria-pressed＝true、下方顯示該時段建議,
+吉時表,control,disabled,NA,,每個時段都可點
+近期提醒,data_view,loading,DONE,code:js/views/fortune.js 骨架,
+近期提醒,data_view,empty,DONE,code:js/views/fortune.js「最近沒有特別需要注意的天象或沖煞。」,
+近期提醒,data_view,error,DONE,code:js/views/fortune.js「提醒元件載入失敗，請確認網路後重新開啟 App。」,
+近期提醒,data_view,populated,DONE,e2e:時運：近期提醒與擇日（換活動、點日期看理由）,
+近期提醒,data_view,long_content,DONE,code:先列 6 則＋「顯示全部 N 則」；npm run qa:design（long-fortune）,
+擇日,data_view,loading,DONE,code:js/views/fortune.js 骨架,
+擇日,data_view,empty,NA,,固定排出 30 天，一定有資料
+擇日,data_view,error,DONE,code:載入失敗時同一張提醒卡顯示原因（與近期提醒共用元件）,
+擇日,data_view,populated,DONE,e2e:時運：近期提醒與擇日（換活動、點日期看理由）,
+擇日,data_view,long_content,NA,,固定 30 天格子與前 5 名
+樂透選號,action,default,DONE,e2e:占卜：樂透選號（今日固定、隨機一組、機率表、存紀錄）,
+樂透選號,action,hover,NA,,觸控裝置為主
+樂透選號,action,focus_visible,DONE,npm run qa:design（lotto 快照鍵盤 Tab 實測）,
+樂透選號,action,disabled,NA,,沒有停用狀態
+樂透選號,action,busy,NA,,號碼在手機上同步產生
+樂透選號,action,failure,DONE,code:js/views/lotto.js「選號元件載入失敗，請確認網路後重新開啟 App。」,
+姓名分析,form,default,DONE,e2e:命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生命靈數、稱骨都算得出來,
+姓名分析,form,focus_visible,DONE,npm run qa:design（name 快照鍵盤 Tab 實測）,
+姓名分析,form,validation_error,DONE,test:tests/name.test.js 錯誤處理（非中文、太短、罕用字要手動輸入筆畫）,
+姓名分析,form,submitting,DONE,code:康熙資料載入前顯示「計算中…」，資料到了才出現表單,
+姓名分析,form,success,DONE,e2e:王小明五格 5、7、11、9、15 與注音,
+姓名分析,form,server_error,DONE,code:js/views/destiny.js「康熙筆畫資料載入失敗，請確認網路後重新開啟 App。」,沒有伺服器；唯一會失敗的是延後載入的資料檔
+綜合解讀,data_view,loading,DONE,code:js/views/destiny.js「計算中…」,
+綜合解讀,data_view,empty,DONE,code:「資料還不夠多，補上出生時間與性別會更準。」＋「到「我的」補資料」,
+綜合解讀,data_view,error,DONE,code:js/views/destiny.js「計算失敗：…」,
+綜合解讀,data_view,populated,DONE,e2e:命盤：綜合解讀…（共同點、七個面向）,
+綜合解讀,data_view,long_content,DONE,npm run qa:design（long-reading：20 字英文名字）,
+底部分頁,control,default,DONE,e2e:各測試都用分頁切換,
+底部分頁,control,hover,NA,,觸控裝置為主
+底部分頁,control,focus_visible,DONE,npm run qa:design（各快照鍵盤 Tab 實測）,
+底部分頁,control,active,DONE,code:aria-current＝page＋金色光暈滑到選到的分頁,
+底部分頁,control,disabled,NA,,分頁都可點

@@ -1,4 +1,4 @@
-// design-qa 版面稽核：用真的瀏覽器在 320／390／1440 寬打開各分頁，量對比、觸控大小、鍵盤焦點、水平捲動，
+// design-qa 版面稽核：用真的瀏覽器在 320／390／1440 寬打開各分頁與面板，量對比、觸控大小、鍵盤焦點、水平捲動，
 // 再交給 .claude/skills/design-qa/scripts/rendered_audit.py 判定。任何一張快照不是 CLEAN 就失敗（CI 會紅燈）。
 //
 // 用法：npm run qa:design            （全部：一般、長內容、1440）
@@ -22,12 +22,13 @@ const PROPS = ['outlineStyle', 'outlineWidth', 'outlineColor', 'boxShadow', 'bor
 
 const hex = (n) => n.toString(16).padStart(16, '0');
 const rawOf = (i) => ({ calendar: 'solar', era: 'ad', year: 1960 + (i % 40), month: (i % 12) + 1, day: (i % 27) + 1, leap: false, knowTime: i % 3 !== 0, time: `${String(i % 24).padStart(2, '0')}:15`, placeId: 'taipei', lat: null, lon: null, tz: 'Asia/Taipei', fold: null, solar: null });
-const ME = { id: `p-${hex(1)}`, name: '我', gender: '男', self: true, createdAt: '2026-11-24T00:00:00.000Z', raw: { ...rawOf(0), era: 'roc', year: 79, month: 8, day: 15, knowTime: true, time: '06:20' } };
+const ME = { id: `p-${hex(1)}`, name: '我', fullName: '王小明', gender: '男', self: true, createdAt: '2026-11-24T00:00:00.000Z', raw: { ...rawOf(0), era: 'roc', year: 79, month: 8, day: 15, knowTime: true, time: '06:20' } };
 const ZH = '王陳林黃張李吳劉蔡楊許鄭謝洪郭邱曾廖賴徐';
 const LONG_PEOPLE = [ME, ...Array.from({ length: 49 }, (_, k) => {
   const i = k + 1;
   const name = i % 2 ? Array.from({ length: 20 }, (_, j) => ZH[(i + j) % ZH.length]).join('') : 'Wolfeschlegelsteinha';
-  return { id: `p-${hex(i + 1)}`, name, gender: i % 2 ? '女' : '男', self: false, createdAt: '2026-11-24T00:00:00.000Z', raw: rawOf(i) };
+  // 本名取最長的 6 個字（複姓＋四字名），檢查姓名分析的版面
+  return { id: `p-${hex(i + 1)}`, name, fullName: '司馬諸葛美玲', birthOrder: i % 5, gender: i % 2 ? '女' : '男', self: false, createdAt: '2026-11-24T00:00:00.000Z', raw: rawOf(i) };
 })];
 const TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu'];
 const LONG_HISTORY = Array.from({ length: 300 }, (_, i) => ({
@@ -41,6 +42,12 @@ const AI_TEXT = ('今天適合整理思緒、規劃下一步。' + 'https://exam
 /** 一張快照：展開所有收合區塊，再用真的 Tab 鍵走一遍，記下每個控制項的焦點樣式 */
 async function snap(page, name, width) {
   await page.evaluate(() => document.querySelectorAll('details').forEach((d) => { if (!d.closest('[hidden]')) d.open = true; }));
+  // 進場動畫的第一格是透明的：剛插入的元素要等瀏覽器畫過下一格、有限長度的動畫都播完再量，
+  // 否則會量到「文字和背景一樣」的 1:1 對比（減少動態效果時動畫只有 0.01ms，但仍要等一格）
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter((a) => a.effect && a.effect.getComputedTiming().endTime !== Infinity)
+    .map((a) => a.finished.catch(() => null))));
   await page.addScriptTag({ content: collector });
   // maxText 預設 400 是依文件順序取：長內容時隱藏分頁（名單 50 人、紀錄 300 筆）會先佔滿，
   // 眼前分頁的文字反而沒量到對比，所以放寬到 20000
@@ -68,7 +75,8 @@ async function snap(page, name, width) {
 }
 
 async function open(browser, width, { people = null, history = [], activeIdx = 0, fixedTime = null, mockAi = false } = {}) {
-  const ctx = await browser.newContext({ viewport: { width, height: 760 }, locale: 'zh-TW', timezoneId: 'Asia/Taipei', serviceWorkers: mockAi ? 'block' : 'allow' });
+  // 量的是動畫結束後的樣子：開「減少動態效果」讓畫面直接到最終狀態（動畫中半透明的字會量錯對比）
+  const ctx = await browser.newContext({ viewport: { width, height: 760 }, locale: 'zh-TW', timezoneId: 'Asia/Taipei', serviceWorkers: mockAi ? 'block' : 'allow', reducedMotion: 'reduce' });
   if (people) {
     await ctx.addInitScript(({ people, history, active }) => {
       if (!localStorage.getItem('star.v1.people')) {
@@ -92,37 +100,52 @@ async function open(browser, width, { people = null, history = [], activeIdx = 0
 }
 
 const tab = async (page, view) => { await page.locator(`.tabbar [data-view="${view}"]`).click(); await page.waitForTimeout(300); };
+const oracle = async (page, label) => { await tab(page, 'oracle'); await page.locator('#view-oracle .seg label', { hasText: label }).click(); await page.waitForTimeout(300); };
+const tool = (page, id) => page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption(id);
 
-/** 有資料的各分頁：運勢 → 我的 → 八字 → 紫微 → 配對 → 塔羅 */
+/** 有資料的各分頁：今日 → 時運 → 我的 → 命盤（綜合解讀、八字、紫微、姓名）→ 占卜（配對、塔羅、樂透） */
 async function tour(browser, width, prefix, opts) {
   const files = [];
   let { ctx, page } = await open(browser, width, { ...opts, activeIdx: 0 });
+  await page.waitForSelector('#today-hero');
+  files.push(await snap(page, `${prefix}today`, width));
+  await tab(page, 'fortune');
   await page.waitForSelector('#view-fortune .chip-row.yi .chip');
+  await page.waitForSelector('#choose-day .heat');
   if (opts.mockAi) await page.waitForFunction(() => /averyvery/.test(document.querySelector('#view-fortune').textContent));
   files.push(await snap(page, `${prefix}fortune`, width));
   await tab(page, 'me');
   files.push(await snap(page, `${prefix}me`, width));
   await ctx.close();
-  // 長內容組：正在看的人換成 20 字英文名字，檢查命理、配對的標題與表格
+  // 長內容組：正在看的人換成 20 字英文名字，檢查命盤、配對的標題與表格
   ({ ctx, page } = await open(browser, width, { ...opts, activeIdx: opts.people.length > 2 ? 2 : 0 }));
   await tab(page, 'destiny');
+  await page.waitForSelector('#view-destiny details.area');
+  files.push(await snap(page, `${prefix}reading`, width));
+  await tool(page, 'bazi');
   await page.waitForSelector('#view-destiny table.pillars');
   files.push(await snap(page, `${prefix}bazi`, width));
-  await page.locator('#view-destiny select').nth(1).selectOption('ziwei');
+  await tool(page, 'ziwei');
   await page.waitForSelector('#view-destiny .ziwei-grid');
   files.push(await snap(page, `${prefix}ziwei`, width));
-  await tab(page, 'match');
+  await tool(page, 'name');
+  await page.waitForSelector('#view-destiny .grids, #view-destiny .card .warn');
+  files.push(await snap(page, `${prefix}name`, width));
+  await oracle(page, '配對');
   if (opts.people.length > 2) {
-    await page.locator('#view-match .seg label', { hasText: '精準' }).click();
-    await page.locator('#view-match select').nth(1).selectOption(opts.people[1].id);
+    await page.locator('#oracle-match .seg label', { hasText: '精準' }).click();
+    await page.locator('#oracle-match select').nth(1).selectOption(opts.people[1].id);
   }
-  await page.locator('#view-match').getByRole('button', { name: '開始配對' }).click();
-  await page.waitForSelector('#view-match .match-result h2');
+  await page.locator('#oracle-match').getByRole('button', { name: '開始配對' }).click();
+  await page.waitForSelector('#oracle-match .match-result h2');
   files.push(await snap(page, `${prefix}match`, width));
-  await tab(page, 'tarot');
-  await page.locator('#view-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
-  await page.waitForTimeout(300);
+  await oracle(page, '塔羅');
+  await page.locator('#oracle-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
+  await page.waitForSelector('#oracle-tarot ol.tarot-list li');
   files.push(await snap(page, `${prefix}tarot`, width));
+  await oracle(page, '樂透選號');
+  await page.waitForSelector('#oracle-lotto .balls');
+  files.push(await snap(page, `${prefix}lotto`, width));
   await ctx.close();
   return files;
 }
@@ -134,6 +157,9 @@ async function capture(browser, group) {
       // 第一次使用（空白狀態）
       const { ctx, page } = await open(browser, width);
       files.push(await snap(page, 'empty-me', width));
+      await tab(page, 'today');
+      await page.waitForSelector('#view-today .card.feature h2');
+      files.push(await snap(page, 'empty-today', width));
       await tab(page, 'destiny');
       files.push(await snap(page, 'empty-destiny', width));
       await ctx.close();

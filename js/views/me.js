@@ -1,7 +1,7 @@
 // 「我的」：目前查看的人＋本命星盤、家人朋友名單、查詢紀錄、備份與隱私。
 // 所有資料只存在這支手機；備份檔由使用者自己匯出保存。
 
-import { h, clear } from '../ui/dom.js';
+import { h, clear, fill } from '../ui/dom.js';
 import { createBirthForm, describeRaw } from '../ui/birthform.js';
 import { buildNatal, describePlacement, describeBirth } from '../core/natal.js';
 import { SIGNS, ELEMENTS, MODALITIES, formatDegree } from '../core/zodiac.js';
@@ -40,6 +40,18 @@ export function mountMe(root, ctx) {
       name: person ? person.name : first ? '我' : '',
       gender: person ? person.gender : '',
     });
+    // 進階欄位：本名（姓名學用）與多胞胎出生順序
+    const fullNameInput = h('input', { type: 'text', maxlength: 6, value: person?.fullName || '', 'aria-label': '本名（姓名學用）', placeholder: '例如：王小明（可不填）' });
+    const orderSel = h('select', { 'aria-label': '多胞胎出生順序' }, h('option', { value: '0', text: '不是多胞胎' }), [1, 2, 3, 4, 5].map((n) => h('option', { value: String(n), text: `多胞胎・第 ${n} 個出生` })));
+    orderSel.value = String(person?.birthOrder || 0);
+    const advanced = h(
+      'details',
+      { class: 'more', open: !!(person && (person.fullName || person.birthOrder)) },
+      h('summary', { text: '進階：本名與多胞胎（可不填）' }),
+      h('div', { class: 'field' }, h('span', { class: 'field-label', text: '本名（給姓名分析用，暱稱照上面填）' }), fullNameInput),
+      h('div', { class: 'field' }, h('span', { class: 'field-label', text: '多胞胎' }), orderSel),
+      h('p', { class: 'hint', text: '同一天出生的多胞胎，八字與生命靈數會一樣；出生時間（精確到分）、本名與出生順序能區分彼此。' }),
+    );
     const saveBtn = h('button', { type: 'button', class: 'btn primary', text: '計算並儲存' });
     const submit = async () => {
       if (saveBtn.disabled) return;
@@ -62,9 +74,11 @@ export function mountMe(root, ctx) {
         else ctx.toast(natal.error);
         return;
       }
+      const fullName = fullNameInput.value.trim();
+      if (fullName && !/^\p{Script=Han}{2,6}$/u.test(fullName)) return ctx.toast('本名請輸入 2～6 個中文字，或留空');
       const saved = ctx.savePerson(
-        { id: person ? person.id : newId('p'), name: form.getName() || '未命名', gender: form.getGender(), self: person ? person.self : !!target.self, raw: form.toRaw(), createdAt: person?.createdAt },
-        // 只有第一次輸入、或編輯正在查看的人時才切換；新增家人不搶走「我」的位置（運勢頁預設看自己）
+        { id: person ? person.id : newId('p'), name: form.getName() || '未命名', gender: form.getGender(), self: person ? person.self : !!target.self, fullName, birthOrder: Number(orderSel.value), raw: form.toRaw(), createdAt: person?.createdAt },
+        // 只有第一次輸入、或編輯正在查看的人時才切換；新增家人不搶走「我」的位置（今日、時運預設看自己）
         { activate: first || (person && person.id === ctx.getActive()?.id) },
       );
       if (!saved.ok) return ctx.toast(saved.error);
@@ -78,6 +92,7 @@ export function mountMe(root, ctx) {
       h('h2', { text: first ? '輸入你的生日' : person ? `編輯：${person.name}` : '新增家人朋友' }),
       h('p', { class: 'hint', text: '資料只存在這支手機，不會上傳。' }),
       form.el,
+      advanced,
       h(
         'div',
         { class: 'actions' },
@@ -143,8 +158,8 @@ export function mountMe(root, ctx) {
       h(
         'div',
         { class: 'actions' },
-        h('button', { type: 'button', class: 'btn primary', text: '看運勢', onclick: () => ctx.go('fortune') }),
-        h('button', { type: 'button', class: 'btn', text: '命理', onclick: () => ctx.go('destiny') }),
+        h('button', { type: 'button', class: 'btn primary', text: '今日運勢', onclick: () => ctx.go('today') }),
+        h('button', { type: 'button', class: 'btn', text: '命盤解讀', onclick: () => ctx.go('destiny') }),
         h('button', {
           type: 'button',
           class: 'btn',
@@ -203,7 +218,7 @@ export function mountMe(root, ctx) {
           h(
             'li',
             { class: p.id === active?.id ? 'active' : '' },
-            h('div', { class: 'people-main' }, h('b', { text: p.name }), p.self ? h('span', { class: 'badge', text: '我' }) : null, p.gender ? h('span', { class: 'badge alt', text: p.gender }) : null, h('div', { class: 'muted small', text: describeRaw(p.raw) })),
+            h('div', { class: 'people-main' }, h('b', { text: p.name }), p.self ? h('span', { class: 'badge', text: '我' }) : null, p.gender ? h('span', { class: 'badge alt', text: p.gender }) : null, p.birthOrder ? h('span', { class: 'badge', text: `多胞胎第 ${p.birthOrder}` }) : null, h('div', { class: 'muted small', text: `${p.fullName ? `本名 ${p.fullName}・` : ''}${describeRaw(p.raw)}` })),
             h(
               'div',
               { class: 'people-actions' },
@@ -258,7 +273,7 @@ export function mountMe(root, ctx) {
               ),
             ),
           )
-          : h('p', { class: 'hint', text: '塔羅抽牌、配對結果，以及你在命理頁按「存到紀錄」的內容，會保存在這裡。' }),
+          : h('p', { class: 'hint', text: '塔羅抽牌、配對結果，以及你在「命盤」或「樂透選號」按「存到紀錄」的內容，會保存在這裡。' }),
         // 最多存 300 筆但只列最近 50 筆（一次畫太多在舊手機會卡）；要講清楚，不然使用者以為舊紀錄不見了
         list.length > HISTORY_SHOWN ? h('p', { class: 'hint', text: `只列出最近 ${HISTORY_SHOWN} 筆；全部 ${list.length} 筆都在「匯出備份檔」裡。` }) : null,
         list.length
@@ -288,7 +303,7 @@ export function mountMe(root, ctx) {
       if (!file) return;
       if (file.size > 1024 * 1024) return ctx.toast('備份檔太大（超過 1MB），已拒絕匯入');
       const text = await file.text();
-      importBox.replaceChildren(
+      fill(importBox, 
         h('p', { text: `要怎麼匯入「${file.name}」？` }),
         h(
           'div',

@@ -6,18 +6,25 @@ import { test, expect } from '@playwright/test';
 const SERVE = fileURLToPath(new URL('../../scripts/serve.mjs', import.meta.url));
 
 const ME = {
-  id: 'p-0123456789abcdef', name: '我', gender: '男', self: true, createdAt: '2026-11-24T00:00:00.000Z',
+  id: 'p-0123456789abcdef', name: '我', fullName: '王小明', birthOrder: 0, gender: '男', self: true, createdAt: '2026-11-24T00:00:00.000Z',
   raw: { calendar: 'solar', era: 'roc', year: 79, month: 8, day: 15, leap: false, knowTime: true, time: '06:20', placeId: 'taipei', lat: null, lon: null, tz: 'Asia/Taipei', fold: null, solar: null },
 };
 
 /** 預先放一筆名單（只在第一次載入時），讓測試直接從有資料的狀態開始 */
-async function seed(page, people = [ME]) {
-  await page.addInitScript((list) => {
+async function seed(page, people = [ME], settings = {}) {
+  await page.addInitScript(([list, extra]) => {
     if (!localStorage.getItem('star.v1.people')) {
       localStorage.setItem('star.v1.people', JSON.stringify(list));
-      localStorage.setItem('star.v1.settings', JSON.stringify({ activeId: list[0].id, sect: 1, solarTime: 'standard' }));
+      localStorage.setItem('star.v1.settings', JSON.stringify({ activeId: list[0].id, sect: 1, solarTime: 'standard', ...extra }));
     }
-  }, people);
+  }, [people, settings]);
+}
+
+const tab = (page, view) => page.locator(`.tabbar [data-view="${view}"]`).click();
+/** 「占卜」分頁裡切到某個面板 */
+async function oracle(page, label) {
+  await tab(page, 'oracle');
+  await page.locator('#view-oracle .seg label', { hasText: label }).click();
 }
 
 let errors;
@@ -47,7 +54,7 @@ async function startServer() {
   return { url, stop: () => new Promise((r) => { proc.once('exit', r); proc.kill(); }) };
 }
 
-test('第一次使用：輸入生日 → 星盤、農曆生日、運勢與農民曆', async ({ page }) => {
+test('第一次使用：輸入生日 → 星盤、農曆生日、今日運勢、時運與農民曆', async ({ page }) => {
   await page.goto('/');
   const me = page.locator('#view-me');
   await me.locator('.birth-form input[type="text"]').first().fill('我');
@@ -62,68 +69,177 @@ test('第一次使用：輸入生日 → 星盤、農曆生日、運勢與農民
   await expect(me.getByText('上升：處女座')).toBeVisible();
   await expect(me.getByText(/農曆：庚午年 六月廿五・生肖馬/)).toBeVisible();
 
-  await page.locator('.tabbar [data-view="fortune"]').click();
+  await me.getByRole('button', { name: '今日運勢' }).click();
+  const today = page.locator('#view-today');
+  await expect(today.locator('#today-hero .score-ring b')).toHaveText(/^\d{1,2}$/);
+  await expect(today.locator('.hours .hour')).toHaveCount(13);
+
+  await tab(page, 'fortune');
   const fv = page.locator('#view-fortune');
   await expect(fv.locator('.sign-btn.selected')).toContainText('獅子');
   await expect(fv.locator('.chip-row.yi .chip').first()).toBeVisible();
   await fv.locator('.period-bar label', { hasText: '今年' }).click();
-  await expect(fv.locator('ol.days li')).toHaveCount(12);
+  await expect(fv.locator('ol.days li').first()).toBeVisible();
+  await expect(fv.locator('.card').first().locator('ol.days li')).toHaveCount(12);
 });
 
-test('命理：八字、流年、紫微、瑪雅、生命靈數、稱骨都算得出來', async ({ page }) => {
+test('今日：綜合指數有依據、吉時表可點、偏財與幸運號碼可再換一組', async ({ page }) => {
   await seed(page);
   await page.goto('/');
-  await page.locator('.tabbar [data-view="destiny"]').click();
+  const today = page.locator('#view-today');
+  await expect(today.locator('#today-hero h2')).toHaveText(/，小明$/);
+  await today.locator('summary', { hasText: '這個分數怎麼來的' }).click();
+  await expect(today.locator('#today-hero .sys', { hasText: '八字' })).toBeVisible();
+  await expect(today.locator('#today-hero .sys', { hasText: '農民曆' })).toBeVisible();
+  // 吉時表：點 11 點那格（2026-11-24 是白虎、諸事不宜，但測試日期不固定，只檢查有說明）
+  await today.locator('.hour').nth(6).click();
+  await expect(today.locator('.hour').nth(6)).toHaveAttribute('aria-pressed', 'true');
+  await expect(today.locator('.hour-detail h3')).toContainText('11:00–12:59');
+  // 幸運號碼：大樂透 6 顆，換一組後仍是 6 顆
+  const balls = today.locator('.balls .ball');
+  await expect(balls).toHaveCount(6);
+  await today.getByRole('button', { name: '再換一組' }).click();
+  await expect(balls).toHaveCount(6);
+  await today.getByRole('combobox', { name: '選擇彩券' }).selectOption('superlotto638');
+  await expect(today.locator('.balls .ball')).toHaveCount(7); // 第一區 6＋第二區 1
+  await expect(today.getByText('不會提高中獎機率')).toBeVisible();
+});
+
+test('時運：近期提醒與擇日（換活動、點日期看理由）', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'fortune');
+  const fv = page.locator('#view-fortune');
+  await expect(fv.locator('#reminders ol.timeline li').first()).toBeVisible();
+  await expect(fv.locator('#reminders .tl-basis').first()).toContainText('依據');
+  const choose = fv.locator('#choose-day');
+  await choose.getByRole('combobox', { name: '想做的事' }).selectOption('move');
+  await expect(choose.locator('.heat button')).toHaveCount(30);
+  await expect(choose.locator('ol.pairs li')).toHaveCount(5);
+  await choose.locator('.heat button').nth(3).click();
+  await expect(choose.locator('.hour-detail h3')).toContainText('分');
+  // 農民曆裡也有這天的時辰吉凶
+  await expect(fv.locator('.almanac .hours .hour')).toHaveCount(13);
+});
+
+test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生命靈數、稱骨都算得出來', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'destiny');
   const dv = page.locator('#view-destiny');
+  // 預設是綜合解讀：共同點至少兩個系統，七個面向
+  await expect(dv.locator('.trait').first()).toBeVisible();
+  await expect(dv.locator('.trait .count').first()).toHaveText(/[2-9] 個系統/);
+  await expect(dv.locator('details.area')).toHaveCount(7);
+  await dv.locator('details.area summary', { hasText: '財運' }).click();
+  await expect(dv.locator('details.area[open] .sys', { hasText: '紫微' }).first()).toBeVisible();
+  const tool = dv.getByRole('combobox', { name: '選擇命理工具' });
+  await tool.selectOption('bazi');
   await expect(dv.locator('table.pillars tr.big').first()).toContainText('庚甲壬癸');
-  const tool = dv.locator('select').nth(1);
   await tool.selectOption('liunian');
   await expect(dv.getByText(/犯太歲/).first()).toBeVisible();
   await tool.selectOption('ziwei');
   await expect(dv.locator('.ziwei-grid .palace')).toHaveCount(12);
   await dv.locator('.palace', { hasText: '命宮' }).click();
   await expect(dv.locator('.palace-detail h3')).toContainText('命宮');
+  await tool.selectOption('name');
+  // 王小明：天格 5、人格 7、地格 11、外格 9、總格 15
+  await expect(dv.locator('.grid-cell .gv')).toHaveText(['5', '7', '11', '9', '15']);
+  await expect(dv.locator('.name-char .zy')).toHaveText(['ㄨㄤˊ', 'ㄒㄧㄠˇ', 'ㄇㄧㄥˊ']);
   await tool.selectOption('maya');
   await expect(dv.locator('.maya-cell')).toHaveCount(5);
   await tool.selectOption('numerology');
   await expect(dv.locator('.score-ring b')).toHaveText('33／6');
   await tool.selectOption('chenggu');
   await expect(dv.locator('blockquote.poem')).toBeVisible();
+  await expect(dv.getByText(/現代看法/)).toBeVisible();
   await dv.getByRole('button', { name: '存到紀錄' }).click();
-  await page.locator('.tabbar [data-view="me"]').click();
+  await tab(page, 'me');
   await expect(page.locator('#view-me summary', { hasText: '查詢紀錄（1）' })).toBeVisible();
+});
+
+test('多胞胎：第 2 個出生時紫微借兄弟宮，解讀說明哪裡一樣哪裡不同', async ({ page }) => {
+  await seed(page, [{ ...ME, name: '弟弟', fullName: '', birthOrder: 2, self: false }]);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  await expect(dv.getByText('多胞胎怎麼看')).toBeVisible();
+  await expect(dv.getByText(/上升星座平均每 2 小時換一個/)).toBeVisible();
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('ziwei');
+  await expect(dv.getByText(/多胞胎第 2 個出生/)).toBeVisible();
+  await dv.locator('.palace', { hasText: '命宮' }).click();
+  await expect(dv.locator('.palace-detail h3')).toContainText('原本的兄弟');
+});
+
+test.describe('動畫開啟時', () => {
+  test.use({ reducedMotion: 'no-preference' });
+
+  test('今日：分數環轉到分數、數字數到分數、彩球與吉時條都出現，沒有錯誤', async ({ page }) => {
+    await seed(page);
+    await page.goto('/');
+    const ring = page.locator('#today-hero .score-ring');
+    const label = await ring.getAttribute('aria-label');
+    const score = label.match(/(\d+) 分/)[1];
+    await expect(ring.locator('b')).toHaveText(score);
+    // 進度弧畫在 ::before：要檢查偽元素拿到的 --p（只看外層元素會漏掉「弧沒畫出來」的錯）
+    await expect.poll(() => ring.evaluate((el) => getComputedStyle(el, '::before').getPropertyValue('--p').trim())).toBe(score);
+    await expect(page.locator('#view-today .balls .ball')).toHaveCount(6);
+    await expect(page.locator('#view-today .hours .hour')).toHaveCount(13);
+    await tab(page, 'destiny');
+    await expect(page.locator('#view-destiny .trait').first()).toBeVisible();
+  });
 });
 
 test('名單：新增農曆生日的家人（不搶走「我」）、從名單配對、塔羅，都記到本機紀錄', async ({ page }) => {
   await seed(page);
   await page.goto('/');
-  await page.locator('.tabbar [data-view="me"]').click();
+  await tab(page, 'me');
   const me = page.locator('#view-me');
   await me.getByRole('button', { name: '＋ 新增家人朋友' }).click();
   const form = me.locator('.card').first();
-  await form.locator('input[type="text"]').first().fill('媽媽');
+  await form.locator('.birth-form input[type="text"]').first().fill('媽媽');
   await form.locator('.seg label', { hasText: '女' }).click();
   await form.locator('.seg label', { hasText: '農曆生日' }).click();
   await form.locator('input[inputmode="numeric"]').fill('89');
-  await form.locator('select').nth(0).selectOption('2');
-  await form.locator('select').nth(1).selectOption('16');
+  await form.locator('.birth-form select').nth(0).selectOption('2');
+  await form.locator('.birth-form select').nth(1).selectOption('16');
+  await form.locator('summary', { hasText: '進階' }).click();
+  await form.getByRole('textbox', { name: '本名（姓名學用）' }).fill('陳美玲');
   await form.getByRole('button', { name: '計算並儲存' }).click();
   await expect(me.locator('ul.people li')).toHaveCount(2);
   await expect(me.getByText('民國 89 年 農曆二月十六')).toBeVisible();
+  await expect(me.getByText(/本名 陳美玲/)).toBeVisible();
   await expect(me.locator('.person-switch select')).toHaveValue(ME.id);
 
-  await page.locator('.tabbar [data-view="match"]').click();
-  const mv = page.locator('#view-match');
+  await oracle(page, '配對');
+  const mv = page.locator('#oracle-match');
   await mv.locator('.seg label', { hasText: '精準' }).click();
   await mv.getByRole('button', { name: '開始配對' }).click();
   await expect(mv.locator('.match-result h2')).toHaveText('我 × 媽媽');
 
-  await page.locator('.tabbar [data-view="tarot"]').click();
-  await page.locator('#view-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
-  await expect(page.locator('#view-tarot ol.tarot-list li')).toHaveCount(3);
+  await oracle(page, '塔羅');
+  await page.locator('#oracle-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
+  await expect(page.locator('#oracle-tarot ol.tarot-list li')).toHaveCount(3);
 
-  await page.locator('.tabbar [data-view="me"]').click();
+  await tab(page, 'me');
   await expect(page.locator('#view-me summary', { hasText: '查詢紀錄（2）' })).toBeVisible();
+});
+
+test('占卜：樂透選號（今日固定、隨機一組、機率表、存紀錄）', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await oracle(page, '樂透選號');
+  const lv = page.locator('#oracle-lotto');
+  await expect(lv.locator('ol.days li')).toHaveCount(7);
+  const first = await lv.locator('.balls').getAttribute('aria-label');
+  await lv.getByRole('button', { name: '隨機抽一組' }).click();
+  await lv.getByRole('button', { name: '今日號碼' }).click();
+  await expect(lv.locator('.balls')).toHaveAttribute('aria-label', first); // 今日號碼固定
+  await lv.getByRole('combobox', { name: '選擇彩券' }).selectOption('dailycash');
+  await expect(lv.locator('.balls .ball')).toHaveCount(5);
+  await expect(lv.locator('table.compare tbody tr')).toHaveCount(3);
+  await lv.getByRole('button', { name: '存到紀錄' }).click();
+  await expect(page.locator('#toast')).toContainText('已存到');
 });
 
 /** 第一次使用的生日表單填「農曆」生日（會用到延後載入的農曆函式庫） */
@@ -174,9 +290,9 @@ test.describe('送出狀態（攔截農曆函式庫的下載）', () => {
 test('備份：匯出 → 清除 → 匯入，名單與紀錄都還原', async ({ page }) => {
   await seed(page);
   await page.goto('/');
-  await page.locator('.tabbar [data-view="tarot"]').click();
-  await page.locator('#view-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
-  await page.locator('.tabbar [data-view="me"]').click();
+  await oracle(page, '塔羅');
+  await page.locator('#oracle-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
+  await tab(page, 'me');
   const me = page.locator('#view-me');
   await me.locator('summary', { hasText: '備份與隱私' }).click();
   await me.getByRole('button', { name: '匯出備份檔' }).click();
@@ -204,13 +320,19 @@ test('隱私：所有請求都在同網域、沒有送出任何資料，網址�
   page.on('request', (r) => requests.push({ url: r.url(), method: r.method(), post: r.postData() }));
   await seed(page);
   await page.goto('/');
-  for (const view of ['me', 'fortune', 'destiny', 'match', 'tarot']) {
-    await page.locator(`.tabbar [data-view="${view}"]`).click();
+  await expect(page.locator('#today-hero')).toBeVisible();
+  for (const view of ['fortune', 'destiny', 'oracle', 'me']) {
+    await tab(page, view);
     await page.waitForTimeout(300);
   }
-  await page.locator('.tabbar [data-view="destiny"]').click();
-  await page.locator('#view-destiny select').nth(1).selectOption('ziwei');
+  await oracle(page, '樂透選號');
+  await expect(page.locator('#oracle-lotto .balls')).toBeVisible();
+  await tab(page, 'destiny');
+  const tool = page.getByRole('combobox', { name: '選擇命理工具' });
+  await tool.selectOption('ziwei');
   await expect(page.locator('.ziwei-grid')).toBeVisible();
+  await tool.selectOption('name');
+  await expect(page.locator('.grids')).toBeVisible();
   const foreign = requests.filter((r) => !r.url.startsWith(baseURL) && !/^(blob|data):/.test(r.url));
   expect(foreign, '不可連到其他網站').toEqual([]);
   expect(requests.filter((r) => r.method !== 'GET'), '不可送出資料（只能有 GET）').toEqual([]);
@@ -231,22 +353,32 @@ test('離線：載入過一次後，連不上網站也能開啟並計算', async
     await server.stop();
   }
   await page.reload();
-  await expect(page.locator('#view-fortune .score-ring')).toBeVisible();
+  await expect(page.locator('#today-hero .score-ring')).toBeVisible();
+  await expect(page.locator('#view-today .hours .hour')).toHaveCount(13);
+  await tab(page, 'fortune');
   await expect(page.locator('#view-fortune .chip-row.yi .chip').first()).toBeVisible();
-  await page.locator('.tabbar [data-view="destiny"]').click();
-  await page.locator('#view-destiny select').nth(1).selectOption('ziwei');
+  await tab(page, 'destiny');
+  const tool = page.getByRole('combobox', { name: '選擇命理工具' });
+  await tool.selectOption('ziwei');
   await expect(page.locator('.ziwei-grid .palace')).toHaveCount(12);
+  await tool.selectOption('name'); // 康熙筆畫資料也要能離線載入
+  await expect(page.locator('.grids .grid-cell')).toHaveCount(5);
   // 檢查新版的 version.json 刻意不快取：連不上時瀏覽器會記一筆載入失敗，App 照常使用、不提示
   errors = errors.filter((e) => !/version\.json/.test(e));
 });
 
-test('版面：320px 寬的手機，五個分頁都沒有水平捲動', async ({ page }) => {
+test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、沒有「null／undefined」字樣', async ({ page }) => {
   await seed(page);
   await page.setViewportSize({ width: 320, height: 640 });
   await page.goto('/');
-  for (const view of ['me', 'fortune', 'destiny', 'match', 'tarot']) {
-    await page.locator(`.tabbar [data-view="${view}"]`).click();
-    await page.waitForTimeout(400);
+  const stops = [['today'], ['fortune'], ['destiny'], ['destiny', 'name'], ['oracle', '塔羅'], ['oracle', '樂透選號'], ['oracle', '配對'], ['me']];
+  for (const [view, sub] of stops) {
+    if (view === 'oracle') await oracle(page, sub);
+    else await tab(page, view);
+    if (view === 'destiny' && sub) await page.getByRole('combobox', { name: '選擇命理工具' }).selectOption(sub);
+    await page.waitForTimeout(700);
+    const visible = await page.locator(`#view-${view}`).innerText();
+    expect(visible, `${view}${sub ? `／${sub}` : ''} 出現程式值`).not.toMatch(/\bnull\b|\bundefined\b|NaN/);
     const { overflow, culprits } = await page.evaluate(() => {
       const vw = document.documentElement.clientWidth;
       // 列出超出右邊界最多的元素：CI 的 WebKit 才會溢出時，靠這份清單就知道要修哪裡
@@ -296,6 +428,6 @@ test('版面：320px 寬的手機，五個分頁都沒有水平捲動', async ({
       }
       return { overflow, culprits: culprits.length ? culprits : path.length ? [`只留這一路就會捲動：${path.join(' > ')}`] : [] };
     });
-    expect(overflow, `${view} 不應水平捲動；超出的元素：${culprits.join('；') || '無'}`).toBeLessThanOrEqual(0);
+    expect(overflow, `${view}${sub ? `／${sub}` : ''} 不應水平捲動；超出的元素：${culprits.join('；') || '無'}`).toBeLessThanOrEqual(0);
   }
 });

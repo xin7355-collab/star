@@ -304,7 +304,7 @@ export function upcoming({ from, days = 45, bazi = null, birth = null, tz = DEFA
         end: p.end,
         kind: 'retro',
         level: 'warn',
-        title: `${RETRO_TEXT[key].name}${started ? '中' : ''}（${p.start.m}/${p.start.d}–${p.end.m}/${p.end.d}）`,
+        title: `${RETRO_TEXT[key].name}${started ? '中' : ''}・${p.start.m}/${p.start.d}–${p.end.m}/${p.end.d}`,
         text: RETRO_TEXT[key].text,
         basis: '天文計算：行星在天空中看起來往回走的期間（占星稱逆行）。',
       });
@@ -315,7 +315,7 @@ export function upcoming({ from, days = 45, bazi = null, birth = null, tz = DEFA
       date: e.date,
       kind: 'eclipse',
       level: 'warn',
-      title: `${e.kind === 'solar' ? `${e.type}日食` : `${e.type}月食`}（${dateText(e.date)}）`,
+      title: `${e.kind === 'solar' ? `日${e.type}食` : `月${e.type}食`}・${dateText(e.date)}`,
       text: e.kind === 'solar'
         ? '占星上象徵新的開始與轉折，前後幾天不急著做重大決定，先觀察再行動。（台灣不一定看得到）'
         : '占星上象徵情緒與關係浮上檯面，適合整理、放下，不宜衝動結束一段關係或一份工作。',
@@ -327,7 +327,7 @@ export function upcoming({ from, days = 45, bazi = null, birth = null, tz = DEFA
       date: mp.date,
       kind: 'moon',
       level: mp.kind === 'new' ? 'good' : 'info',
-      title: `${mp.kind === 'new' ? '新月' : '滿月'}（${dateText(mp.date)}）`,
+      title: `${mp.kind === 'new' ? '新月' : '滿月'}・${dateText(mp.date)}`,
       text: mp.kind === 'new' ? '適合許願、訂新目標、開始新計畫。' : '適合收尾、檢討與感恩；情緒比較滿，溝通多一點耐心。',
       basis: '天文計算：月相。',
     });
@@ -339,14 +339,14 @@ export function upcoming({ from, days = 45, bazi = null, birth = null, tz = DEFA
     let text = `進入${mc.monthGanZhi}月。`;
     if (ss) text += `對你是「${ss}」月：${SHISHEN_TEXT[ss]}`;
     if (rel.includes('六沖')) text += ' 這個月的地支沖你的生肖，變動較多，凡事多留彈性。';
-    items.push({ date: mc.date, kind: 'month', level: rel.includes('六沖') ? 'warn' : 'info', title: `${mc.name}・換流月（${dateText(mc.date)}）`, text, basis: '八字：每逢「節」換月柱，流月十神看月干對你的日主。' });
+    items.push({ date: mc.date, kind: 'month', level: rel.includes('六沖') ? 'warn' : 'info', title: `${mc.name}換流月・${dateText(mc.date)}`, text, basis: '八字：每逢「節」換月柱，流月十神看月干對你的日主。' });
   }
   if (keys) {
     for (let i = 0; i < Math.min(days, 14); i += 1) {
       const date = addDays(from, i);
       const p = personalDay(date, bazi);
       if (p.clash.includes('生肖')) {
-        items.push({ date, kind: 'clash', level: 'warn', title: `沖生肖日（${dateText(date)}）`, text: p.notes[0], basis: `八字：${p.ganzhi}日的地支和你的生肖相沖。` });
+        items.push({ date, kind: 'clash', level: 'warn', title: `沖生肖日・${dateText(date)}`, text: p.notes[0], basis: `八字：${p.ganzhi}日的地支和你的生肖相沖。` });
       }
     }
   }
@@ -354,7 +354,7 @@ export function upcoming({ from, days = 45, bazi = null, birth = null, tz = DEFA
     for (let i = 0; i < Math.min(days, 31); i += 1) {
       const date = addDays(from, i);
       if (date.m === birth.m && date.d === birth.d) {
-        items.push({ date, kind: 'birthday', level: 'good', title: `生日（${dateText(date)}）`, text: '生日前後是太陽回到你出生位置的時候（太陽回歸），很適合回顧這一年、規劃新的一年。', basis: '占星：太陽回歸。' });
+        items.push({ date, kind: 'birthday', level: 'good', title: `生日・${dateText(date)}`, text: '生日前後是太陽回到你出生位置的時候（太陽回歸），很適合回顧這一年、規劃新的一年。', basis: '占星：太陽回歸。' });
       }
     }
   }

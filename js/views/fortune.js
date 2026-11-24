@@ -1,13 +1,17 @@
-// 「運勢」：4×3 星座方格（預設選目前查看的人）＋ 今日／明日／本週／本月／今年 切換（固定在拇指位置）
-// ＋ 農民曆（宜忌、沖煞、節氣；農曆函式庫在背景載入，不擋住星座運勢）。
+// 「時運」：4×3 星座方格（預設選目前查看的人）＋ 今日／明日／本週／本月／今年 切換（固定在拇指位置）
+// ＋ 近期提醒（天象、換流月、沖日）＋ 擇日（想做的事挑哪天）＋ 農民曆與時辰吉凶。
+// 農曆與八字模組在背景載入，不擋住星座運勢。
 
-import { h, clear, segmented, scoreBar, scoreClass } from '../ui/dom.js';
+import { h, clear, segmented, scoreBar, scoreClass, fill } from '../ui/dom.js';
 import { computeFortune, PERIODS, AREAS, periodLabel } from '../core/fortune.js';
 import { SIGNS } from '../core/zodiac.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
 import { isoDate, addDays } from '../core/date.js';
 import { aiEnabled, getAiFortune } from '../ui/ai.js';
 import { load, save } from '../ui/storage.js';
+import { cardHead } from '../ui/icons.js';
+import { ringTo } from '../ui/motion.js';
+import { hourTimeline, timelineList, heatGrid } from '../ui/widgets.js';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -16,8 +20,25 @@ export function mountFortune(root, ctx) {
   let period = load('period', 'today');
   if (!PERIODS.some((p) => p.id === period)) period = 'today';
   let almanacOffset = 0; // 農民曆看第幾天（0 = 今天）
+  let activity = load('pickActivity', 'money');
+  let showAllReminders = false;
   const cache = new Map();
   let renderToken = 0;
+  let baziMemo = { key: null, value: null };
+
+  /** 目前查看的人的八字（給沖日、流月、擇日用）；同一個人同一組設定只算一次 */
+  function activeBazi(buildBazi) {
+    const person = ctx.getActive();
+    const input = person ? ctx.inputOf(person) : null;
+    if (!input) return null;
+    const settings = ctx.getSettings();
+    const key = `${person.id}|${JSON.stringify(person.raw)}|${person.gender}|${settings.sect}|${settings.solarTime}`;
+    if (baziMemo.key !== key) {
+      const b = buildBazi(input, { gender: person.gender || null, sect: settings.sect, solarTime: settings.solarTime, today: zoneToday(tz()) });
+      baziMemo = { key, value: b.ok ? b : null };
+    }
+    return baziMemo.value;
+  }
 
   function mySigns() {
     const natal = ctx.getNatal();
@@ -102,7 +123,7 @@ export function mountFortune(root, ctx) {
         h(
           'div',
           { class: 'score-hero' },
-          h('div', { class: `score-ring ${scoreClass(f.scores.overall)}` }, h('b', { text: String(f.scores.overall) }), h('small', { text: '整體' })),
+          ringTo(h('div', { class: `score-ring ${scoreClass(f.scores.overall)}` }, h('b', { text: String(f.scores.overall) }), h('small', { text: '整體' })), f.scores.overall),
           h('p', { class: 'summary', text: f.summary }),
         ),
         AREAS.map((a) => scoreBar(a.label, f.scores[a.id])),
@@ -142,7 +163,54 @@ export function mountFortune(root, ctx) {
     );
 
     if (aiEnabled()) root.append(renderAi(sign, token));
-    root.append(renderAlmanac(token), periodBar());
+    root.append(...renderTiming(token), renderAlmanac(token), periodBar());
+  }
+
+  // ── 近期提醒＋擇日
+  function renderTiming(token) {
+    const remindBody = h('div', {}, h('div', { class: 'skeleton', style: { height: '80px' } }));
+    const chooseBody = h('div', {}, h('div', { class: 'skeleton', style: { height: '120px' } }));
+    const remind = h('section', { class: 'card', id: 'reminders' }, cardHead(h, 'bell', '近期提醒', '未來 45 天：天象、換流月、沖到你的日子'), remindBody);
+    const choose = h('section', { class: 'card', id: 'choose-day' }, cardHead(h, 'calendar', '擇日：想做的事挑哪天', '未來 30 天，越綠越適合'), chooseBody);
+    Promise.all([import('../core/timing.js'), import('../core/bazi.js')])
+      .then(([T, B]) => {
+        if (token !== renderToken) return;
+        const person = ctx.getActive();
+        const input = person ? ctx.inputOf(person) : null;
+        const bazi = activeBazi(B.buildBazi);
+        const today = zoneToday(tz());
+        const items = T.upcoming({ from: today, days: 45, bazi, birth: input ? input.date : null, tz: tz() });
+        const shown = showAllReminders ? items : items.slice(0, 6);
+        fill(remindBody, 
+          items.length ? timelineList(shown, { withBasis: true }) : h('p', { class: 'muted', text: '最近沒有特別需要注意的天象或沖煞。' }),
+          items.length > 6 ? h('button', { type: 'button', class: 'link', text: showAllReminders ? '收起' : `顯示全部 ${items.length} 則`, onclick: () => { showAllReminders = !showAllReminders; render(); } }) : null,
+          bazi ? null : h('p', { class: 'hint', text: '填上生日後，會加入換流月對你的意義與沖到你生肖的日子。' }),
+        );
+        if (!T.ACTIVITIES.some((a) => a.id === activity)) activity = 'money';
+        const sel = h('select', { 'aria-label': '想做的事', onchange: (e) => { activity = e.target.value; save('pickActivity', activity); render(); } }, T.ACTIVITIES.map((a) => h('option', { value: a.id, text: a.label })));
+        sel.value = activity;
+        const sign = defaultSign() ?? selected;
+        const r = T.chooseDays(activity, { from: today, days: 30, bazi, signIndex: sign, gender: person ? person.gender : null, tz: tz() });
+        const detail = h('div', { class: 'hour-detail', 'aria-live': 'polite' }, h('p', { class: 'muted small', text: '點日期看理由。' }));
+        const pick = (d) => fill(detail, 
+          h('h3', { text: `${d.label}・${d.ganzhi}日・${d.score} 分` }),
+          h('ul', { class: 'reasons' }, d.reasons.map((x) => h('li', { class: `tone-${x.tone}`, text: x.text }))),
+        );
+        fill(chooseBody, 
+          h('div', { class: 'field' }, h('span', { class: 'field-label', text: '想做的事' }), sel),
+          h('h3', { text: '最適合的日子' }),
+          h('ol', { class: 'pairs' }, r.best.map((d) => h('li', { class: scoreClass(d.score) }, h('span', { text: `${d.label}・${d.reasons.filter((x) => x.tone === 'good').map((x) => x.text).slice(0, 2).join('、') || '沒有特別加分'}` }), h('b', { text: `${d.score}` })))),
+          heatGrid(r.days, pick),
+          detail,
+          h('p', { class: 'hint', text: '分數＝農民曆宜忌＋這天和你八字的沖合與十神＋當天星座分數。同分時取日期較早的。傳統與占星的推算規則，重要的事仍以實際狀況為準。' }),
+        );
+      })
+      .catch(() => {
+        if (token !== renderToken) return;
+        fill(remindBody, h('p', { class: 'warn', text: '提醒元件載入失敗，請確認網路後重新開啟 App。' }));
+        clear(chooseBody);
+      });
+    return [remind, choose];
   }
 
   function renderDays(f) {
@@ -199,15 +267,16 @@ export function mountFortune(root, ctx) {
     const body = h('div', {}, h('p', { class: 'muted', text: '農民曆載入中…' }));
     const card = h('section', { class: 'card almanac' }, body);
     const day = addDays(zoneToday(tz()), almanacOffset);
-    import('../core/calendar.js')
-      .then(({ almanac, folkZodiac }) => {
+    Promise.all([import('../core/calendar.js'), import('../core/timing.js'), import('../core/bazi.js')])
+      .then(([{ almanac, folkZodiac }, T, B]) => {
         if (token !== renderToken) return;
         const a = almanac(day);
+        const hours = T.hourGuide(day, activeBazi(B.buildBazi));
         const natal = ctx.getNatal();
         const person = ctx.getActive();
         const myZodiac = natal ? folkZodiac(natal.date).name : null;
         const clash = myZodiac && a.chongShengXiao === myZodiac;
-        body.replaceChildren(
+        fill(body, 
           h(
             'div',
             { class: 'almanac-head' },
@@ -221,6 +290,8 @@ export function mountFortune(root, ctx) {
           chipRow('宜', a.yi, 'yi'),
           chipRow('忌', a.ji, 'ji'),
           h('p', { text: `沖煞：沖${a.chong}・煞${a.sha}` }),
+          h('h3', { text: '時辰吉凶：這天幾點做什麼' }),
+          hourTimeline(hours, { markNow: almanacOffset === 0 }),
           h(
             'details',
             { class: 'more' },
@@ -237,7 +308,7 @@ export function mountFortune(root, ctx) {
       })
       .catch(() => {
         if (token !== renderToken) return;
-        body.replaceChildren(h('p', { class: 'warn', text: '農民曆載入失敗，請確認網路後重新開啟 App。' }));
+        fill(body, h('p', { class: 'warn', text: '農民曆載入失敗，請確認網路後重新開啟 App。' }));
       });
     return card;
   }

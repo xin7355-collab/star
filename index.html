@@ -18,54 +18,61 @@
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/app.css">
   <!-- modulepreload:start（node scripts/gen-preload.mjs 產生）-->
-  <link rel="modulepreload" href="js/config.js">
   <link rel="modulepreload" href="vendor/astronomy.min.js">
   <link rel="modulepreload" href="js/core/astro.js">
   <link rel="modulepreload" href="js/core/date.js">
-  <link rel="modulepreload" href="js/core/fortune.js">
   <link rel="modulepreload" href="js/core/places.js">
   <link rel="modulepreload" href="js/core/records.js">
-  <link rel="modulepreload" href="js/core/synastry.js">
-  <link rel="modulepreload" href="js/core/tarot.js">
   <link rel="modulepreload" href="js/core/tz.js">
   <link rel="modulepreload" href="js/core/zodiac.js">
-  <link rel="modulepreload" href="js/ui/ai.js">
+  <link rel="modulepreload" href="js/ui/icons.js">
   <link rel="modulepreload" href="js/ui/palette.js">
+  <link rel="modulepreload" href="js/ui/widgets.js">
   <link rel="modulepreload" href="js/version.js">
   <link rel="modulepreload" href="js/core/natal.js">
   <link rel="modulepreload" href="js/ui/birthform.js">
   <link rel="modulepreload" href="js/ui/dom.js">
+  <link rel="modulepreload" href="js/ui/motion.js">
   <link rel="modulepreload" href="js/ui/poster.js">
   <link rel="modulepreload" href="js/ui/records-store.js">
   <link rel="modulepreload" href="js/ui/storage.js">
   <link rel="modulepreload" href="js/ui/update.js">
-  <link rel="modulepreload" href="js/views/fortune.js">
-  <link rel="modulepreload" href="js/views/match.js">
   <link rel="modulepreload" href="js/views/me.js">
-  <link rel="modulepreload" href="js/views/tarot.js">
+  <link rel="modulepreload" href="js/views/today.js">
+  <link rel="modulepreload" href="js/core/zh-data.js">
+  <link rel="modulepreload" href="vendor/shared-chunk.js">
+  <link rel="modulepreload" href="js/core/calendar.js">
+  <link rel="modulepreload" href="js/core/zh.js">
+  <link rel="modulepreload" href="vendor/lunar.js">
+  <link rel="modulepreload" href="js/core/bazi.js">
+  <link rel="modulepreload" href="js/core/fortune.js">
+  <link rel="modulepreload" href="js/core/timing.js">
+  <link rel="modulepreload" href="js/core/windfall.js">
+  <link rel="modulepreload" href="js/core/daily.js">
+  <link rel="modulepreload" href="js/core/numerology.js">
   <!-- modulepreload:end -->
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <h1 id="page-title">星座手帳</h1>
+    <div class="topbar-inner"><h1 id="page-title">星座手帳</h1><span id="page-sub" class="top-sub"></span></div>
   </header>
 
   <main id="main">
-    <section id="view-me" class="view" aria-label="我的星盤"></section>
-    <section id="view-fortune" class="view" aria-label="運勢" hidden></section>
-    <section id="view-destiny" class="view" aria-label="命理" hidden></section>
-    <section id="view-match" class="view" aria-label="配對" hidden></section>
-    <section id="view-tarot" class="view" aria-label="塔羅" hidden></section>
+    <section id="view-today" class="view" aria-label="今日運勢"></section>
+    <section id="view-fortune" class="view" aria-label="時運" hidden></section>
+    <section id="view-destiny" class="view" aria-label="命盤" hidden></section>
+    <section id="view-oracle" class="view" aria-label="占卜" hidden></section>
+    <section id="view-me" class="view" aria-label="我的" hidden></section>
     <p class="footnote">命理與星座內容僅供娛樂參考。所有計算都在手機上完成，名單與紀錄只存在這支手機。</p>
   </main>
 
   <nav class="tabbar" aria-label="主選單">
-    <button type="button" data-view="me"><span class="tab-ico" aria-hidden="true">☉</span><span>我的</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
-    <button type="button" data-view="fortune"><span class="tab-ico" aria-hidden="true">✦</span><span>運勢</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
-    <button type="button" data-view="destiny"><span class="tab-ico tab-text" aria-hidden="true">命</span><span>命理</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
-    <button type="button" data-view="match"><span class="tab-ico" aria-hidden="true">♡</span><span>配對</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
-    <button type="button" data-view="tarot"><span class="tab-ico" aria-hidden="true">✧</span><span>塔羅</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
+    <button type="button" data-view="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/><path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg><span>今日</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
+    <button type="button" data-view="fortune"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/><path d="M16 3l.6 1.6L18 5l-1.4.4L16 7l-.6-1.6L14 5l1.4-.4z"/></svg><span>時運</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
+    <button type="button" data-view="destiny"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"/><path d="M12 3v18M3 12h18"/><path d="M12 7.5a4.5 4.5 0 1 1 0 9"/></svg><span>命盤</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
+    <button type="button" data-view="oracle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14z"/><path d="M7 21h10M9 17.5l-1 3.5M15 17.5l1 3.5"/><path d="M10 7.5a3 3 0 0 1 3-1.5"/></svg><span>占卜</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
+    <button type="button" data-view="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg><span>我的</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
   </nav>
 
   <div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="分享圖卡">

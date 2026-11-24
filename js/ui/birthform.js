@@ -3,7 +3,7 @@
 // ・「我知道出生時間」勾選後才展開時間與時區（漸進揭露）
 // ・日光節約重複時刻會在表單內請使用者選第一次或第二次
 
-import { h, nextId, segmented } from './dom.js';
+import { h, nextId, segmented, fill } from './dom.js';
 import { parseBirthDate, parseTime, daysInMonth, normalizeDigits, ROC_OFFSET } from '../core/date.js';
 import { PLACE_GROUPS, PLACES, validateCoords } from '../core/places.js';
 import { DEFAULT_TZ, listTimeZones, isValidTimeZone } from '../core/tz.js';
@@ -43,7 +43,7 @@ export function createBirthForm({ initial = null, withName = false, withGender =
 
   function fillMonths() {
     const keep = monthSelect.value || String(v.month || '');
-    monthSelect.replaceChildren(
+    fill(monthSelect, 
       h('option', { value: '', text: '月' }),
       ...Array.from({ length: 12 }, (_, i) => h('option', { value: String(i + 1), text: calendar === 'lunar' ? LUNAR_MONTHS[i] : `${i + 1} 月` })),
     );
@@ -61,7 +61,7 @@ export function createBirthForm({ initial = null, withName = false, withGender =
       const m = parseInt(monthSelect.value, 10);
       if (Number.isFinite(m) && y >= 1) max = daysInMonth(y, m);
     }
-    daySelect.replaceChildren(
+    fill(daySelect, 
       h('option', { value: '', text: '日' }),
       ...Array.from({ length: max }, (_, i) => h('option', { value: String(i + 1), text: calendar === 'lunar' ? LUNAR_DAYS[i] : `${i + 1} 日` })),
     );
@@ -248,7 +248,7 @@ export function createBirthForm({ initial = null, withName = false, withGender =
 
   /** 讓使用者選擇日光節約重複時刻 */
   function askFold(options, onPick) {
-    foldBox.replaceChildren(
+    fill(foldBox, 
       h('p', { class: 'warn', text: '這個時刻因日光節約時間結束出現兩次，請選擇：' }),
       ...options.map((opt) =>
         h('button', {

@@ -2,7 +2,7 @@
 // iPhone：優先用系統分享面板（可存到相簿、傳 LINE / IG）；不支援時顯示圖片，長按即可儲存。
 // 參考 sbti SharePoster 的思路（Canvas 繪製 + 中文逐字換行），程式為本專案自行撰寫。
 
-import { h } from './dom.js';
+import { h, fill } from './dom.js';
 import { POSTER, LEVEL } from './palette.js';
 
 const W = 1080;
@@ -177,7 +177,7 @@ export async function shareFile(blob, filename, { sheet, previewAlt = '', hint =
   if (blob.type.startsWith('image/')) parts.push(h('img', { src: url, alt: previewAlt, class: 'sheet-img' }));
   if (hint) parts.push(h('p', { class: 'hint center', text: hint }));
   parts.push(h('div', { class: 'actions' }, link));
-  sheet.body.replaceChildren(...parts);
+  fill(sheet.body, ...parts);
   sheet.open(() => URL.revokeObjectURL(url));
   return 'sheet';
 }
