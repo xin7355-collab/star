@@ -1,0 +1,5 @@
+id,code,reason
+#view-me > section:nth-of-type(4) > details > input,TARGET_TOO_SMALL,WCAG 2.5.8 例外「Equivalent」：隱藏的檔案選擇器由同區塊 44px 的「匯入備份檔」按鈕觸發
+#view-me > section:nth-of-type(4) > details > input,FOCUS_UNVERIFIED,刻意 tabindex=-1：鍵盤使用者用「匯入備份檔」按鈕（焦點已實測）開啟檔案選擇
+#view-me > section:nth-of-type(2) > details > input,TARGET_TOO_SMALL,WCAG 2.5.8 例外「Equivalent」：第一次使用（還沒有名單）時同一個隱藏檔案選擇器，由「匯入備份檔」按鈕觸發
+#view-me > section:nth-of-type(2) > details > input,FOCUS_UNVERIFIED,刻意 tabindex=-1：鍵盤使用者用「匯入備份檔」按鈕（焦點已實測）開啟檔案選擇

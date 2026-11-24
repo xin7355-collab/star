@@ -7,6 +7,7 @@ import { APP_VER } from '../version.js';
 const RELOAD_KEY = 'star.reloadedFor';
 
 async function fetchRemoteVersion() {
+  if (navigator.onLine === false) return null; // 離線時不必問，也避免瀏覽器記一筆失敗請求
   try {
     const res = await fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) return null;

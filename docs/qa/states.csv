@@ -1,0 +1,58 @@
+surface,kind,state,status,evidence,note
+運勢卡,data_view,loading,NA,,運勢在手機上同步計算（約 0.1 秒），沒有非同步載入
+運勢卡,data_view,empty,DONE,code:js/views/fortune.js 還沒填生日的提示卡與「點上方任一星座」,
+運勢卡,data_view,error,NA,,純計算；生日在表單已驗證，沒有會失敗的外部呼叫
+運勢卡,data_view,populated,DONE,e2e:第一次使用：輸入生日 → 星盤、農曆生日、運勢與農民曆,
+農民曆卡,data_view,loading,DONE,code:js/views/fortune.js「農民曆載入中…」,
+農民曆卡,data_view,empty,NA,,每一天都有農民曆資料
+農民曆卡,data_view,error,DONE,code:js/views/fortune.js「農民曆載入失敗，請確認網路後重新開啟 App」,
+農民曆卡,data_view,populated,DONE,e2e:離線：載入過一次後，沒有網路也能開啟並計算,
+AI 短評卡,data_view,loading,DONE,code:js/views/fortune.js「載入 AI 短評中…」,
+AI 短評卡,data_view,empty,DONE,code:js/views/fortune.js「這個期間的短評尚未產生」,
+AI 短評卡,data_view,error,DONE,test:tests/ai-client.test.js 退避後放棄時丟出中文錯誤；畫面顯示錯誤與「再試一次」,
+AI 短評卡,data_view,populated,DONE,手動 E2E（模擬 Worker 回應，先 202 再 200）,未進 repo 測試：需要真的 Worker 網址才會顯示
+命理結果,data_view,loading,DONE,code:js/views/destiny.js「計算中…」與「載入中…」,
+命理結果,data_view,empty,DONE,design-qa:empty-destiny 快照（320／390 CLEAN）,
+命理結果,data_view,error,DONE,code:js/views/destiny.js warnCard（例：紫微需要出生時間）＋「到我的編輯資料」,
+命理結果,data_view,populated,DONE,e2e:命理：八字、流年、紫微、瑪雅、生命靈數、稱骨都算得出來,
+名單,data_view,loading,NA,,名單從本機同步讀取
+名單,data_view,empty,DONE,design-qa:empty-me 快照（第一次使用的生日表單）,
+名單,data_view,error,DONE,code:js/views/me.js「這個人的生日資料不完整，請按編輯重新儲存」,
+名單,data_view,populated,DONE,e2e:名單：新增農曆生日的家人（不搶走「我」）、從名單配對、塔羅，都記到本機紀錄,
+查詢紀錄,data_view,loading,NA,,紀錄從本機同步讀取
+查詢紀錄,data_view,empty,DONE,code:js/views/me.js 沒有紀錄時的說明文字,
+查詢紀錄,data_view,error,DONE,code:js/app.js commit()：儲存失敗時提示「手機儲存空間不足…請先匯出備份」,
+查詢紀錄,data_view,populated,DONE,e2e:命理：八字、流年、紫微、瑪雅、生命靈數、稱骨都算得出來（查詢紀錄（1））,
+生日表單,form,default,DONE,e2e:第一次使用：輸入生日 → 星盤、農曆生日、運勢與農民曆,
+生日表單,form,focus_visible,DONE,design-qa:empty-me 快照鍵盤 Tab 實測,
+生日表單,form,validation_error,DONE,test:tests/date-tz.test.js 與 calendar-bazi.test.js 的錯誤訊息；畫面以提示訊息顯示,
+生日表單,form,submitting,DONE,e2e:送出中：按鈕顯示「計算中…」並鎖住，不會重複送出,攔住農曆函式庫的下載實測
+生日表單,form,success,DONE,code:js/views/me.js「已儲存在這支手機」＋顯示星盤,
+生日表單,form,server_error,DONE,e2e:載入失敗：提示能做什麼、已填資料保留,沒有伺服器；唯一會失敗的非同步是延後載入的農曆函式庫
+匯入備份,action,default,DONE,e2e:備份：匯出 → 清除 → 匯入，名單與紀錄都還原,
+匯入備份,action,hover,NA,,觸控裝置為主
+匯入備份,action,focus_visible,DONE,design-qa:me 快照鍵盤 Tab 實測（展開備份區塊）,
+匯入備份,action,disabled,NA,,沒有停用狀態
+匯入備份,action,busy,NA,,檔案上限 1MB，同步解析
+匯入備份,action,failure,DONE,test:tests/records.test.js 備份檔驗證；畫面顯示錯誤原因,
+塔羅抽牌,action,default,DONE,e2e:名單：新增農曆生日的家人（不搶走「我」）、從名單配對、塔羅，都記到本機紀錄,
+塔羅抽牌,action,hover,NA,,觸控裝置為主
+塔羅抽牌,action,focus_visible,DONE,design-qa:tarot 快照鍵盤 Tab 實測,
+塔羅抽牌,action,disabled,NA,,沒有停用狀態
+塔羅抽牌,action,busy,NA,,同步抽牌
+塔羅抽牌,action,failure,NA,,只用手機內建加密亂數，沒有外部呼叫
+整頁,page,narrow_320,DONE,e2e:版面：320px 寬的手機，五個分頁都沒有水平捲動,
+整頁,page,wide_1440,DONE,npm run qa:design（wide-* 6 張 1440 快照 CLEAN）,
+整頁,page,long_content,DONE,npm run qa:design（long-* 12 張 320／390 快照 CLEAN）,名單 50 人、紀錄 300 筆、名字 20 字無空格英文
+運勢卡,data_view,long_content,DONE,npm run qa:design（long-fortune：今年 12 個月與 AI 短評 200 字）,
+農民曆卡,data_view,long_content,DONE,npm run qa:design（long-fortune：2027-12-31 宜 30 項，兩年內最多）,
+AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模擬 200 字含無空格長網址；Worker 上限 200 字）,
+命理結果,data_view,long_content,DONE,npm run qa:design（long-bazi／long-ziwei：正在看的人是 20 字英文名字）,
+名單,data_view,long_content,DONE,npm run qa:design（long-me：50 人上限、20 字中文與無空格英文名字）,
+查詢紀錄,data_view,long_content,DONE,npm run qa:design（long-me：300 筆只列最近 50 筆並提示；標題 60 字、摘要 400 字）,
+精準配對,action,default,DONE,e2e:名單：新增農曆生日的家人（不搶走「我」）、從名單配對、塔羅，都記到本機紀錄,
+精準配對,action,hover,NA,,觸控裝置為主
+精準配對,action,focus_visible,DONE,npm run qa:design（match 快照鍵盤 Tab 實測）,
+精準配對,action,disabled,DONE,code:js/views/match.js 計算中按鈕停用,與生日表單同一做法（生日表單有 E2E）
+精準配對,action,busy,DONE,code:js/views/match.js「計算中…」,與生日表單同一做法（生日表單有 E2E）
+精準配對,action,failure,DONE,code:js/views/match.js「第 N 位：錯誤原因」提示,

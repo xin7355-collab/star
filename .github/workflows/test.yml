@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  unit:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -13,4 +13,42 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      # --ignore-scripts：不執行套件的安裝腳本（供應鏈防護）
+      - run: npm ci --ignore-scripts
       - run: npm test
+      - name: 打包檔與原始碼一致（vendor、Worker、modulepreload 清單）
+        run: |
+          npm run build
+          node scripts/gen-preload.mjs
+          git diff --exit-code -- vendor worker/dist index.html
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # WebKit 是 Safari 的引擎：雲端工作階段沒有，CI 補跑一次，更接近 iPhone 實機
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e
+        env:
+          CI: '1'
+          PW_WEBKIT: '1'
+      # 真的瀏覽器量對比、觸控大小、鍵盤焦點、水平捲動（320／390／1440 與長內容），任何一張不是 CLEAN 就紅燈
+      - name: design-qa 版面稽核
+        if: always()
+        run: npm run qa:design
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results/design-qa
+          retention-days: 7
+          if-no-files-found: ignore

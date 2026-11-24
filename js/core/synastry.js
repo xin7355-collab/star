@@ -71,7 +71,7 @@ export function scorePair(a, b) {
     b: b.name,
     total,
     bands,
-    basis: used.length === BANDS.length ? '完整四項' : `以 ${used.length} 項計算（資料不足的項目不計分）`,
+    basis: used.length === BANDS.length ? '完整四項' : `以 ${used.length} 項計算（缺資料的那幾項不計分）`,
     label: labelFor(total),
     story: sunA && sunB ? relationStory(sunA[0], sunB[0]) : null,
   };

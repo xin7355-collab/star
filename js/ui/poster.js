@@ -3,12 +3,13 @@
 // 參考 sbti SharePoster 的思路（Canvas 繪製 + 中文逐字換行），程式為本專案自行撰寫。
 
 import { h } from './dom.js';
+import { POSTER, LEVEL } from './palette.js';
 
 const W = 1080;
 const H = 1350;
 const FONT = '"PingFang TC", "Heiti TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif';
 
-const LEVEL_COLORS = { high: '#4cd6a0', mid: '#ffd166', low: '#ff9f5a', poor: '#ff6b7a' };
+const LEVEL_COLORS = LEVEL;
 
 function levelColor(score) {
   if (score >= 75) return LEVEL_COLORS.high;
@@ -64,13 +65,13 @@ export function renderPoster(spec) {
   const ctx = canvas.getContext('2d');
 
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#0b1020');
-  bg.addColorStop(1, '#25184a');
+  bg.addColorStop(0, POSTER.bgTop);
+  bg.addColorStop(1, POSTER.bgBottom);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
   // 星點（固定位置，避免每次不同）
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillStyle = POSTER.star;
   for (let i = 0; i < 70; i += 1) {
     const x = (i * 337) % W;
     const y = (i * 521) % H;
@@ -80,28 +81,28 @@ export function renderPoster(spec) {
     ctx.fill();
   }
 
-  ctx.fillStyle = 'rgba(22,31,61,0.88)';
+  ctx.fillStyle = POSTER.panel;
   roundRect(ctx, 60, 60, W - 120, H - 120, 40);
   ctx.fill();
 
   ctx.textBaseline = 'top';
-  ctx.fillStyle = '#eef1ff';
+  ctx.fillStyle = POSTER.text;
   ctx.font = `700 64px ${FONT}`;
   let y = 120;
   y = wrapText(ctx, spec.title, 120, y, W - 240, 80, 2);
   if (spec.subtitle) {
-    ctx.fillStyle = '#a6afd6';
+    ctx.fillStyle = POSTER.muted;
     ctx.font = `400 36px ${FONT}`;
     y = wrapText(ctx, spec.subtitle, 120, y + 6, W - 240, 48, 2);
   }
   y += 30;
 
   if (spec.big) {
-    ctx.fillStyle = spec.bigScore !== undefined ? levelColor(spec.bigScore) : '#8fb3ff';
+    ctx.fillStyle = spec.bigScore !== undefined ? levelColor(spec.bigScore) : POSTER.accent;
     ctx.font = `800 160px ${FONT}`;
     ctx.fillText(spec.big, 120, y);
     if (spec.bigLabel) {
-      ctx.fillStyle = '#eef1ff';
+      ctx.fillStyle = POSTER.text;
       ctx.font = `600 44px ${FONT}`;
       const bw = ctx.measureText(spec.big).width;
       ctx.font = `800 160px ${FONT}`;
@@ -113,14 +114,14 @@ export function renderPoster(spec) {
   }
 
   for (const bar of spec.bars || []) {
-    ctx.fillStyle = '#eef1ff';
+    ctx.fillStyle = POSTER.text;
     ctx.font = `500 38px ${FONT}`;
     ctx.fillText(bar.label, 120, y);
     ctx.textAlign = 'right';
     ctx.fillText(String(bar.value), W - 120, y);
     ctx.textAlign = 'left';
     y += 54;
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillStyle = POSTER.track;
     roundRect(ctx, 120, y, W - 240, 22, 11);
     ctx.fill();
     ctx.fillStyle = levelColor(bar.value);
@@ -129,14 +130,14 @@ export function renderPoster(spec) {
     y += 54;
   }
 
-  ctx.fillStyle = '#d7dcf5';
+  ctx.fillStyle = POSTER.body;
   ctx.font = `400 36px ${FONT}`;
   for (const line of spec.lines || []) {
     if (y > H - 260) break;
     y = wrapText(ctx, line, 120, y + 8, W - 240, 52, 4);
   }
 
-  ctx.fillStyle = '#7f89b8';
+  ctx.fillStyle = POSTER.footer;
   ctx.font = `400 30px ${FONT}`;
   ctx.fillText(spec.footer || '星座手帳・僅供娛樂參考', 120, H - 150);
   return canvas;

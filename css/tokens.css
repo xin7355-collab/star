@@ -1,0 +1,47 @@
+/* 設計變數（顏色、尺寸）。畫面上的顏色一律從這裡取，不在元件裡寫死。 */
+:root {
+  --bg: #0b1020;
+  --bg2: #111833;
+  --card: #161f3d;
+  --line: #2a3566;
+  --text: #eef1ff;
+  --muted: #a6afd6;
+  --accent: #8fb3ff;
+  --accent2: #c9a6ff;
+  --good: #4cd6a0;
+  --mid: #ffd166;
+  --low: #ff9f5a;
+  --poor: #ff6b7a;
+  --radius: 16px;
+  --tabbar-h: 60px;
+  --period-h: 56px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  color-scheme: dark;
+  --on-accent: #0b1020;
+  --divider: rgba(255, 255, 255, 0.06);
+  --track: rgba(255, 255, 255, 0.1);
+  --danger-bg: #6a2333;
+  --good-bg: #1f5c46;
+  --highlight-bg: #1d2a55;
+  --selected-bg: #22306a;
+  --badge-bg: #2a3566;
+  --badge-alt-bg: #4a2e7a;
+  --accent-soft: rgba(143, 179, 255, 0.12);
+  --accent-ring: rgba(143, 179, 255, 0.35);
+  --glow-1: #22306666;
+  --glow-2: #3a1f6a55;
+  --bar-bg: rgba(11, 16, 32, 0.86);
+  --bar-bg-strong: rgba(11, 16, 32, 0.92);
+  --tabbar-bg: rgba(17, 24, 51, 0.96);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow: rgba(0, 0, 0, 0.4);
+  --toast-bg: #f0f3ff;
+  --glyph-1: #3b4c99;
+  --glyph-2: #1b2350;
+  --wx-wood: #6fd08c;
+  --wx-fire: #ff7b6b;
+  --wx-earth: #e3b35b;
+  --wx-metal: #d9dde8;
+  --wx-water: #6fb6ff;
+}

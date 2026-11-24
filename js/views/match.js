@@ -115,7 +115,23 @@ export function mountMatch(root, ctx) {
         'div',
         { class: 'actions' },
         slots.length < MAX_PEOPLE ? h('button', { type: 'button', class: 'btn ghost', text: '＋ 加一個人', onclick: () => { slots.push({ personId: 'manual', form: null }); render(); } }) : null,
-        h('button', { type: 'button', class: 'btn primary', text: '開始配對', onclick: runPrecise }),
+        h('button', {
+          type: 'button',
+          class: 'btn primary',
+          text: '開始配對',
+          onclick: async (e) => {
+            const btn = e.currentTarget;
+            if (btn.disabled) return;
+            btn.disabled = true;
+            btn.textContent = '計算中…';
+            try {
+              await runPrecise();
+            } finally {
+              btn.disabled = false;
+              btn.textContent = '開始配對';
+            }
+          },
+        }),
       ),
     );
   }

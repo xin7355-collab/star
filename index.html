@@ -15,7 +15,35 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <title>星座手帳</title>
+  <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/app.css">
+  <!-- modulepreload:start（node scripts/gen-preload.mjs 產生）-->
+  <link rel="modulepreload" href="js/config.js">
+  <link rel="modulepreload" href="vendor/astronomy.min.js">
+  <link rel="modulepreload" href="js/core/astro.js">
+  <link rel="modulepreload" href="js/core/date.js">
+  <link rel="modulepreload" href="js/core/fortune.js">
+  <link rel="modulepreload" href="js/core/places.js">
+  <link rel="modulepreload" href="js/core/records.js">
+  <link rel="modulepreload" href="js/core/synastry.js">
+  <link rel="modulepreload" href="js/core/tarot.js">
+  <link rel="modulepreload" href="js/core/tz.js">
+  <link rel="modulepreload" href="js/core/zodiac.js">
+  <link rel="modulepreload" href="js/ui/ai.js">
+  <link rel="modulepreload" href="js/ui/palette.js">
+  <link rel="modulepreload" href="js/version.js">
+  <link rel="modulepreload" href="js/core/natal.js">
+  <link rel="modulepreload" href="js/ui/birthform.js">
+  <link rel="modulepreload" href="js/ui/dom.js">
+  <link rel="modulepreload" href="js/ui/poster.js">
+  <link rel="modulepreload" href="js/ui/records-store.js">
+  <link rel="modulepreload" href="js/ui/storage.js">
+  <link rel="modulepreload" href="js/ui/update.js">
+  <link rel="modulepreload" href="js/views/fortune.js">
+  <link rel="modulepreload" href="js/views/match.js">
+  <link rel="modulepreload" href="js/views/me.js">
+  <link rel="modulepreload" href="js/views/tarot.js">
+  <!-- modulepreload:end -->
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
@@ -33,16 +61,16 @@
   </main>
 
   <nav class="tabbar" aria-label="主選單">
-    <button type="button" data-view="me"><span class="tab-ico" aria-hidden="true">☉</span><span>我的</span></button>
-    <button type="button" data-view="fortune"><span class="tab-ico" aria-hidden="true">✦</span><span>運勢</span></button>
-    <button type="button" data-view="destiny"><span class="tab-ico tab-text" aria-hidden="true">命</span><span>命理</span></button>
-    <button type="button" data-view="match"><span class="tab-ico" aria-hidden="true">♡</span><span>配對</span></button>
-    <button type="button" data-view="tarot"><span class="tab-ico" aria-hidden="true">✧</span><span>塔羅</span></button>
+    <button type="button" data-view="me"><span class="tab-ico" aria-hidden="true">☉</span><span>我的</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
+    <button type="button" data-view="fortune"><span class="tab-ico" aria-hidden="true">✦</span><span>運勢</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
+    <button type="button" data-view="destiny"><span class="tab-ico tab-text" aria-hidden="true">命</span><span>命理</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
+    <button type="button" data-view="match"><span class="tab-ico" aria-hidden="true">♡</span><span>配對</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
+    <button type="button" data-view="tarot"><span class="tab-ico" aria-hidden="true">✧</span><span>塔羅</span></button> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
   </nav>
 
   <div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="分享圖卡">
     <div class="sheet-panel">
-      <div class="sheet-top"><b>分享圖卡</b><button type="button" id="sheet-close" class="link">關閉</button></div>
+      <div class="sheet-top"><b>分享圖卡</b><button type="button" id="sheet-close" class="link">關閉</button></div> <!-- design-qa: allow BUTTON_NO_ACTION — 點擊由 js/app.js 綁定 -->
       <div id="sheet-body"></div>
     </div>
   </div>

@@ -203,7 +203,14 @@ export function createBirthForm({ initial = null, withName = false, withGender =
       const day = parseInt(daySelect.value, 10);
       if (!month) return { ok: false, error: '請選擇農曆月份' };
       if (!day) return { ok: false, error: '請選擇農曆日' };
-      const { lunarToSolar } = await import('../core/calendar.js');
+      let lunarToSolar;
+      try {
+        ({ lunarToSolar } = await import('../core/calendar.js'));
+      } catch {
+        // 第一次開啟、service worker 還沒快取完就斷網時才會發生；已填的資料保留在表單上。
+        // Chromium 允許重試失敗的 import()，其他瀏覽器未必，所以也給「重新開啟」的退路
+        return { ok: false, error: '農曆換算元件載入失敗：請確認網路後再按一次；仍失敗請重新開啟 App。' };
+      }
       const r = lunarToSolar({ year, month, day, isLeap: leapBox.checked });
       if (!r.ok) return r;
       date = r.value;

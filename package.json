@@ -8,7 +8,8 @@
     "build:vendor": "node scripts/build-vendor.mjs",
     "build:worker": "node scripts/build-worker.mjs",
     "build": "npm run build:vendor && npm run build:worker",
-    "test:e2e": "playwright test --trace off"
+    "test:e2e": "playwright test --trace off",
+    "qa:design": "node scripts/design-qa.cjs"
   },
   "engines": {
     "node": ">=20"

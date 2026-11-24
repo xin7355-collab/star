@@ -8,6 +8,7 @@ import { SIGNS, ELEMENTS, MODALITIES, formatDegree } from '../core/zodiac.js';
 import { BODY_NAME } from '../core/astro.js';
 import { newId } from '../core/records.js';
 
+const HISTORY_SHOWN = 50;
 const TYPE_LABEL = {
   fortune: '運勢', match: '配對', tarot: '塔羅', bazi: '八字', liunian: '流年', ziwei: '紫微', maya: '瑪雅', numerology: '生命靈數', chenggu: '稱骨',
 };
@@ -39,7 +40,20 @@ export function mountMe(root, ctx) {
       name: person ? person.name : first ? '我' : '',
       gender: person ? person.gender : '',
     });
+    const saveBtn = h('button', { type: 'button', class: 'btn primary', text: '計算並儲存' });
     const submit = async () => {
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
+      saveBtn.textContent = '計算中…';
+      try {
+        await save();
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '計算並儲存';
+      }
+    };
+    saveBtn.addEventListener('click', submit);
+    const save = async () => {
       const r = await form.read();
       if (!r.ok) return ctx.toast(r.error);
       const natal = buildNatal(r.value);
@@ -67,7 +81,7 @@ export function mountMe(root, ctx) {
       h(
         'div',
         { class: 'actions' },
-        h('button', { type: 'button', class: 'btn primary', text: '計算並儲存', onclick: submit }),
+        saveBtn,
         first ? null : h('button', { type: 'button', class: 'btn ghost', text: '取消', onclick: () => { editing = null; render(); } }),
       ),
     );
@@ -230,7 +244,7 @@ export function mountMe(root, ctx) {
           ? h(
             'ul',
             { class: 'history' },
-            list.slice(0, 50).map((e) =>
+            list.slice(0, HISTORY_SHOWN).map((e) =>
               h(
                 'li',
                 {},
@@ -245,6 +259,8 @@ export function mountMe(root, ctx) {
             ),
           )
           : h('p', { class: 'hint', text: '塔羅抽牌、配對結果，以及你在命理頁按「存到紀錄」的內容，會保存在這裡。' }),
+        // 最多存 300 筆但只列最近 50 筆（一次畫太多在舊手機會卡）；要講清楚，不然使用者以為舊紀錄不見了
+        list.length > HISTORY_SHOWN ? h('p', { class: 'hint', text: `只列出最近 ${HISTORY_SHOWN} 筆；全部 ${list.length} 筆都在「匯出備份檔」裡。` }) : null,
         list.length
           ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn ghost', text: '清除全部紀錄', onclick: () => { if (window.confirm('確定清除全部查詢紀錄？')) ctx.clearHistory(); } }))
           : null,
@@ -263,7 +279,8 @@ export function mountMe(root, ctx) {
     } else {
       status.textContent = '建議加入主畫面並定期匯出備份。';
     }
-    const fileInput = h('input', { type: 'file', accept: 'application/json,.json', class: 'visually-hidden', 'aria-label': '選擇備份檔' });
+    // 檔案選擇器藏起來、不進 Tab 順序，由可見的「匯入備份檔」按鈕觸發（避免 1×1 的隱形可聚焦目標）
+    const fileInput = h('input', { type: 'file', accept: 'application/json,.json', class: 'visually-hidden', tabindex: '-1', 'aria-label': '選擇備份檔' });
     const importBox = h('div', { class: 'import-box', hidden: true });
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files && fileInput.files[0];

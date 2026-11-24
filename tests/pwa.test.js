@@ -19,7 +19,7 @@ const assetsBlock = sw.slice(sw.indexOf('const ASSETS'), sw.indexOf('];', sw.ind
 const listed = [...assetsBlock.matchAll(/'\.\/([^']*)'/g)].map((m) => m[1]).filter(Boolean);
 
 test('所有前端檔案都列在離線快取清單（漏列會造成離線時壞掉）', () => {
-  const files = [...walk(join(ROOT, 'js')), ...walk(join(ROOT, 'vendor')), join(ROOT, 'css/app.css')]
+  const files = [...walk(join(ROOT, 'js')), ...walk(join(ROOT, 'vendor')), ...walk(join(ROOT, 'css'))]
     .map(rel)
     .filter((f) => !f.endsWith('.md') && !f.endsWith('.txt'));
   for (const f of files) assert.ok(listed.includes(f), `sw.js 缺少 ${f}`);
@@ -69,4 +69,9 @@ test('畫面文字不使用 innerHTML（避免注入）', () => {
     const text = readFileSync(f, 'utf8');
     assert.ok(!/\.innerHTML\s*=/.test(text), `${rel(f)} 使用了 innerHTML`);
   }
+});
+
+test('index.html 的 modulepreload 清單與實際 import 關係同步（改了 import 請跑 node scripts/gen-preload.mjs）', async () => {
+  const { preloadBlock } = await import('../scripts/gen-preload.mjs');
+  assert.ok(readFileSync(join(ROOT, 'index.html'), 'utf8').includes(preloadBlock()));
 });
