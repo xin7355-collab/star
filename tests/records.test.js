@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizePerson, sanitizeRaw, validateBackup, mergeData, addHistory, exportData, LIMITS, newId } from '../js/core/records.js';
+import { sanitizePerson, sanitizeRaw, sanitizeSettings, validateBackup, mergeData, addHistory, exportData, LIMITS, newId } from '../js/core/records.js';
 
 const raw = { calendar: 'solar', era: 'roc', year: '79', month: '8', day: '15', knowTime: true, time: '06:20', placeId: 'taipei', tz: 'Asia/Taipei' };
 
@@ -69,4 +69,18 @@ test('合併匯入：同 id 以手機上的為準，紀錄依時間排序', () =
 test('id 是隨機的', () => {
   assert.match(newId('p'), /^p-[0-9a-f]{16}$/);
   assert.notEqual(newId('h'), newId('h'));
+});
+
+test('本名與多胞胎順序：只收中文 2～6 字、順序 0～5；舊備份沒有這兩欄也能讀', () => {
+  const ok = sanitizePerson({ name: '妹妹', fullName: ' 王小美 ', birthOrder: 2, raw });
+  assert.equal(ok.fullName, '王小美');
+  assert.equal(ok.birthOrder, 2);
+  const bad = sanitizePerson({ name: 'x', fullName: 'Amy<script>', birthOrder: 9, raw });
+  assert.equal(bad.fullName, '');
+  assert.equal(bad.birthOrder, 0);
+  const old = sanitizePerson({ name: '舊資料', raw });
+  assert.equal(old.fullName, '');
+  assert.equal(old.birthOrder, 0);
+  assert.equal(sanitizeSettings({ twinMethod: 'travel' }).twinMethod, 'travel');
+  assert.equal(sanitizeSettings({ twinMethod: 'x' }).twinMethod, 'sibling');
 });

@@ -23,6 +23,7 @@ i18next 以 `overrides` 從 iztro 預設的 23.x 升到 26.7.2，修掉 npm audi
 | 檔案 | 產生方式 | 授權 |
 |---|---|---|
 | `js/core/zh-data.js` | `scripts/gen-zh-map.py` 用 [OpenCC](https://github.com/BYVoid/OpenCC)（opencc-python-reimplemented 0.1.7）把 lunar-typescript 的簡體字串轉成台灣繁體 | 對照資料源自 OpenCC 字典，Apache-2.0，`LICENSES/opencc-Apache-2.0.txt` |
+| `js/core/kangxi-data.js` | `scripts/gen-kangxi.py` 由 Unicode Unihan 資料庫（經 npm 套件 [cjk-unihan](https://github.com/texh/cjk-unihan) 0.0.3 取得，下載時核對 sha512）的 kRSKangXi 換算康熙筆畫、kMandarin 改成數字聲調拼音；只收 Big5 範圍 13063 字 | Unihan © Unicode, Inc.，Unicode 授權，`LICENSES/unicode-LICENSE.txt`（資料已修改）；cjk-unihan 套件本身 MIT |
 
 ## 參考後以 JavaScript 重寫（MIT，保留原作者聲明）
 
@@ -49,3 +50,6 @@ i18next 以 `overrides` 從 iztro 預設的 23.x 升到 26.7.2，修掉 npm audi
 - yushuangming/Horoscope：記住使用者星座的概念
 
 塔羅牌義、運勢計分規則、配對文案、八字十神與流年解說、紫微主星簡介、生命靈數解說皆為本專案自行撰寫。
+姓名學 81 數理的白話解說、三才生剋說明、綜合解讀與稱骨白話、時機與偏財說明也都是自行撰寫；
+81 數理的傳統名稱（如「旱苗逢雨」）為通行說法。曾用 shunshi-naming-core（MIT）的 81 數理與三才分級做交叉比對，
+但沒有複製它的資料或文字。

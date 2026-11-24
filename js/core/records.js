@@ -4,7 +4,7 @@
 
 export const SCHEMA = 1;
 export const LIMITS = { people: 50, history: 300, name: 20, title: 60, summary: 400, detailBytes: 4000 };
-export const HISTORY_TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu'];
+export const HISTORY_TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu', 'name', 'reading', 'windfall', 'lottery', 'timing'];
 
 const ID_RE = /^[a-z]{1,2}-[0-9a-f]{8,32}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -69,6 +69,10 @@ export function sanitizePerson(p) {
     name: str(p.name, LIMITS.name) || '未命名',
     gender: p.gender === '男' || p.gender === '女' ? p.gender : '',
     self: p.self === true,
+    // 本名（姓名學用，只收 2～6 個中文字）；暱稱放在 name
+    fullName: typeof p.fullName === 'string' && /^\p{Script=Han}{2,6}$/u.test(p.fullName.trim()) ? p.fullName.trim() : '',
+    // 多胞胎出生順序：0＝不是多胞胎或沒填，1～5＝第幾個出生
+    birthOrder: int(p.birthOrder, 0, 5) ?? 0,
     raw,
     createdAt: isoTime(p.createdAt) || new Date().toISOString(),
   };
@@ -104,6 +108,8 @@ export function sanitizeSettings(s) {
     activeId: typeof o.activeId === 'string' && ID_RE.test(o.activeId) ? o.activeId : null,
     sect: o.sect === 2 ? 2 : 1,
     solarTime: o.solarTime === 'true' ? 'true' : 'standard',
+    // 多胞胎的紫微借宮看法：sibling＝弟妹依序借兄弟宮、travel＝老二借遷移宮
+    twinMethod: o.twinMethod === 'travel' ? 'travel' : 'sibling',
   };
 }
 
