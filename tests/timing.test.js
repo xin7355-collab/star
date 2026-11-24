@@ -126,3 +126,32 @@ test('近期提醒與拜拜擇日：台灣常見的節日、神明生日', () =>
   const pray = chooseDays('pray', { from: { y: 2026, m: 5, d: 1 }, days: 20 });
   assert.ok(pray.days.find((d) => d.iso === '2026-05-09').reasons.some((x) => x.text === '這天是媽祖生'));
 });
+
+test('擇日的民俗忌日與吉神：楊公忌扣分、三娘煞只忌嫁娶、天赦加分，都寫出原因', () => {
+  const from = { y: 2026, m: 11, d: 25 };
+  const deal = chooseDays('deal', { from, days: 30 });
+  const yg = deal.days.find((x) => x.iso === '2026-12-01'); // 農曆十月廿三：楊公忌
+  assert.ok(yg.reasons.some((r) => r.text.startsWith('楊公忌日')));
+  const wedding = chooseDays('wedding', { from, days: 30 });
+  const sn = wedding.days.filter((x) => x.reasons.some((r) => r.text.startsWith('三娘煞')));
+  assert.ok(sn.length >= 4, `三娘煞 ${sn.length} 天`); // 一個月六天，30 天內至少四天
+  assert.ok(!deal.days.some((x) => x.reasons.some((r) => r.text.startsWith('三娘煞'))), '簽約不看三娘煞');
+  const ts = deal.days.find((x) => x.iso === '2026-12-16'); // 天赦日
+  assert.ok(ts.reasons.some((r) => r.text.includes('天赦')));
+  // 看醫生不是大事，楊公忌不扣
+  assert.ok(!chooseDays('health', { from, days: 30 }).days.find((x) => x.iso === '2026-12-01').reasons.some((r) => r.text.startsWith('楊公忌')));
+});
+
+test('近期提醒：行星換座與新月滿月寫出落在哪一座、你的第幾宮（以太陽星座起算）', async () => {
+  const { ingressesBetween } = await import('../js/core/timing.js');
+  const ig = ingressesBetween({ y: 2026, m: 11, d: 24 }, 30);
+  const mars = ig.find((x) => x.key === 'Mars');
+  assert.deepEqual([mars.sign, mars.date.m, mars.date.d], [5, 11, 26]); // 火星 11/26 進處女座
+  const items = upcoming({ from: { y: 2026, m: 11, d: 24 }, days: 30, signIndex: 4 });
+  const nm = items.find((x) => x.kind === 'moon' && x.title.startsWith('射手座新月'));
+  assert.ok(nm, '12/9 射手座新月');
+  assert.match(nm.text, /你的第 5 宮：戀愛、創作、子女/); // 獅子座的第 5 宮是射手
+  assert.ok(items.some((x) => x.kind === 'ingress' && x.title.startsWith('火星進入處女座')));
+  // 沒有太陽星座：照樣列出，只是不講宮位
+  assert.ok(!upcoming({ from: { y: 2026, m: 11, d: 24 }, days: 30 }).some((x) => /你的第 \d+ 宮/.test(x.text)));
+});

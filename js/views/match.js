@@ -5,7 +5,7 @@ import { h, clear, segmented, scoreClass } from '../ui/dom.js';
 import { createBirthForm } from '../ui/birthform.js';
 import { buildNatal, signOptions } from '../core/natal.js';
 import { scorePair, scoreGroup, MAX_PEOPLE } from '../core/synastry.js';
-import { SIGNS } from '../core/zodiac.js';
+import { SIGNS, mainSunSign } from '../core/zodiac.js';
 import { bloodMatch } from '../core/blood.js';
 import { load, save } from '../ui/storage.js';
 
@@ -25,7 +25,7 @@ export function mountMatch(root, ctx) {
   function initPeople() {
     const natal = ctx.getNatal();
     const active = ctx.getActive();
-    const mySign = natal ? (natal.sun.certain ? natal.sun.sign : natal.sun.options[0]) : 0;
+    const mySign = mainSunSign(natal) ?? 0;
     quickPeople = [
       { name: active ? active.name : 'A', sunSign: mySign },
       { name: 'B', sunSign: (mySign + 4) % 12 },

@@ -9,7 +9,7 @@
 
 import { SIGNS } from './zodiac.js';
 import { positionsAt } from './astro.js';
-import { liunian, yongShen } from './bazi.js';
+import { liunian, yongShen, ganzhiTone } from './bazi.js';
 import { dominantShishen, personalYearNumber, PERSONAL_YEAR } from './reading.js';
 import { SHISHEN_GROUPS, ZIWEI_STARS, LIFEPATH_DETAIL, SIGN_DETAIL } from './reading-texts.js';
 import { BLOOD } from './blood.js';
@@ -175,14 +175,14 @@ function buildFuture({ natal, bazi, ziwei, birth, today, ys }) {
       const y = ln[i];
       const sc = SHISHEN_CAREER[y.shishen];
       const wx = GAN_WX[y.ganzhi[0]];
-      if (ys) tone = toneOf(y, ys);
+      if (ys) tone = toneOf(y);
       headline = `${sc.focus}的一年`;
       doList.push(sc.do);
       watchList.push(sc.watch);
       if (y.taisui.length) watchList.push(`${y.taisui.join('、')}：重大變動前多規劃`);
       for (const t of y.triggers) watchList.push(`${t.type}：${t.text.split('：')[1].replace(/。$/, '')}`);
-      const toneText = tone === 'good' ? '，是你的喜用，整體順' : tone === 'hard' ? '，是你不需要再加的五行，凡事多花一分力' : '';
-      pts.push({ system: '八字', text: `${y.ganzhi}年是你的「${y.shishen}」年（天干屬${wx}${toneText}）：${y.shishenText}` });
+      const toneText = y.tone ? `天干${y.tone.ganWx}（${y.tone.gan}）、地支${y.tone.zhiWx}（${y.tone.zhi}）：${y.tone.text}` : `天干屬${wx}`;
+      pts.push({ system: '八字', text: `${y.ganzhi}年是你的「${y.shishen}」年。${toneText}${y.shishenText}` });
     }
     const py = personalYearNumber(birth, year);
     pts.push({ system: '生命靈數', text: `流年數 ${py}：${PERSONAL_YEAR[py]}` });
@@ -200,7 +200,7 @@ function buildFuture({ natal, bazi, ziwei, birth, today, ys }) {
   if (bazi && bazi.ok && bazi.yun) {
     const list = bazi.yun.list;
     const idx = list.findIndex((d) => d.current);
-    const describe = (d) => d && { ganzhi: d.ganzhi, startYear: d.startYear, endYear: d.endYear, shishen: d.shishen, ...SHISHEN_CAREER[d.shishen], good: ys ? [ys.primary, ys.secondary].includes(GAN_WX[d.ganzhi[0]]) : null };
+    const describe = (d) => d && { ganzhi: d.ganzhi, startYear: d.startYear, endYear: d.endYear, shishen: d.shishen, ...SHISHEN_CAREER[d.shishen], good: ys ? toneFromGz(ganzhiTone(bazi, d.ganzhi)) === 'good' : null };
     dayun = { current: describe(list[idx]), next: describe(list[idx + 1]) };
   }
 
@@ -208,15 +208,23 @@ function buildFuture({ natal, bazi, ziwei, birth, today, ys }) {
   if (ziwei && ziwei.ok && ziwei.horoscope) {
     const cur = ziwei.palaces.find((p) => p.index === ziwei.horoscope.decadalIndex);
     const next = cur ? ziwei.palaces.find((p) => p.decadal && p.decadal[0] === cur.decadal[1] + 1) : null;
-    const describe = (p) => p && { palace: p.name, ages: `${p.decadal[0]}–${p.decadal[1]} 歲`, focus: DECADE_FOCUS[p.name] || '' };
+    const describe = (p) => p && { palace: p.name, ages: `虛歲 ${p.decadal[0]}–${p.decadal[1]} 歲`, focus: DECADE_FOCUS[p.name] || '' };
     decade = { current: describe(cur), next: describe(next) };
   }
   return { years: out, dayun, decade };
 }
 
-function toneOf(y, ys) {
-  const wx = GAN_WX[y.ganzhi[0]];
-  if ([ys.primary, ys.secondary].includes(wx)) return 'good';
-  if (ys.avoid.includes(wx)) return 'hard';
+/**
+ * 一年（或一步大運）順不順：天干、地支各自對照喜用（以前只看天干，地支是忌神也照樣寫「整體順」）。
+ * 有喜、沒有忌＝順；兩個都忌，或一忌一平＝辛苦；其他（一喜一忌）＝有起有落。
+ */
+function toneFromGz(t) {
+  if (!t) return 'mid';
+  const has = (x) => t.gan === x || t.zhi === x;
+  if (has('喜') && !has('忌')) return 'good';
+  if (has('忌') && !has('喜')) return 'hard';
   return 'mid';
+}
+function toneOf(y) {
+  return toneFromGz(y.tone);
 }

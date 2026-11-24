@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { windfallDay, windfallOutlook, natalWealth, ziweiWealth, personalDayNumber, luckyNumbers, luckyProfile, GAMES } from '../js/core/windfall.js';
-import { buildBazi } from '../js/core/bazi.js';
+import { buildBazi, yongShen } from '../js/core/bazi.js';
 import { buildZiwei } from '../js/core/ziwei.js';
 
 const INPUT = { date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: { lon: 121.5, lat: 25.04 }, fold: null };
@@ -90,4 +90,26 @@ test('加權有效：幸運尾數出現得比較多（統計檢查）', () => {
   }
   // 39 個號碼裡幸運尾數約 8 個：不加權時約占 20%，加權 2 倍後應明顯更高
   assert.ok(lucky / (lucky + other) > 0.3, `幸運尾數占 ${(lucky / (lucky + other)).toFixed(2)}`);
+});
+
+test('身強身弱和喜用神一致：己丑 丁丑 壬子 辛丑（身弱 35%）不可以寫成「身能擔財」', () => {
+  const b = buildBazi({ date: { y: 1950, m: 1, d: 17 }, time: { h: 2, mi: 0 }, lat: 25.04, lon: 121.5, tz: 'Asia/Taipei' }, { gender: '男', today: { y: 2026, m: 11, d: 24 } });
+  assert.equal(b.pillars.map((p) => p.gan + p.zhi).join(' '), '己丑 丁丑 壬子 辛丑');
+  assert.equal(yongShen(b).strength, '身弱');
+  const text = natalWealth(b).lines.join('');
+  assert.doesNotMatch(text, /身能擔財/);
+  assert.match(text, /偏弱/);
+});
+
+test('扶抑：身弱的人偏財日不加分、劫財日反而加分（己未 丁丑 壬午 乙巳，身弱喜金水、忌土火）', async () => {
+  const { dailyIndex } = await import('../js/core/daily.js');
+  const b = buildBazi({ date: { y: 1980, m: 1, d: 10 }, time: { h: 10, mi: 0 }, lat: 25.04, lon: 121.5, tz: 'Asia/Taipei' }, { gender: '男', today: { y: 2026, m: 11, d: 24 } });
+  assert.equal(yongShen(b).strength, '身弱');
+  const part = (r) => r.parts.find((x) => x.system === '八字');
+  const bing = windfallDay({ y: 2026, m: 11, d: 28 }, { bazi: b }); // 丙午：偏財
+  const gui = windfallDay({ y: 2026, m: 11, d: 25 }, { bazi: b }); // 癸卯：劫財
+  assert.ok(part(bing).delta < 0, `偏財日 ${part(bing).delta}`);
+  assert.ok(part(gui).delta > 0, `劫財日 ${part(gui).delta}`);
+  assert.match(part(bing).text, /身弱/);
+  assert.match(part(dailyIndex({ date: { y: 2026, m: 11, d: 28 }, bazi: b })).text, /忌神/);
 });

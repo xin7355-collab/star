@@ -13,9 +13,8 @@ import { MEANINGS } from './numerology.js';
 import { SHISHEN_TEXT, liunian, WUXING, yongShen } from './bazi.js';
 import { natalWealth, ziweiWealth } from './windfall.js';
 import { BLOOD } from './blood.js';
-import { CHENGGU_PLAIN, DAYMASTER, LIFEPATH_DETAIL, MAYA_KEYWORD_TEXT, MOON_ELEMENT, MUTAGEN_TEXT, SHISHEN_GROUPS, SIGN_DETAIL, TAGS, WUXING_HEALTH, ZIWEI_STARS } from './reading-texts.js';
+import { CHENGGU_PLAIN, DAYMASTER, LIFEPATH_DETAIL, MAYA_KEYWORD_TEXT, MOON_SIGN_TEXT, SHISHEN_GROUPS, SIGN_DETAIL, TAGS, WUXING_HEALTH, ZIWEI_STARS, STAR_KEYWORDS, PALACE_DOMAIN, RISING_TEXT, mutagenIn } from './reading-texts.js';
 
-const ELEMENT_OF_SIGN = ['fire', 'earth', 'air', 'water'];
 const signName = (i) => SIGNS[i].name;
 
 export const PALACE_SEQ = ['命宮', '兄弟', '夫妻', '子女', '財帛', '疾厄', '遷移', '僕役', '官祿', '田宅', '福德', '父母'];
@@ -58,15 +57,22 @@ function palaceStars(ziwei, name) {
   const p = ziwei.palaces[idx];
   if (p.major.length) return { palace: p, stars: p.major, borrowed: false };
   const opposite = ziwei.palaces.find((q) => q.index === (p.index + 6) % 12);
-  return { palace: p, stars: opposite.major, borrowed: true };
+  return { palace: p, stars: opposite.major, borrowed: true, from: opposite.name };
 }
 
-const starLine = (ziwei, palaceName, field) => {
-  const { stars, borrowed } = palaceStars(ziwei, palaceName);
+/**
+ * 某一宮的主星一句話。field 是 ZIWEI_STARS 的專屬文案欄位（命宮 ming、官祿 career、夫妻 love、財帛 wealth）；
+ * 其他宮沒有專屬文案，改說「星的特質表現在這一宮管的事上」，不再套命宮的個性。
+ */
+const starLine = (ziwei, palaceName, field = null) => {
+  const { stars, borrowed, from } = palaceStars(ziwei, palaceName);
   if (!stars.length) return null;
   const head = `${palaceName}${borrowed ? '（無主星，借對宮）' : ''}有${stars.map((s) => s.name + (s.mutagen ? `（${s.mutagen}）` : '')).join('、')}`;
-  const body = stars.map((s) => ZIWEI_STARS[s.name]?.[field]).filter(Boolean).join('');
-  const mut = stars.filter((s) => s.mutagen).map((s) => MUTAGEN_TEXT[s.mutagen]).join('');
+  const body = field
+    ? stars.map((s) => ZIWEI_STARS[s.name]?.[field]).filter(Boolean).join('')
+    : `${stars.map((s) => STAR_KEYWORDS[s.name]).filter(Boolean).join('，')}，這些特質會表現在${PALACE_DOMAIN[palaceName]}上。`;
+  // 借對宮的星：四化留在它真正所在的對宮
+  const mut = stars.filter((s) => s.mutagen).map((s) => mutagenIn(s.mutagen, borrowed ? from : palaceName)).join('');
   return `${head}：${body}${mut ? ` ${mut}` : ''}`;
 };
 
@@ -163,8 +169,8 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     ? `好幾個系統都說你「${consensus.map((t) => t.label).join('」「')}」（每一項至少兩個系統一致），這是你最明顯、最值得參考的特質。`
     : `各系統看法較分散，比較明顯的是「${top.map((t) => t.label).join('」「')}」。`, [
     sun !== null && { system: '占星', text: `太陽${signName(sun)}：${SIGN_DETAIL[sun].personality}。` },
-    moon !== null && { system: '占星', text: `月亮${signName(moon)}（內在情緒）：${MOON_ELEMENT[ELEMENT_OF_SIGN[moon % 4]]}` },
-    natal && natal.rising !== undefined && natal.rising !== null && { system: '占星', text: `上升${signName(natal.rising)}（給人的第一印象）：${SIGN_DETAIL[natal.rising].personality}。` },
+    moon !== null && { system: '占星', text: `月亮${signName(moon)}（內在情緒）：${MOON_SIGN_TEXT[moon]}` },
+    natal && natal.rising !== undefined && natal.rising !== null && { system: '占星', text: `上升${signName(natal.rising)}（給人的第一印象）：${RISING_TEXT[natal.rising]}。` },
     bazi && bazi.ok && { system: '八字', text: DAYMASTER[bazi.dayMaster.gan].text },
     dom && { system: '八字', text: SHISHEN_GROUPS[dom.group].text },
     bazi && bazi.ok && { system: '八字', text: wuxingBalance(bazi) },
@@ -230,8 +236,8 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
   add('social', '人際與貴人', '貴人常出現在你願意主動交流、分享專業的場合。', [
     jup !== null && { system: '占星', text: `木星（幸運與貴人）在${signName(jup)}：好運常來自「${SIGN_DETAIL[jup].career}」相關的人與機會。` },
     bazi && bazi.ok && { system: '八字', text: socialLine(bazi) },
-    zw && { system: '紫微', text: starLine(zw, '僕役', 'ming')?.replace('僕役', '交友（僕役）宮') },
-    zw && { system: '紫微', text: starLine(zw, '遷移', 'ming') },
+    zw && { system: '紫微', text: starLine(zw, '僕役')?.replace('僕役', '交友（僕役）宮') },
+    zw && { system: '紫微', text: starLine(zw, '遷移') },
   ]);
 
   // ── 8. 今年
@@ -253,7 +259,12 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     const ja = signAspect(sun, pos.Jupiter.sign);
     const sa = signAspect(sun, pos.Saturn.sign);
     const good = (a) => a.tone === 'harmony' || a.tone === 'strong';
-    yearPoints.push({ system: '占星', text: `木星在${signName(pos.Jupiter.sign)}，和你的太陽成${ja.name}：${good(ja) ? '今年機會與貴人比較多，適合擴展。' : '好運要自己去創造，別只等機會。'}土星在${signName(pos.Saturn.sign)}，和你成${sa.name}：${sa.tone === 'tension' ? '責任與考驗變多，穩紮穩打最重要。' : '壓力可控，適合長期規劃。'}` });
+    // 土星合太陽（土星走到你的太陽星座）是傳統上最重的考驗之一，運勢計分也給負分，不能歸到「壓力可控」
+    let saText = '影響不大，照自己的節奏走。';
+    if (sa.tone === 'strong') saText = '土星正走過你的太陽（約 29 年一次）：責任變重、考驗變多，也是成長最紮實的時候，穩紮穩打最重要。';
+    else if (sa.tone === 'tension') saText = '責任與考驗變多，穩紮穩打最重要。';
+    else if (sa.tone === 'harmony') saText = '壓力可控，適合長期規劃、累積實力。';
+    yearPoints.push({ system: '占星', text: `木星在${signName(pos.Jupiter.sign)}，和你的太陽成${ja.name}：${good(ja) ? '今年機會與貴人比較多，適合擴展。' : '好運要自己去創造，別只等機會。'}土星在${signName(pos.Saturn.sign)}，和你成${sa.name}：${saText}` });
   }
   const py = personalYearNumber(birth, today.y);
   yearPoints.push({ system: '生命靈數', text: `今年是你的流年數 ${py}：${PERSONAL_YEAR[py]}` });
@@ -315,5 +326,7 @@ function mayaLine(maya) {
   const e = maya.items.find((x) => x.key === 'E');
   const kw = (x) => (x && x.keyword ? `${x.keyword}（${MAYA_KEYWORD_TEXT[x.keyword].replace(/。$/, '')}）` : '—');
   const twin = maya.twin ? '（多胞胎：已把出生時分加進計算，和手足會不同）' : '';
+  // 1950–2025 年出生的人有七成多 D 和 E 是同一個詞：合成一句，不要同一個詞講兩次
+  if (d && e && d.keyword && d.keyword === e.keyword) return `表象 D 和小宇宙 E 都是「${kw(d)}」：別人看到的你，和你內在真正的核心是一致的。${twin}`;
   return `表象 D 是「${kw(d)}」，別人看到的你；小宇宙 E 是「${kw(e)}」，你內在真正的核心。${twin}`;
 }

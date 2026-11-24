@@ -7,9 +7,11 @@ import { dayScores } from './fortune.js';
 import { personalDay } from './timing.js';
 import { personalDayNumber } from './windfall.js';
 import { DEFAULT_TZ } from './tz.js';
-import { yongShen } from './bazi.js';
+import { yongShen, avoidReason } from './bazi.js';
 
+// 十神本身的性質（權重只占一半）；另一半看這天的五行是不是你的喜用或忌神（扶抑法：同一個十神，對身強、身弱的人好壞相反）
 const SHISHEN_DAY = { 正印: 8, 偏印: 2, 正官: 5, 七殺: -6, 正財: 6, 偏財: 5, 食神: 7, 傷官: -3, 比肩: 1, 劫財: -5 };
+const GAN_WX = { 甲: '木', 乙: '木', 丙: '火', 丁: '火', 戊: '土', 己: '土', 庚: '金', 辛: '金', 壬: '水', 癸: '水' };
 const SHISHEN_PLAIN = {
   正印: '有貴人、適合學習與求助', 偏印: '想法多、適合研究，別鑽牛角尖', 正官: '按部就班、適合處理正事', 七殺: '壓力與挑戰多，凡事三思',
   正財: '務實、適合處理錢與工作', 偏財: '有意外機會、人脈活絡', 食神: '心情放鬆、口福與人緣好', 傷官: '表達欲強，說話留三分',
@@ -48,13 +50,19 @@ export function dailyIndex({ date, bazi = null, signIndex = null, birth = null, 
   }
   if (bazi && bazi.ok) {
     const p = personalDay(date, bazi);
-    let d = SHISHEN_DAY[p.shishen] || 0;
+    const ys = yongShen(bazi);
+    const wx = GAN_WX[p.ganzhi[0]];
+    let d = Math.round((SHISHEN_DAY[p.shishen] || 0) / 2);
+    let role = '';
+    if (ys && wx === ys.primary) [d, role] = [d + 6, `，日干屬${wx}正是你的喜用`];
+    else if (ys && wx === ys.secondary) [d, role] = [d + 3, `，日干屬${wx}是你的次要喜用`];
+    else if (ys && ys.avoid.includes(wx)) [d, role] = [d - 6, `，日干屬${wx}是你的忌神（${avoidReason(ys)}）`];
     if (p.clash.includes('生肖')) d -= 12;
     if (p.clash.includes('日支')) d -= 8;
     if (p.harmony.length) d += 5;
     score += d;
     const extra = p.notes.length ? ` ${p.notes[0]}` : '';
-    parts.push({ system: '八字', delta: d, text: `今天是${p.ganzhi}日，對你是「${p.shishen}」：${SHISHEN_PLAIN[p.shishen]}。${extra}` });
+    parts.push({ system: '八字', delta: d, text: `今天是${p.ganzhi}日，對你是「${p.shishen}」${role}：${SHISHEN_PLAIN[p.shishen]}。${extra}` });
   }
   const lunar = Solar.fromYmd(date.y, date.m, date.d).getLunar();
   const luck = tw(lunar.getDayTianShenLuck());

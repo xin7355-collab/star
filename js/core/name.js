@@ -11,7 +11,7 @@
 
 import { NUMBERS_81, GRADE_TEXT, WEALTH_NUMBERS, GRID_TEXT, SANCAI_RELATION } from './name-texts.js';
 import { toZhuyin, initialOf } from './zhuyin.js';
-import { yongShen } from './bazi.js';
+import { yongShen, avoidReason } from './bazi.js';
 
 export const COMPOUND_SURNAMES = [
   '歐陽', '司馬', '上官', '諸葛', '東方', '皇甫', '尉遲', '公孫', '慕容', '長孫', '夏侯', '軒轅', '令狐', '端木',
@@ -160,10 +160,10 @@ export function nameVsBazi(grids, bazi) {
   const nameEls = [['人格', grids.人格.element], ['地格', grids.地格.element], ['總格', grids.總格.element]];
   const helps = nameEls.filter(([, el]) => el === ys.primary || el === ys.secondary);
   const extra = nameEls.filter(([, el]) => ys.avoid.includes(el));
-  const lines = [`你的八字${ys.strength}，喜用五行是「${ys.primary}」，其次是「${ys.secondary}」；不需要再加的是「${ys.avoid.join('、')}」。`];
+  const lines = [`你的八字${ys.strength}，喜用五行是「${ys.primary}」，其次是「${ys.secondary}」；忌神是「${ys.avoid.join('、')}」（${avoidReason(ys)}）。`];
   if (helps.length) lines.push(`名字的${helps.map(([g, el]) => `${g}屬${el}`).join('、')}，剛好是你的喜用五行，這是加分的搭配。`);
   else lines.push(`名字的人格、地格、總格是「${nameEls.map(([, el]) => el).join('、')}」，沒有直接補到喜用的「${ys.primary}」，可以從穿搭顏色、居家擺設補強（見「開運佈置」）。`);
-  if (extra.length) lines.push(`${extra.map(([g, el]) => `${g}屬${el}`).join('、')}，是你八字裡已經夠多的五行，影響不大，同類的個性會更明顯。`);
+  if (extra.length) lines.push(`${extra.map(([g, el]) => `${g}屬${el}`).join('、')}，是你的忌神（${avoidReason(ys)}）。名字只是小影響，不必為此改名；日常別再刻意補這個五行就好。`);
   return { primary: ys.primary, secondary: ys.secondary, strength: ys.strength, helps: helps.map(([g]) => g), extra: extra.map(([g]) => g), lines };
 }
 

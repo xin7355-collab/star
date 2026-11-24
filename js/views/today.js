@@ -8,7 +8,7 @@ import { cardHead } from '../ui/icons.js';
 import { reveal, ringTo, countUp } from '../ui/motion.js';
 import { hourTimeline, ballsRow, timelineList, partsList } from '../ui/widgets.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
-import { SIGNS } from '../core/zodiac.js';
+import { SIGNS, mainSunSign } from '../core/zodiac.js';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 const LEVEL_CLASS = { 大吉: 'lv-high', 小吉: 'lv-mid', 平: 'lv-low', 宜守: 'lv-poor', 偏財旺: 'lv-high', 小有偏財: 'lv-mid', 平穩: 'lv-low', 保守為宜: 'lv-poor' };
@@ -55,7 +55,7 @@ export function mountToday(root, ctx) {
       const b = buildBazi(input, { gender: person.gender || null, sect: settings.sect, solarTime: settings.solarTime, today });
       bazi = b.ok ? b : null;
     }
-    const signIndex = natal ? (natal.sun.certain ? natal.sun.sign : natal.sun.options[0]) : null;
+    const signIndex = mainSunSign(natal);
     const birth = input ? input.date : null;
     const alm = CAL.almanac(today);
     const data = {
@@ -67,7 +67,7 @@ export function mountToday(root, ctx) {
       windfall: W.windfallDay(today, { bazi, signIndex, birth }),
       lucky: D.luckyItems({ date: today, bazi }),
       profile: W.luckyProfile({ bazi, birth, lifePathNumber: birth ? NUM.lifePath(birth).number : null }),
-      items: T.upcoming({ from: today, days: 30, bazi, birth }),
+      items: T.upcoming({ from: today, days: 30, bazi, birth, signIndex }),
       signIndex,
     };
     data.hourLines = T.hourSummary(data.hours);

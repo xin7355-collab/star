@@ -71,6 +71,15 @@ export const DEGREE_ASPECTS = [
   { name: '對分相', angle: 180, orb: 8 },
 ];
 
+// 本命相位的白話（只講方向，強弱看容許度）
+export const ASPECT_PLAIN = {
+  合相: '兩股能量綁在一起，特質被放大',
+  六分相: '小小的助力，努力就會順',
+  四分相: '內在拉扯，逼你成長的地方',
+  三分相: '天生順手的天賦，不太費力',
+  對分相: '兩股力量拉鋸，要學會找平衡',
+};
+
 export function formatDegree(lon) {
   const deg = degreeInSign(lon);
   let whole = Math.floor(deg);
@@ -80,4 +89,42 @@ export function formatDegree(lon) {
     minutes = 0;
   }
   return `${whole}°${String(minutes).padStart(2, '0')}′`;
+}
+
+/**
+ * 太陽星座取哪一座：時間確定就是那一座；沒有出生時間又剛好是換座日，取當天佔比較長的那一座。
+ * 今日、時運、樂透、配對都用這個——以前各頁各取各的，換座日出生的人在今日看到巨蟹、到時運變獅子。
+ */
+export function mainSunSign(natal) {
+  if (!natal || !natal.sun) return null;
+  if (natal.sun.certain) return natal.sun.sign;
+  return natal.sun.switchLocal >= '12:00' ? natal.sun.options[0] : natal.sun.options[1];
+}
+
+const ELEMENT_LINE = {
+  fire: { many: '熱情、行動派，想到就做', none: '比較缺衝勁，常常需要外在推一把' },
+  earth: { many: '務實、穩定，重視看得到的成果', none: '比較不重現實細節，理財和作息要刻意規劃' },
+  air: { many: '重思考與溝通，點子多、愛交流', none: '不太愛講道理，有想法要記得說出來' },
+  water: { many: '重感受與直覺，同理心強', none: '情緒表達比較含蓄，多練習說出感受' },
+};
+const MODALITY_LINE = { cardinal: '喜歡開始新的事、主動出擊', fixed: '有毅力、能堅持，但不喜歡改變', mutable: '適應力強、彈性大，但容易分心' };
+
+/** 十顆行星（有上升就加上上升）落在火土風水、開創固定變動的分布；每顆都算一票（各派加權不同，這裡不加權） */
+export function elementBalance(natal) {
+  const signs = Object.values(natal.positions).map((p) => p.sign);
+  if (natal.angles) signs.push(Math.floor(natal.angles.ASC / 30));
+  const el = { fire: 0, earth: 0, air: 0, water: 0 };
+  const md = { cardinal: 0, fixed: 0, mutable: 0 };
+  for (const sg of signs) {
+    el[SIGNS[sg].element] += 1;
+    md[SIGNS[sg].modality] += 1;
+  }
+  // 同票的都列出來（例如開創、固定各 4 個），不要只挑第一個
+  const tops = (o) => Object.keys(o).filter((k) => o[k] === Math.max(...Object.values(o)));
+  const topEl = tops(el);
+  const topMd = tops(md);
+  const lines = [`最多的是${topEl.map((k) => ELEMENTS[k].name).join('、')}（${topEl.length > 1 ? '各 ' : ''}${el[topEl[0]]} 個）：${topEl.map((k) => ELEMENT_LINE[k].many).join('；')}。`];
+  for (const k of Object.keys(el).filter((x) => !el[x])) lines.push(`沒有${ELEMENTS[k].name}：${ELEMENT_LINE[k].none}。`);
+  lines.push(`模式以${topMd.map((k) => MODALITIES[k]).join('、')}為主（${topMd.length > 1 ? '各 ' : ''}${md[topMd[0]]} 個）：${topMd.map((k) => MODALITY_LINE[k]).join('；')}。`);
+  return { el, md, total: signs.length, lines };
 }

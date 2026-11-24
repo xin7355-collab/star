@@ -289,6 +289,13 @@ const MONTH_W = 30; // 月令（月支）最重要：同一個字在月支的影
 const SIDE_QI_W = 3; // 地支藏干的中氣、餘氣
 const HE_HUA = { 甲: ['己', '土'], 己: ['甲', '土'], 乙: ['庚', '金'], 庚: ['乙', '金'], 丙: ['辛', '水'], 辛: ['丙', '水'], 丁: ['壬', '木'], 壬: ['丁', '木'], 戊: ['癸', '火'], 癸: ['戊', '火'] };
 
+/** 兩個天干的關係：五合（甲己、乙庚、丙辛、丁壬、戊癸）或相沖（甲庚、乙辛、丙壬、丁癸），都不是回傳空字串 */
+export function ganRelation(a, b) {
+  if (HE_HUA[a] && HE_HUA[a][0] === b) return '五合';
+  if (has(GAN_CHONG, a, b)) return '相沖';
+  return '';
+}
+
 /** 依身強弱決定喜用（扶抑法） */
 function pickByStrength(strength, dm, weight) {
   const bi = weight[dm];
@@ -303,6 +310,17 @@ function pickByStrength(strength, dm, weight) {
   }
   const sorted = [...WUXING].sort((a, b) => weight[a] - weight[b]);
   return { primary: sorted[0], secondary: sorted[1], avoid: [sorted[4]], reason: `日主力量中和：取最弱的「${sorted[0]}」補平衡，其次是「${sorted[1]}」。` };
+}
+
+/**
+ * 忌神為什麼不好，依身強弱講：身強的忌是幫身的五行（已經夠旺）；身弱的忌是剋身的官殺、耗身的財；
+ * 中和的忌是最多的那個五行。不能一律說「已經夠多」——身弱的人忌官殺，是因為官殺剋身，不是因為它多。
+ */
+export function avoidReason(ys) {
+  if (!ys) return '';
+  if (ys.strength === '身強') return '你本身已經夠旺，再加會過頭';
+  if (ys.strength === '身弱') return '它會剋你或耗你的力';
+  return '它已經最多，再加會失衡';
 }
 
 // 三會方、三合局（專旺格要地支成方或成局，避免只是「比劫偏多」的一般盤被當成專旺）
@@ -425,7 +443,9 @@ export function branchRelations(a, b) {
     return out;
   }
   if (has(LIU_HE, a, b)) out.push('六合');
-  if (SAN_HE.some((g) => g.includes(a) && g.includes(b))) out.push('三合');
+  // 兩個地支只能算「半合」（含中間的旺支子午卯酉，例如申子）或「拱合」（外側兩支，例如申辰，力量較弱）；三支到齊才是三合局
+  const sanHe = SAN_HE.find((g) => g.includes(a) && g.includes(b));
+  if (sanHe) out.push(a === sanHe[1] || b === sanHe[1] ? '半合' : '拱合');
   if (has(LIU_CHONG, a, b)) out.push('六沖');
   if (has(XIANG_XING, a, b)) out.push('相刑');
   if (has(XIANG_HAI, a, b)) out.push('相害');
@@ -435,7 +455,8 @@ export function branchRelations(a, b) {
 
 const RELATION_TEXT = {
   六合: '和合，人際與合作的助力',
-  三合: '同氣相助，容易得到支持',
+  半合: '同氣相助，容易得到支持',
+  拱合: '暗中相助（拱合，力量比半合弱）',
   六沖: '變動與拉扯，宜預留彈性',
   相刑: '摩擦與規範壓力，留意健康與法規',
   相害: '小人或誤會，溝通要清楚',
@@ -462,6 +483,87 @@ export function taiSui(personZhi, yearZhi) {
 export function taiSuiList(year) {
   const yz = yearGanZhi(year)[1];
   return ZHI.map((z, i) => ({ zhi: z, animal: SHENGXIAO[i], types: taiSui(z, yz) })).filter((x) => x.types.length);
+}
+
+// ── 神煞（子平通行查法；派別差異在註解裡說明）
+// 天乙貴人：日干、年干都查（甲戊庚丑未、乙己子申、丙丁亥酉、壬癸卯巳、辛午寅；庚另有「午寅」一說，不採）
+const TIANYI = { 甲: '丑未', 戊: '丑未', 庚: '丑未', 乙: '子申', 己: '子申', 丙: '亥酉', 丁: '亥酉', 壬: '卯巳', 癸: '卯巳', 辛: '午寅' };
+const WENCHANG = { 甲: '巳', 乙: '午', 丙: '申', 丁: '酉', 戊: '申', 己: '酉', 庚: '亥', 辛: '子', 壬: '寅', 癸: '卯' };
+const LU = { 甲: '寅', 乙: '卯', 丙: '巳', 丁: '午', 戊: '巳', 己: '午', 庚: '申', 辛: '酉', 壬: '亥', 癸: '子' };
+// 羊刃只取陽干（祿前一位）；陰干有沒有羊刃各派不同，不論
+const YANGREN = { 甲: '卯', 丙: '午', 戊: '午', 庚: '酉', 壬: '子' };
+// 桃花、驛馬、華蓋：依年支或日支所在的三合局查
+const SAN_HE_GROUP = (zhi) => SAN_HE.find((g) => g.includes(zhi));
+const BY_GROUP = (g) => ({ 申子辰: { 桃花: '酉', 驛馬: '寅', 華蓋: '辰' }, 寅午戌: { 桃花: '卯', 驛馬: '申', 華蓋: '戌' }, 巳酉丑: { 桃花: '午', 驛馬: '亥', 華蓋: '丑' }, 亥卯未: { 桃花: '子', 驛馬: '巳', 華蓋: '未' } }[g.join('')]);
+const KUIGANG = new Set(['庚辰', '庚戌', '壬辰', '戊戌']);
+const SHENSHA_TEXT = {
+  天乙貴人: '最吉的貴人星：遇到困難容易有人伸手幫忙，常能逢凶化吉。',
+  文昌: '聰明好學、考運與文筆好，適合讀書、寫作、考證照。',
+  祿神: '衣食有著落，靠自己的本事賺錢，工作運穩。',
+  羊刃: '個性剛強、有魄力，做事果斷；也容易衝動，留意意外與口角。',
+  桃花: '人緣好、有魅力，異性緣佳；感情上要分清楚欣賞和越界。',
+  驛馬: '好動，適合跑業務、出差、外派；一生搬家或出國的機會多。',
+  華蓋: '有藝術、宗教或哲學的天分，思想獨立，有時會覺得孤單。',
+  魁罡: '日柱魁罡：個性剛直、聰明有決斷，愛恨分明；人生起伏較大，宜修身養性。',
+};
+
+/**
+ * 命盤上的神煞：每一項列出落在哪幾柱。只列子平通行、各派爭議小的八種；
+ * 神煞是輔助，判斷吉凶仍以日主強弱與喜用為主（畫面會講明）。
+ */
+export function shensha(bazi) {
+  const [year, , day] = bazi.pillars;
+  const pillars = bazi.pillars.filter(Boolean);
+  const out = [];
+  const where = (zhis, skip = null) => pillars.filter((p) => p !== skip && zhis.includes(p.zhi)).map((p) => p.label);
+  const push = (name, at) => {
+    const list = [...new Set(at)];
+    if (list.length) out.push({ name, at: list, text: SHENSHA_TEXT[name] });
+  };
+  push('天乙貴人', [...where(TIANYI[day.gan]), ...where(TIANYI[year.gan])]);
+  push('文昌', where(WENCHANG[day.gan]));
+  push('祿神', where(LU[day.gan]));
+  if (YANGREN[day.gan]) push('羊刃', where(YANGREN[day.gan]));
+  for (const base of [year, day]) {
+    const g = BY_GROUP(SAN_HE_GROUP(base.zhi));
+    for (const name of ['桃花', '驛馬', '華蓋']) push(name, where(g[name], base));
+  }
+  // 同一個神煞從年支、日支各查到一次時合併
+  const merged = [];
+  for (const x of out) {
+    const old = merged.find((m) => m.name === x.name);
+    if (old) old.at = [...new Set([...old.at, ...x.at])];
+    else merged.push(x);
+  }
+  if (KUIGANG.has(day.gan + day.zhi)) merged.push({ name: '魁罡', at: ['日柱'], text: SHENSHA_TEXT.魁罡 });
+  return merged;
+}
+
+/** 某個五行對這張盤是喜、忌還是閒（流年、大運用） */
+function toneOfWx(ys, wx) {
+  if (!ys) return '';
+  if (wx === ys.primary || wx === ys.secondary) return '喜';
+  if (ys.avoid.includes(wx)) return '忌';
+  return '平';
+}
+const GZ_TONE_TEXT = {
+  喜喜: '天干、地支都是喜用：整體順，適合積極爭取。',
+  喜平: '天干是喜用、地支平穩：前段較順，後段持平。',
+  平喜: '天干平穩、地支是喜用：慢熱，越往後越順。',
+  喜忌: '天干是喜用、地支是忌神：傳統說天干管上半段、地支管下半段，前順後難，好時機要把握。',
+  忌喜: '天干是忌神、地支是喜用：先難後易，撐過前段就好轉。',
+  平平: '天干、地支都不偏不倚：平穩，照自己的節奏走。',
+  平忌: '地支是忌神：後段壓力較大，凡事預留餘地。',
+  忌平: '天干是忌神：前段阻力較多，先穩住。',
+  忌忌: '天干、地支都是忌神：壓力大的一段，守成為主，重大決定多想一步。',
+};
+/** 干支各自對照喜用：回傳 {gan, zhi, text} */
+export function ganzhiTone(bazi, gz) {
+  const ys = yongShen(bazi);
+  if (!ys) return null;
+  const gan = toneOfWx(ys, GAN_WX[gz[0]]);
+  const zhi = toneOfWx(ys, ZHI_WX[gz[1]]);
+  return { gan, zhi, ganWx: GAN_WX[gz[0]], zhiWx: ZHI_WX[gz[1]], text: GZ_TONE_TEXT[gan + zhi] };
 }
 
 /**
@@ -498,6 +600,7 @@ export function liunian(bazi, years) {
       animal: SHENGXIAO[ZHI.indexOf(zhi)],
       shishen: ss,
       shishenText: SHISHEN_TEXT[ss],
+      tone: ganzhiTone(bazi, gz),
       relations,
       taisui: taiSui(personZhi, zhi),
       dayun,

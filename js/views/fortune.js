@@ -4,7 +4,7 @@
 
 import { h, clear, segmented, scoreBar, scoreClass, fill } from '../ui/dom.js';
 import { computeFortune, PERIODS, AREAS, periodLabel } from '../core/fortune.js';
-import { SIGNS } from '../core/zodiac.js';
+import { SIGNS, mainSunSign } from '../core/zodiac.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
 import { isoDate, addDays } from '../core/date.js';
 import { aiEnabled, getAiFortune } from '../ui/ai.js';
@@ -47,11 +47,7 @@ export function mountFortune(root, ctx) {
   }
 
   function defaultSign() {
-    const natal = ctx.getNatal();
-    if (!natal) return null;
-    if (natal.sun.certain) return natal.sun.sign;
-    // 換座日：取當天佔比較長的那一座
-    return natal.sun.switchLocal >= '12:00' ? natal.sun.options[0] : natal.sun.options[1];
+    return mainSunSign(ctx.getNatal());
   }
 
   function tz() {
@@ -179,7 +175,7 @@ export function mountFortune(root, ctx) {
         const input = person ? ctx.inputOf(person) : null;
         const bazi = activeBazi(B.buildBazi);
         const today = zoneToday(tz());
-        const items = T.upcoming({ from: today, days: 45, bazi, birth: input ? input.date : null, tz: tz() });
+        const items = T.upcoming({ from: today, days: 45, bazi, birth: input ? input.date : null, signIndex: defaultSign(), tz: tz() });
         const shown = showAllReminders ? items : items.slice(0, 6);
         fill(remindBody, 
           items.length ? timelineList(shown, { withBasis: true }) : h('p', { class: 'muted', text: '最近沒有特別需要注意的天象或沖煞。' }),

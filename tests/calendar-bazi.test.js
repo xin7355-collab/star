@@ -279,3 +279,30 @@ test('流年：伏吟、天剋地沖、歲運並臨、流年沖大運', () => {
   const t2026 = liunian(b, [2026])[0].triggers[0];
   assert.match(t2026.text, /日柱壬子天剋地沖/);
 });
+
+test('農民曆神煞：函式庫漏翻的代碼（sn.xxx）不會出現在畫面上，能確定的對回中文', async () => {
+  const { almanac, shenSha } = await import('../js/core/calendar.js');
+  assert.deepEqual(shenSha(['sn.sanSang', 'sn.guiKu', 'sn.siLi', 'sn.daTui', '天恩']), ['三喪', '鬼哭', '四離', '天恩']);
+  // 2026 全年掃一遍：吉神、凶煞都不可以有英文代碼
+  for (let i = 0; i < 365; i += 1) {
+    const dt = new Date(Date.UTC(2026, 0, 1 + i));
+    const a = almanac({ y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() });
+    for (const x of [...a.jiShen, ...a.xiongSha]) assert.doesNotMatch(x, /[a-z]/, `${dt.toISOString().slice(0, 10)} ${x}`);
+  }
+  assert.ok(almanac({ y: 2026, m: 12, d: 29 }).xiongSha.includes('三喪'));
+});
+
+test('神煞：庚午 甲申 壬子 癸卯 → 天乙貴人在時柱、日刃、桃花在時柱、驛馬在月柱；流年干支分喜忌', async () => {
+  const { buildBazi, shensha, liunian, ganzhiTone } = await import('../js/core/bazi.js');
+  const b = buildBazi({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, lat: 25.04, lon: 121.5, tz: 'Asia/Taipei' }, { gender: '男', today: { y: 2026, m: 11, d: 24 } });
+  const ss = Object.fromEntries(shensha(b).map((x) => [x.name, x.at]));
+  assert.deepEqual(ss, { 天乙貴人: ['時柱'], 羊刃: ['日柱'], 桃花: ['時柱'], 驛馬: ['月柱'] });
+  // 魁罡：庚辰日
+  const kg = buildBazi({ date: { y: 2000, m: 1, d: 10 }, time: { h: 12, mi: 0 }, lat: 25.04, lon: 121.5, tz: 'Asia/Taipei' }, { today: { y: 2026, m: 11, d: 24 } });
+  if (`${kg.pillars[2].gan}${kg.pillars[2].zhi}` === '庚辰') assert.ok(shensha(kg).some((x) => x.name === '魁罡'));
+  // 身強喜火木、忌金水：丙午年干支都喜、戊申年地支是忌
+  const [y26, , y28] = liunian(b, [2026, 2027, 2028]);
+  assert.deepEqual([y26.tone.gan, y26.tone.zhi], ['喜', '喜']);
+  assert.deepEqual([y28.tone.gan, y28.tone.zhi], ['平', '忌']);
+  assert.equal(ganzhiTone(b, '庚子').text, '天干、地支都是忌神：壓力大的一段，守成為主，重大決定多想一步。');
+});

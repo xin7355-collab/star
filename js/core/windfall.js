@@ -23,6 +23,15 @@ const ovc = (wx) => WUXING[(WUXING.indexOf(wx) + 2) % 5]; // 我剋＝財
 const mother = (wx) => WUXING[(WUXING.indexOf(wx) + 4) % 5]; // 生我＝印
 
 const SHISHEN_WEALTH = { 偏財: 14, 正財: 8, 食神: 5, 傷官: 4, 比肩: -4, 劫財: -8, 七殺: -2 };
+// 身弱的人：財星日看得到機會卻接不住（財多身弱），比劫、印幫身反而能任財——和身強的人相反（扶抑法）
+const SHISHEN_WEALTH_WEAK = { 偏財: -4, 正財: -2, 食神: -1, 傷官: -2, 比肩: 6, 劫財: 4, 七殺: -6, 正官: -3, 正印: 4, 偏印: 2 };
+const WEAK_LINE = {
+  偏財: '是你的「偏財」，但你身弱：機會看得到、不一定接得住，量力而為',
+  正財: '是你的「正財」，但你身弱：先顧好本業，別一次扛太多',
+  比肩: '是你的「比肩」，你身弱，同類幫身反而接得住錢；合作的帳要算清楚',
+  劫財: '是你的「劫財」，你身弱，朋友的助力能幫你接住機會；借錢、合夥仍要小心',
+};
+const wealthDelta = (ss, weak) => ((weak ? SHISHEN_WEALTH_WEAK[ss] : SHISHEN_WEALTH[ss]) || 0);
 const SHISHEN_LINE = {
   偏財: '是你的「偏財」，意外之財、投資與副業的機會變多',
   正財: '是你的「正財」，正規收入與穩健理財有利',
@@ -57,9 +66,12 @@ export function natalWealth(bazi) {
   if (pian >= 1.5) lines.push(`命盤裡偏財星有 ${pian} 個（含藏干算半個），天生和意外之財、投資、副業比較有緣。`);
   else if (pian > 0) lines.push('命盤裡有偏財星，但不算多：偏財偶爾有，主要還是靠正職與累積。');
   else lines.push('命盤裡沒有明顯的偏財星：你的錢比較適合靠專業與穩定累積，投機的勝率不高。');
+  // 身強身弱一律用 yongShen（月令加權）的判斷：原本另外用字數比較，同一張盤會一邊寫「身弱」、一邊寫「身能擔財」
+  const strength = yongShen(bazi).strength;
   if (wealth === 0) lines.push(`八字裡「${ovc(dmWx)}」（你的財星五行）幾乎沒有，賺錢要靠刻意規劃，而不是等機會。`);
-  else if (self >= wealth) lines.push(`日主「${dm}${dmWx}」的力量（${self}）大於財星（${wealth}），屬於「身能擔財」，機會來時接得住。`);
-  else lines.push(`財星（${wealth}）比日主的力量（${self}）強，屬於「財多身弱」：機會多但容易累，量力而為、別貪多。`);
+  else if (strength !== '身弱') lines.push(`日主「${dm}${dmWx}」${strength}，撐得起財星，屬於「身能擔財」：機會來時接得住。`);
+  else if (wealth >= self) lines.push(`日主「${dm}${dmWx}」偏弱、財星又旺，屬於「財多身弱」：機會多但容易累，量力而為、別貪多。`);
+  else lines.push(`日主「${dm}${dmWx}」偏弱：求財前先把自己顧好（體力、專業、人脈），機會來了才接得住。`);
   return { pian, zheng, self, wealth, lines };
 }
 
@@ -131,10 +143,12 @@ export function windfallDay(date, { bazi = null, ziwei = null, signIndex = null,
     const monthGan = lunar.getMonthInGanZhiExact()[0];
     const ssDay = shiShen(dm, dayGan);
     const ssMonth = shiShen(dm, monthGan);
-    const dDay = SHISHEN_WEALTH[ssDay] || 0;
-    const dMonth = Math.round((SHISHEN_WEALTH[ssMonth] || 0) / 2);
+    const weak = yongShen(bazi)?.strength === '身弱';
+    const dDay = wealthDelta(ssDay, weak);
+    const dMonth = Math.round(wealthDelta(ssMonth, weak) / 2);
     score += dDay + dMonth;
-    parts.push({ system: '八字', delta: dDay + dMonth, text: `今天的日干「${dayGan}」${SHISHEN_LINE[ssDay] || `是你的「${ssDay}」，和錢財關係不大`}；這個月的月干「${monthGan}」是「${ssMonth}」。` });
+    const line = (weak && WEAK_LINE[ssDay]) || SHISHEN_LINE[ssDay] || `是你的「${ssDay}」，和錢財關係不大`;
+    parts.push({ system: '八字', delta: dDay + dMonth, text: `今天的日干「${dayGan}」${line}；這個月的月干「${monthGan}」是「${ssMonth}」。` });
     const nat = natalWealth(bazi);
     const base = nat.pian >= 1.5 ? 4 : nat.pian > 0 ? 1 : -3;
     score += base;

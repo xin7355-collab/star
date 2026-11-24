@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizePerson, sanitizeRaw, sanitizeSettings, validateBackup, mergeData, addHistory, exportData, LIMITS, newId } from '../js/core/records.js';
+import { sanitizePerson, sanitizeRaw, sanitizeSettings, validateBackup, mergeData, addHistory, exportData, LIMITS, newId, relationLabel, RELATIONS } from '../js/core/records.js';
 
 const raw = { calendar: 'solar', era: 'roc', year: '79', month: '8', day: '15', knowTime: true, time: '06:20', placeId: 'taipei', tz: 'Asia/Taipei' };
 
@@ -89,4 +89,18 @@ test('血型：只收 A、B、O、AB，其他（含小寫、Rh 寫法、物件�
   for (const t of ['A', 'B', 'O', 'AB']) assert.equal(sanitizePerson({ name: 'x', bloodType: t, raw }).bloodType, t);
   for (const t of ['a', 'A+', 'O型', 'ab', '', null, 42, { t: 'A' }]) assert.equal(sanitizePerson({ name: 'x', bloodType: t, raw }).bloodType, '');
   assert.equal(sanitizePerson({ name: '舊資料', raw }).bloodType, '');
+});
+
+test('和我的關係：只收白名單代碼，「我」自己不存；顯示時依性別說父親或母親；舊備份沒有這欄也能讀', () => {
+  assert.equal(sanitizePerson({ name: '媽', relation: 'parent', gender: '女', raw }).relation, 'parent');
+  for (const bad of ['mom', '<b>', 42, null, { id: 'parent' }]) assert.equal(sanitizePerson({ name: 'x', relation: bad, raw }).relation, '');
+  assert.equal(sanitizePerson({ name: '我', self: true, relation: 'spouse', raw }).relation, '');
+  assert.equal(sanitizePerson({ name: '舊資料', raw }).relation, '');
+  assert.equal(relationLabel('parent', '男'), '父親');
+  assert.equal(relationLabel('parent', '女'), '母親');
+  assert.equal(relationLabel('parent', ''), '父母');
+  assert.equal(relationLabel('child', '女'), '女兒');
+  assert.equal(relationLabel('spouse', '男'), '配偶、伴侶');
+  assert.equal(relationLabel('nope', '男'), '');
+  assert.equal(new Set(RELATIONS.map((r) => r.id)).size, RELATIONS.length);
 });

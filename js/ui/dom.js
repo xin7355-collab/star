@@ -16,6 +16,21 @@ export function h(tag, attrs = {}, ...children) {
   return el;
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** SVG 版的 h()：屬性一律用 setAttribute（含 class），文字走 textContent */
+export function s(tag, attrs = {}, ...children) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [key, value] of Object.entries(attrs || {})) {
+    if (value === null || value === undefined || value === false) continue;
+    if (key === 'text') el.textContent = value;
+    else if (key === 'style' && typeof value === 'object') Object.assign(el.style, value);
+    else el.setAttribute(key, String(value));
+  }
+  append(el, children);
+  return el;
+}
+
 function append(el, children) {
   for (const child of children) {
     if (child === null || child === undefined || child === false) continue;

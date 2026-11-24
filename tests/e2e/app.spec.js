@@ -186,6 +186,59 @@ test('擇日排除歲破月破、農民曆吉神與胎神、八字記號、流�
   await tool.selectOption('fengshui');
   await expect(dv.locator('.luoshu .ls-month')).toHaveCount(9);
   await expect(dv.getByText(/小字是這個月（11\/7–12\/6）的星/)).toBeVisible();
+  // 羅盤標出八宅吉凶（坎卦：生氣東南、絕命西南），九宮格疊上飛星路線
+  await expect(dv.locator('svg.luopan')).toHaveAttribute('aria-label', /吉方 生氣東南.*凶方.*絕命西南/);
+  await expect(dv.locator('.luoshu-wrap .fly-path polyline')).toHaveCount(1);
+  // 格局改不了的化解：勾了之後出現三段做法，重新整理還記得
+  const fix = dv.locator('#fs-fix');
+  await fix.getByRole('combobox', { name: '哪個地方有狀況' }).selectOption('bedroom');
+  await fix.locator('label.check', { hasText: '床的上方有橫樑' }).click();
+  await expect(fix.locator('details.fix', { hasText: '床的上方有橫樑' }).locator('.fix-tag')).toHaveText(['能改就改', '改不了：擋', '擋不了：化']);
+  await expect(dv.getByText('改不了：').first()).toBeVisible(); // 辦公座位每條都有替代做法
+  await page.reload();
+  await tab(page, 'destiny');
+  await expect(page.locator('#fs-fix details.fix', { hasText: '床的上方有橫樑' })).toBeVisible();
+  // 八字：神煞、五行生剋圖；流年：干支各自對照喜用
+  await page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption('bazi');
+  await expect(page.locator('#view-destiny').getByRole('heading', { name: /^神煞（天乙貴人、羊刃、桃花、驛馬）$/ })).toBeVisible();
+  await expect(page.locator('#view-destiny svg.wx-wheel')).toHaveAttribute('aria-label', /日主水.*喜用火、木/);
+  await page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption('liunian');
+  await expect(page.locator('#view-destiny .ln-head').first().locator('.badge', { hasText: '干喜・支喜' })).toBeVisible();
+  // 近期提醒：滿月寫出落在哪一座
+  await tab(page, 'fortune');
+  await expect(page.locator('#reminders')).toContainText('雙子座滿月');
+});
+
+test('家人關係：關係圖、誰幫誰、從你的命盤看家人、其他家人之間、今年要注意、房間方位', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-24T10:00:00+08:00'));
+  const raw = (y, m, d, time) => ({ calendar: 'solar', era: 'ad', year: y, month: m, day: d, leap: false, knowTime: !!time, time: time || '', placeId: 'taipei', lat: null, lon: null, tz: 'Asia/Taipei', fold: null, solar: null });
+  const at = '2026-11-24T00:00:00.000Z';
+  await seed(page, [
+    ME,
+    { id: 'p-1111111111111111', name: '爸爸', gender: '男', relation: 'parent', createdAt: at, raw: raw(1960, 3, 10, '09:00') },
+    { id: 'p-2222222222222222', name: '媽媽', gender: '女', relation: 'parent', createdAt: at, raw: raw(1962, 11, 20) },
+    { id: 'p-3333333333333333', name: '老婆', gender: '女', relation: 'spouse', createdAt: at, raw: raw(1991, 12, 1, '22:10') },
+    { id: 'p-4444444444444444', name: '妹妹', gender: '女', relation: 'sibling', createdAt: at, raw: raw(1993, 5, 5) },
+  ]);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('family');
+  await expect(dv.locator('svg.fam-map .fam-edge')).toHaveCount(4);
+  await expect(dv.locator('svg.fam-map')).toHaveAttribute('aria-label', /爸爸：爸爸是你的助力/);
+  const pairs = dv.locator('section.card', { hasText: '你和每位家人' }).locator('details.fam-pair');
+  await expect(pairs).toHaveCount(4);
+  await pairs.filter({ hasText: '老婆（配偶、伴侶）' }).locator('summary').click();
+  await expect(pairs.filter({ hasText: '老婆' })).toContainText('從你的命盤看另一半');
+  await expect(pairs.filter({ hasText: '老婆' })).toContainText('流年午沖到日支（夫妻宮）');
+  await expect(dv.getByRole('heading', { name: '其他家人之間' })).toBeVisible();
+  await expect(dv.getByText(/^爸爸 ↔ 媽媽$/)).toBeVisible();
+  await expect(dv.getByRole('heading', { name: '2026 年家裡要注意' })).toBeVisible();
+  await expect(dv.getByRole('heading', { name: '房間怎麼分（八宅）' })).toBeVisible();
+  // 「我的」編輯家人時看得到「和我的關係」
+  await tab(page, 'me');
+  await page.locator('#view-me ul.people li', { hasText: '媽媽' }).getByRole('button', { name: '編輯' }).click();
+  await expect(page.getByRole('combobox', { name: '和我的關係' })).toHaveValue('parent');
 });
 
 test('多胞胎：第 2 個出生時紫微借兄弟宮，解讀說明哪裡一樣哪裡不同', async ({ page }) => {
@@ -447,6 +500,7 @@ test('占卜：解惑（選困擾、起卦、命盤、好日子、具體做法�
   await expect(jv.locator('.verdict b')).toHaveText(/^(大吉|吉|小吉|小凶|凶)$/);
   await expect(jv.locator('.hexa').first().locator('.yao')).toHaveCount(6);
   await expect(jv.locator('.yao.moving')).toHaveCount(1);
+  await expect(jv.locator('.hexa').nth(1).locator('.yao.flip')).toHaveCount(1); // 變卦裡變過來的那一爻會翻轉
   // 梅花總斷：用卦、互卦、變卦一起看
   await expect(jv.locator('.verdict small')).toHaveText(/^(互變俱生|互變俱剋|剋多無生|先吉後凶|先凶後吉|始終皆順|始終不利)$/);
   // 六爻：同一卦排出六行；問健康看世爻，用神那一行有底色、標著「世」
@@ -492,7 +546,7 @@ test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、�
   await seed(page);
   await page.setViewportSize({ width: 320, height: 640 });
   await page.goto('/');
-  const stops = [['today'], ['fortune'], ['destiny'], ['destiny', 'name'], ['destiny', 'career'], ['destiny', 'fengshui'], ['destiny', 'blood'], ['oracle', '解惑'], ['oracle', '塔羅'], ['oracle', '樂透'], ['oracle', '配對'], ['me']];
+  const stops = [['today'], ['fortune'], ['destiny'], ['destiny', 'name'], ['destiny', 'career'], ['destiny', 'fengshui'], ['destiny', 'family'], ['destiny', 'bazi'], ['destiny', 'blood'], ['oracle', '解惑'], ['oracle', '塔羅'], ['oracle', '樂透'], ['oracle', '配對'], ['me']];
   for (const [view, sub] of stops) {
     if (view === 'oracle') await oracle(page, sub);
     else await tab(page, view);

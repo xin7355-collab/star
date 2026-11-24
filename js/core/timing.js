@@ -13,9 +13,10 @@ import { tw, twList } from './zh.js';
 import { shiShen, branchRelations, ZHI, SHISHEN_TEXT } from './bazi.js';
 import { addDays, isoDate } from './date.js';
 import { localToUtcLenient, wallFields, DEFAULT_TZ } from './tz.js';
-import { bodySpeed } from './astro.js';
+import { bodySpeed, positionsAt } from './astro.js';
+import { SIGNS } from './zodiac.js';
 import { dayScores } from './fortune.js';
-import { folkDays } from './calendar.js';
+import { folkDays, shenSha } from './calendar.js';
 
 const DAY_MS = 86400000;
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -45,7 +46,8 @@ export const ACTIVITIES = [
   { id: 'travel', label: '出遊、出差', dayYi: ['出行'], timeYi: ['出行'], area: 'overall', shishen: ['食神', '偏財'] },
   { id: 'study', label: '考試、進修', dayYi: ['入學', '習藝'], timeYi: ['見貴'], area: 'career', shishen: ['正印', '偏印', '正官'] },
   { id: 'health', label: '看醫生、手術', dayYi: ['求醫', '治病'], timeYi: [], area: 'health', shishen: ['正印', '食神'] },
-  { id: 'renovate', label: '裝修、動工', dayYi: ['修造', '動土', '破土', '上樑', '豎柱'], timeYi: ['修造', '蓋屋'], area: 'overall', shishen: ['正財', '正官'] },
+  // 「破土」在農民曆專指埋葬（陰宅），陽宅裝修看「動土」；以前把破土也算進來，只宜破土的日子會被推薦去裝修
+  { id: 'renovate', label: '裝修、動工', dayYi: ['修造', '動土', '上樑', '豎柱'], timeYi: ['修造', '蓋屋'], area: 'overall', shishen: ['正財', '正官'] },
   { id: 'beauty', label: '剪髮、美容', dayYi: ['理髮', '沐浴', '整手足甲'], timeYi: [], area: 'love', shishen: ['食神', '傷官'] },
   { id: 'pray', label: '拜拜、祈福', dayYi: ['祈福', '祭祀'], timeYi: ['祈福', '祭祀'], area: 'overall', shishen: ['正印', '偏印'] },
 ];
@@ -80,7 +82,7 @@ export function personalDay(date, bazi) {
   for (const [label, own] of [['生肖', keys.yearZhi], ['日支', keys.dayZhi]]) {
     const rel = branchRelations(own, zhi);
     if (rel.includes('六沖')) out.clash.push(label);
-    if (rel.includes('六合') || rel.includes('三合')) out.harmony.push(label);
+    if (rel.includes('六合') || rel.includes('半合') || rel.includes('拱合')) out.harmony.push(label);
     if (rel.some((r) => r === '相刑' || r === '相害' || r === '相破')) out.minor.push(label);
   }
   if (out.clash.includes('生肖')) out.notes.push(`這天的${zhi}日沖你的生肖（屬${keys.animal}），重要決定與簽約能緩就緩。`);
@@ -101,7 +103,7 @@ export function hourGuide(date, bazi = null) {
     const zhi = t.getZhi();
     const clashAnimal = tw(t.getChongShengXiao());
     const clashMe = keys ? branchRelations(keys.yearZhi, zhi).includes('六沖') : false;
-    const harmonyMe = keys ? branchRelations(keys.dayZhi, zhi).some((r) => r === '六合' || r === '三合') : false;
+    const harmonyMe = keys ? branchRelations(keys.dayZhi, zhi).some((r) => r === '六合' || r === '半合' || r === '拱合') : false;
     const friendly = [...new Set(friendlyOf(yi))].slice(0, 3);
     const good = luck === '吉' && !clashMe;
     let advice;
@@ -146,6 +148,9 @@ export function hourSummary(hours) {
 const ZHI_CHONG = { 子: '午', 午: '子', 丑: '未', 未: '丑', 寅: '申', 申: '寅', 卯: '酉', 酉: '卯', 辰: '戌', 戌: '辰', 巳: '亥', 亥: '巳' };
 const SI_LI = ['春分', '夏至', '秋分', '冬至'];
 const SI_JUE = ['立春', '立夏', '立秋', '立冬'];
+// 三娘煞：農曆初三、初七、十三、十八、廿二、廿七（只忌嫁娶）
+const SAN_NIANG = new Set([3, 7, 13, 18, 22, 27]);
+const GOOD_GODS = ['天赦', '天德', '月德', '天德合', '月德合'];
 // 歲破、月破、四離四絕對這些事算「不用」（排除在推薦之外）；看醫生、考試這類日子常常不能自己選，只扣分提醒
 const MAJOR = new Set(['money', 'deal', 'wedding', 'move', 'travel', 'renovate']);
 
@@ -198,6 +203,12 @@ export function chooseDays(activityId, { from, days = 30, bazi = null, signIndex
       const folk = folkDays(lunar);
       if (folk.length) { score += 8; reasons.push({ tone: 'good', text: `這天是${folk.join('、')}` }); }
     }
+    // 民俗忌日只扣分並說明（不像歲破、月破那樣直接排除）：楊公忌諸事不宜，三娘煞只忌嫁娶、訂婚
+    if (MAJOR.has(act.id) && lunar.getFoto().isDayYangGong()) { score -= 10; reasons.push({ tone: 'bad', text: '楊公忌日：民俗說諸事不宜，大事能改期就改期' }); }
+    if (act.id === 'wedding' && SAN_NIANG.has(Math.abs(lunar.getDay()))) { score -= 12; reasons.push({ tone: 'bad', text: `三娘煞（農曆${lunar.getDay()}日）：民俗說不宜嫁娶、訂婚` }); }
+    // 天赦、天德、月德：傳統的大吉神，遇到加分
+    const goodGods = shenSha(lunar.getDayJiShen()).filter((x) => GOOD_GODS.includes(x));
+    if (goodGods.length) { score += goodGods.includes('天赦') ? 6 : 4; reasons.push({ tone: 'good', text: `${goodGods.join('、')}日：傳統的吉神，辦事較順` }); }
     const marks = badDayMarks(date);
     const blocked = marks.length && MAJOR.has(act.id);
     if (marks.length) {
@@ -305,7 +316,7 @@ export function moonPhasesBetween(from, days, tz = DEFAULT_TZ) {
     for (;;) {
       const found = Astronomy.SearchMoonPhase(lon, t, 40);
       if (!found || found.date.getTime() >= endMs) break;
-      out.push({ kind, date: localDateOf(found.date.getTime(), tz) });
+      out.push({ kind, date: localDateOf(found.date.getTime(), tz), sign: positionsAt(found.date.getTime(), ['Moon']).Moon.sign });
       t = new Date(found.date.getTime() + DAY_MS);
     }
   }
@@ -334,8 +345,48 @@ export function monthChangesBetween(from, days) {
  * @param {{from:{y,m,d}, days?:number, bazi?:object, birth?:{y,m,d}, tz?:string, liunianTaiSui?:string[]}} options
  * @returns {Array<{date:{y,m,d}, end?:{y,m,d}, kind:string, level:'warn'|'good'|'info', title:string, text:string, basis:string}>}
  */
-export function upcoming({ from, days = 45, bazi = null, birth = null, tz = DEFAULT_TZ }) {
+// 以太陽星座起算的十二宮（整宮制）：沒有出生時間也能用，是太陽星座運勢通行的算法
+export const HOUSE_THEME = ['', '自己、形象', '金錢、價值觀', '溝通、學習、兄弟姊妹', '家庭、居住', '戀愛、創作、子女', '工作、健康',
+  '伴侶、合作', '共同財務、深層關係', '遠行、進修、信念', '事業、名聲', '朋友、社群、願望', '休息、獨處、潛意識'];
+const houseFromSun = (sunSign, sign) => ((sign - sunSign + 12) % 12) + 1;
+const INGRESS_TEXT = {
+  Mercury: { name: '水星', theme: '溝通、學習、文件與交通' },
+  Venus: { name: '金星', theme: '感情、人緣、美感與花錢' },
+  Mars: { name: '火星', theme: '行動力、衝勁與競爭' },
+  Jupiter: { name: '木星', theme: '機會與擴張（約一年換一座）' },
+  Saturn: { name: '土星', theme: '責任與考驗（約兩年半換一座）' },
+};
+
+/** 期間內行星換星座（每天中午取樣，換座的那天再二分到一小時以內）；逆行退回前一座也算 */
+export function ingressesBetween(from, days, tz = DEFAULT_TZ) {
+  const out = [];
+  for (const key of Object.keys(INGRESS_TEXT)) {
+    let prevMs = noonUtc(from, tz);
+    let prev = positionsAt(prevMs, [key])[key];
+    for (let i = 1; i <= days; i += 1) {
+      const ms = noonUtc(addDays(from, i), tz);
+      const cur = positionsAt(ms, [key])[key];
+      if (cur.sign !== prev.sign) {
+        let lo = prevMs;
+        let hi = ms;
+        while (hi - lo > 3600000) {
+          const mid = (lo + hi) / 2;
+          if (positionsAt(mid, [key])[key].sign === prev.sign) lo = mid;
+          else hi = mid;
+        }
+        out.push({ key, sign: cur.sign, from: prev.sign, retro: cur.retrograde, date: localDateOf(hi, tz) });
+      }
+      prevMs = ms;
+      prev = cur;
+    }
+  }
+  return out.sort((a, b) => isoDate(a.date).localeCompare(isoDate(b.date)));
+}
+
+export function upcoming({ from, days = 45, bazi = null, birth = null, signIndex = null, tz = DEFAULT_TZ }) {
   const items = [];
+  const sunKnown = signIndex !== null && signIndex !== undefined;
+  const where = (sign) => (sunKnown ? `（你的第 ${houseFromSun(signIndex, sign)} 宮：${HOUSE_THEME[houseFromSun(signIndex, sign)]}）` : '');
   for (const key of ['Mercury', 'Venus', 'Mars']) {
     for (const p of retrogradePeriods(key, from, days, tz)) {
       const started = isoDate(p.start) <= isoDate(from);
@@ -367,9 +418,22 @@ export function upcoming({ from, days = 45, bazi = null, birth = null, tz = DEFA
       date: mp.date,
       kind: 'moon',
       level: mp.kind === 'new' ? 'good' : 'info',
-      title: `${mp.kind === 'new' ? '新月' : '滿月'}・${dateText(mp.date)}`,
-      text: mp.kind === 'new' ? '適合許願、訂新目標、開始新計畫。' : '適合收尾、檢討與感恩；情緒比較滿，溝通多一點耐心。',
-      basis: '天文計算：月相。',
+      title: `${SIGNS[mp.sign].name}${mp.kind === 'new' ? '新月' : '滿月'}・${dateText(mp.date)}`,
+      text: `${mp.kind === 'new' ? '新月' : '滿月'}落在${SIGNS[mp.sign].name}${where(mp.sign)}：${mp.kind === 'new'
+        ? `適合在${sunKnown ? HOUSE_THEME[houseFromSun(signIndex, mp.sign)] : '新的方向'}上許願、訂目標、開始新計畫。`
+        : `${sunKnown ? HOUSE_THEME[houseFromSun(signIndex, mp.sign)] : '這段時間'}的事會有個結果，適合收尾、檢討；情緒比較滿，溝通多一點耐心。`}`,
+      basis: `天文計算：月相與當時月亮的黃經。${sunKnown ? '宮位以你的太陽星座當第一宮（整宮制）。' : ''}`,
+    });
+  }
+  for (const ig of ingressesBetween(from, Math.min(days, 60), tz)) {
+    const t = INGRESS_TEXT[ig.key];
+    items.push({
+      date: ig.date,
+      kind: 'ingress',
+      level: 'info',
+      title: `${t.name}${ig.retro ? '逆行退回' : '進入'}${SIGNS[ig.sign].name}・${dateText(ig.date)}`,
+      text: `${t.name}管${t.theme}。${sunKnown ? `接下來它在你的第 ${houseFromSun(signIndex, ig.sign)} 宮，${HOUSE_THEME[houseFromSun(signIndex, ig.sign)]}這方面的事會比較有動靜。` : `接下來它在${SIGNS[ig.sign].name}，這段時間的風格會偏向這個星座的特質。`}`,
+      basis: `天文計算：${t.name}的黃經跨過星座邊界。${sunKnown ? '宮位以你的太陽星座當第一宮（整宮制）。' : ''}`,
     });
   }
   const keys = personKeys(bazi);

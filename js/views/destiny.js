@@ -1,4 +1,4 @@
-// 「命盤」：選人＋選工具（下拉）：綜合解讀（多系統一起看）、工作與未來方向、開運佈置、八字命盤、流年大運太歲、
+// 「命盤」：選人＋選工具（下拉）：綜合解讀（多系統一起看）、工作與未來方向、開運佈置、家人關係、八字命盤、流年大運太歲、
 // 紫微命盤、姓名分析、血型、瑪雅密碼、生命靈數、袁天罡稱骨。各工具的函式庫用到才載入（紫微約 51KB、康熙筆畫約 85KB gzip）。
 // 結果可「存到紀錄」（只存在手機）或存成圖卡。多胞胎依「我的」裡填的出生順序套用紫微借宮。
 
@@ -6,13 +6,15 @@ import { h, clear, segmented, fill } from '../ui/dom.js';
 import { load, save } from '../ui/storage.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
 import { cardHead } from '../ui/icons.js';
-import { reveal, order, ringTo } from '../ui/motion.js';
+import { reveal, order, ringTo, playWhenVisible } from '../ui/motion.js';
 import { loadProfile } from './profile.js';
+import { wuxingWheel, loader } from '../ui/charts.js';
 
 const TOOLS = [
   { id: 'reading', label: '綜合解讀（多系統一起看）' },
   { id: 'career', label: '工作與未來方向' },
   { id: 'fengshui', label: '開運佈置（財庫、財位、擺設）' },
+  { id: 'family', label: '家人關係（誰幫誰、怎麼相處）' },
   { id: 'bazi', label: '八字命盤' },
   { id: 'liunian', label: '流年・大運・太歲' },
   { id: 'ziwei', label: '紫微命盤' },
@@ -26,6 +28,8 @@ const TOOLS = [
 const PALACE_FIELD = { 命宮: 'ming', 官祿: 'career', 夫妻: 'love', 財帛: 'wealth' };
 const WX_CLASS = { 木: 'wx-wood', 火: 'wx-fire', 土: 'wx-earth', 金: 'wx-metal', 水: 'wx-water' };
 const MUTAGEN_CLASS = { 化祿: 'mg-lu', 化權: 'mg-quan', 化科: 'mg-ke', 化忌: 'mg-ji' };
+// 干支喜忌的顏色：兩個都忌＝紅、有喜而沒有忌＝綠、其他＝中性
+const toneCls = (t) => (!t ? 'tone-info' : t.gan === '忌' && t.zhi === '忌' ? 'tone-bad' : (t.gan === '喜' || t.zhi === '喜') && t.gan !== '忌' && t.zhi !== '忌' ? 'tone-good' : 'tone-info');
 
 export function mountDestiny(root, ctx) {
   let tool = load('destinyTool', 'reading');
@@ -77,7 +81,7 @@ export function mountDestiny(root, ctx) {
         ),
       ),
     );
-    const out = h('div', { class: 'destiny-out' }, h('p', { class: 'muted center', text: '計算中…' }));
+    const out = h('div', { class: 'destiny-out' }, h('div', { class: 'loader' }, loader('排盤中…'), h('span', { text: '排盤中…' })));
     root.append(out);
     const input = ctx.inputOf(p);
     if (!input) {
@@ -91,6 +95,7 @@ export function mountDestiny(root, ctx) {
       reading: () => drawReading(p, input, opts),
       career: () => import('./tool-career.js').then((m) => m.drawCareer(p, input, opts, kit)),
       fengshui: () => import('./tool-fengshui.js').then((m) => m.drawFengshui(p, input, opts, kit)),
+      family: () => import('./tool-family.js').then((m) => m.drawFamily(p, input, opts, kit)),
       blood: () => import('./tool-blood.js').then((m) => m.drawBlood(p, kit)),
       name: () => drawName(p, input, opts),
       bazi: () => drawBazi(p, input, opts),
@@ -132,7 +137,7 @@ export function mountDestiny(root, ctx) {
 
   // ── 八字命盤
   async function drawBazi(p, input, opts) {
-    const [{ buildBazi, WUXING, yongShen }, { dominantShishen }, { DAYMASTER, SHISHEN_GROUPS }] = await Promise.all([import('../core/bazi.js'), import('../core/reading.js'), import('../core/reading-texts.js')]);
+    const [{ buildBazi, WUXING, yongShen, ganzhiTone, shensha }, { dominantShishen }, { DAYMASTER, SHISHEN_GROUPS }] = await Promise.all([import('../core/bazi.js'), import('../core/reading.js'), import('../core/reading-texts.js')]);
     const b = buildBazi(input, opts);
     if (!b.ok) return warnCard(b.error, true);
     const dom = dominantShishen(b);
@@ -168,8 +173,8 @@ export function mountDestiny(root, ctx) {
         'details',
         { class: 'more', open: true },
         h('summary', { text: `大運（${b.yun.forward ? '順行' : '逆行'}，${b.yun.approx ? '約' : ''}${b.yun.start.years} 年 ${b.yun.start.months} 個月後起運）` }),
-        h('ol', { class: 'dayun' }, b.yun.list.map((d) => h('li', { class: d.current ? 'current' : '' }, h('b', { text: d.ganzhi }), h('span', { text: ` ${d.startAge}–${d.endAge} 歲（${d.startYear}–${d.endYear}）` }), h('span', { class: 'badge', text: d.shishen }), d.current ? h('span', { class: 'badge alt', text: '目前' }) : null))),
-        b.yun.approx ? h('p', { class: 'hint', text: '沒有出生時間，起運歲數可能差幾個月。' }) : null,
+        h('ol', { class: 'dayun' }, b.yun.list.map((d) => h('li', { class: d.current ? 'current' : '' }, h('b', { text: d.ganzhi }), h('span', { text: ` ${d.startAge}–${d.endAge} 歲（虛歲，${d.startYear}–${d.endYear}）` }), h('span', { class: 'badge', text: d.shishen }), (() => { const t = ganzhiTone(b, d.ganzhi); return t ? h('span', { class: `badge ${t.gan === '忌' && t.zhi === '忌' ? 'danger' : 'alt'}`, text: `干${t.gan}・支${t.zhi}` }) : null; })(), d.current ? h('span', { class: 'badge alt', text: '目前' }) : null))),
+        h('p', { class: 'hint', text: `歲數是傳統的虛歲（出生就算 1 歲，比實歲多 1）；起運是出生後實際經過的時間。${b.yun.approx ? '沒有出生時間，起運歲數可能差幾個月。' : ''}` }),
       )
       : h('p', { class: 'hint', text: '在「我的」幫這個人選性別，就能排大運。' });
     const gz = cols.filter(Boolean).map((c) => c.gan + c.zhi).join(' ');
@@ -190,6 +195,8 @@ export function mountDestiny(root, ctx) {
       wxBars,
       h('p', { text: b.wuxing.missing.length ? `字面上缺：${b.wuxing.missing.join('、')}` : '五行俱全' }),
       ys ? h('h3', { text: `喜用神：${ys.primary}（${ys.roles.primary}），其次${ys.secondary}` }) : null,
+      ys ? playWhenVisible(wuxingWheel(ys, b.dayMaster.wx)) : null,
+      ys ? h('p', { class: 'muted small center', text: '外圈箭頭是相生、內圈的線是相剋；圈越大，這個五行在命盤裡的份量越重（月令加三倍）。綠底是喜用，紅底是忌神。' }) : null,
       ys ? h('ul', { class: 'reasons' }, [...ys.reasons, ys.tiaohou].filter(Boolean).map((t) => h('li', { class: 'tone-info', text: t }))) : null,
       h('p', { class: 'hint', text: '字面上缺的五行不一定要補；喜用神看的是日主強弱（扶抑法），開運佈置、幸運色、姓名搭配都用這個結果。' }),
       h('h3', { text: '命盤上的其他記號' }),
@@ -198,6 +205,14 @@ export function mountDestiny(root, ctx) {
         h('li', { text: `胎元：${b.extra.taiYuan}（受孕的月份，傳統用來看先天體質與根基）` }),
         b.extra.mingGong ? h('li', { text: `命宮：${b.extra.mingGong}（先天的格局與一生的主軸）・身宮：${b.extra.shenGong}（後天努力的方向）` }) : h('li', { class: 'muted', text: '命宮、身宮需要出生時間。' }),
         h('li', { text: `十二長生：日主在四柱地支的狀態，長生、臨官、帝旺代表有力，衰、病、死、墓、絕代表較弱。` })),
+      (() => {
+        const ss = shensha(b);
+        return [
+          h('h3', { text: `神煞（${ss.length ? ss.map((x) => x.name).join('、') : '沒有常見的神煞'}）` }),
+          ss.length ? h('ul', { class: 'reasons' }, ss.map((x) => h('li', { class: x.name === '羊刃' || x.name === '魁罡' ? 'tone-info' : 'tone-good' }, h('b', { text: `${x.name}（${x.at.join('、')}）：` }), h('span', { text: x.text })))) : null,
+          h('p', { class: 'hint', text: '神煞是輔助參考：天乙貴人、文昌看日干（貴人也看年干），桃花、驛馬、華蓋看年支和日支。吉凶還是以日主強弱和喜用神為主，有吉神不代表一定好、有羊刃也不代表一定壞。' }),
+        ];
+      })(),
       yunBlock,
       actions(p, 'bazi', '八字命盤', `${gz}；日主${b.dayMaster.gan}${b.dayMaster.wx}`, { title: `${p.name}的八字`, subtitle: b.clockText || '未填時間', lines: [gz, `日主 ${b.dayMaster.gan}${b.dayMaster.wx}`, b.wuxing.missing.length ? `缺 ${b.wuxing.missing.join('、')}` : '五行俱全'] }),
     );
@@ -222,14 +237,15 @@ export function mountDestiny(root, ctx) {
         years.map((ln) => h(
           'li',
           {},
-          h('div', { class: 'ln-head' }, h('b', { text: `${ln.year} ${ln.ganzhi}（${ln.animal}）年` }), h('span', { class: 'badge', text: ln.shishen }), ln.taisui.map((t) => h('span', { class: 'badge danger', text: t })), ln.triggers.map((t) => h('span', { class: 'badge danger', text: t.type }))),
+          h('div', { class: 'ln-head' }, h('b', { text: `${ln.year} ${ln.ganzhi}（${ln.animal}）年` }), h('span', { class: 'badge', text: ln.shishen }), ln.tone ? h('span', { class: 'badge alt', text: `干${ln.tone.gan}・支${ln.tone.zhi}` }) : null, ln.taisui.map((t) => h('span', { class: 'badge danger', text: t })), ln.triggers.map((t) => h('span', { class: 'badge danger', text: t.type }))),
+          ln.tone ? h('p', { class: toneCls(ln.tone), text: `天干${ln.tone.ganWx}、地支${ln.tone.zhiWx}，對你：${ln.tone.text}` }) : null,
           h('p', { text: ln.shishenText }),
           ln.triggers.length ? h('ul', { class: 'reasons' }, ln.triggers.map((t) => h('li', { class: 'tone-bad', text: t.text }))) : null,
           ln.relations.length ? h('ul', { class: 'plain small' }, ln.relations.map((r) => h('li', { text: r.text }))) : null,
           ln.dayun ? h('p', { class: 'muted small', text: `所在大運：${ln.dayun.ganzhi}` }) : null,
         )),
       ),
-      h('p', { class: 'hint', text: '流年以立春為界（每年約 2/4 起算）。十神看日主與流年天干的關係，地支看與四柱的沖合刑害破；伏吟是流年和某一柱完全相同，天剋地沖是天干相剋、地支又相沖，歲運並臨是流年和大運相同。皆為傳統說法，僅供參考。' }),
+      h('p', { class: 'hint', text: '流年以立春為界（每年約 2/4 起算）。「干喜・支忌」是流年的天干、地支各自對照你的喜用神（扶抑法）：喜是助力、忌是壓力、平是不偏不倚，這比只看十神名稱更準。十神看日主與流年天干的關係，地支看與四柱的沖合刑害破；伏吟是流年和某一柱完全相同，天剋地沖（反吟）是天干相沖（甲庚、乙辛、丙壬、丁癸）、地支又相沖，歲運並臨是流年和大運相同。皆為傳統說法，僅供參考。' }),
       actions(p, 'liunian', `${y0} 流年`, `${years[0].ganzhi}年：${years[0].shishen}${years[0].taisui.length ? `、${years[0].taisui.join('、')}` : ''}`),
     );
     const mine = b.zodiac.name;
@@ -254,7 +270,7 @@ export function mountDestiny(root, ctx) {
 
   // ── 紫微命盤
   async function drawZiwei(p, input, opts) {
-    const [{ buildZiwei, STAR_TEXT }, { rotateZiwei, twinsInfo }, { PALACE_TEXT, ZIWEI_STARS, MUTAGEN_TEXT }] = await Promise.all([import('../core/ziwei.js'), import('../core/reading.js'), import('../core/reading-texts.js')]);
+    const [{ buildZiwei, STAR_TEXT }, { rotateZiwei, twinsInfo }, { PALACE_TEXT, ZIWEI_STARS, PALACE_DOMAIN, BRIGHTNESS_TEXT, mutagenIn }] = await Promise.all([import('../core/ziwei.js'), import('../core/reading.js'), import('../core/reading-texts.js')]);
     const z0 = buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today });
     if (!z0.ok) return warnCard(z0.error, true);
     const twins = p.birthOrder ? twinsInfo({ birthOrder: p.birthOrder, hasTime: true, method: ctx.getSettings().twinMethod }) : null;
@@ -283,13 +299,25 @@ export function mountDestiny(root, ctx) {
       return el;
     }));
     function showPalace(pal) {
-      const field = PALACE_FIELD[pal.name] || 'ming';
-      fill(detail, 
+      // 命宮、官祿、夫妻、財帛有專屬文案；其他宮用「星的特質表現在這一宮管的事上」，不套命宮的個性
+      const field = PALACE_FIELD[pal.name];
+      const starText = (st) => (field && ZIWEI_STARS[st.name]?.[field]) || `${STAR_TEXT[st.name] || ''}落在${pal.name}，這些特質會表現在${PALACE_DOMAIN[pal.name] || '這一宮的事'}上。`;
+      // 借對宮的星：星的特質看這一宮的事，但四化留在它真正所在的對宮（不能寫成「化忌在福德」）
+      const starLi = (st, mutPalace = pal.name) => h('li', {},
+        h('b', { text: `${st.name}${st.brightness ? `（${st.brightness}）` : ''}${st.mutagen ? ` ${st.mutagen}` : ''}` }),
+        h('span', { text: `：${starText(st)}` }),
+        st.brightness && BRIGHTNESS_TEXT[st.brightness] ? h('div', { class: 'muted small', text: `亮度${BRIGHTNESS_TEXT[st.brightness]}。` }) : null,
+        st.mutagen ? h('div', { class: 'muted small', text: `${mutagenIn(st.mutagen, mutPalace)}${mutPalace !== pal.name ? `（四化在對宮${mutPalace}，這裡是借來看）` : ''}` }) : null);
+      const opp = z.palaces.find((q) => q.index === (pal.index + 6) % 12);
+      fill(detail,
         h('h3', { text: `${pal.name}（${pal.stem}${pal.branch}）${pal.isBody ? '・身宮' : ''}${pal.originalName ? `・原本的${pal.originalName}` : ''}` }),
         h('p', { class: 'muted', text: PALACE_TEXT[pal.name] || '' }),
-        h('p', { class: 'muted small', text: `大限 ${pal.decadal[0]}–${pal.decadal[1]} 歲` }),
-        pal.major.length ? h('ul', { class: 'plain' }, pal.major.map((s) => h('li', {}, h('b', { text: `${s.name}${s.brightness ? `（${s.brightness}）` : ''}${s.mutagen ? ` ${s.mutagen}` : ''}` }), h('span', { text: `：${ZIWEI_STARS[s.name]?.[field] || STAR_TEXT[s.name] || ''}` }), s.mutagen ? h('div', { class: 'muted small', text: MUTAGEN_TEXT[s.mutagen] || '' }) : null))) : h('p', { text: '空宮：沒有主星，傳統上借對宮的主星來看，這一宮的事比較受環境影響。' }),
-        pal.minor.length ? h('p', { text: `輔星：${pal.minor.map((s) => s.name + (s.mutagen ? `（${s.mutagen}）` : '')).join('、')}` }) : null,
+        h('p', { class: 'muted small', text: `大限 ${pal.decadal[0]}–${pal.decadal[1]} 歲（虛歲）` }),
+        pal.major.length
+          ? h('ul', { class: 'plain' }, pal.major.map(starLi))
+          : [h('p', { text: `空宮：沒有主星，借對宮（${opp.name}）的${opp.major.length ? opp.major.map((x) => x.name).join('、') : '星曜'}來看，這一宮的事比較受環境影響。` }), opp.major.length ? h('ul', { class: 'plain' }, opp.major.map((st) => starLi(st, opp.name))) : null],
+        pal.minor.length ? h('p', { text: `輔星：${pal.minor.map((st) => st.name + (st.mutagen ? `（${st.mutagen}）` : '')).join('、')}` }) : null,
+        pal.minor.filter((st) => st.mutagen).map((st) => h('p', { class: 'muted small', text: mutagenIn(st.mutagen, pal.name) })),
         pal.adjective.length ? h('p', { class: 'muted small', text: `雜曜：${pal.adjective.join('、')}` }) : null,
       );
       detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

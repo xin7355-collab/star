@@ -81,3 +81,24 @@ test('signOptions：未知時間給可能星座清單', () => {
   const n = buildNatal({ date: { y: 2000, m: 3, d: 20 }, time: null, tz: 'Asia/Taipei' });
   assert.deepEqual(signOptions(n, 'Sun'), [SIGN_INDEX.pisces, SIGN_INDEX.aries]);
 });
+
+test('換座日沒有出生時間：各頁一律取當天佔比較長的那一座', async () => {
+  const { mainSunSign } = await import('../js/core/zodiac.js');
+  assert.equal(mainSunSign(null), null);
+  assert.equal(mainSunSign({ sun: { certain: true, sign: 3 } }), 3);
+  // 下午才換座：當天大部分時間還是前一座
+  assert.equal(mainSunSign({ sun: { certain: false, options: [3, 4], switchLocal: '15:20' } }), 3);
+  // 清晨就換座：當天大部分時間已經是下一座
+  assert.equal(mainSunSign({ sun: { certain: false, options: [3, 4], switchLocal: '05:10' } }), 4);
+});
+
+test('元素與模式分布：十顆行星加上升，同票的都列出來', async () => {
+  const { elementBalance } = await import('../js/core/zodiac.js');
+  const n = buildNatal({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: { lon: 121.5, lat: 25.04 }, fold: null });
+  const b = elementBalance(n);
+  assert.equal(b.total, 11);
+  assert.equal(Object.values(b.el).reduce((a, c) => a + c, 0), 11);
+  assert.deepEqual(b.el, { fire: 2, earth: 6, air: 1, water: 2 });
+  assert.match(b.lines[0], /^最多的是土象（6 個）/);
+  assert.match(b.lines.at(-1), /^模式以開創、固定為主（各 4 個）/);
+});

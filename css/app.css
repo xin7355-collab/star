@@ -655,7 +655,7 @@ ol.plan li { padding: 5px 0; animation: rise 0.45s var(--ease-out) both; animati
 .room-label.muted { fill: var(--muted); }
 @keyframes spot { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
 .luoshu { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0 2px; }
-.ls-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 8px 4px; text-align: center; background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; animation: rise 0.4s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.ls-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 8px 4px; text-align: center; background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; animation: rise 0.4s var(--ease-out) both; animation-delay: calc(0.15s + var(--i, 0) * 180ms); }
 .ls-cell.good { border-color: var(--good); }
 .ls-cell.bad { border-color: var(--poor); }
 .ls-cell b { font-size: 17px; color: var(--gold); }
@@ -676,6 +676,115 @@ ol.plan li { padding: 5px 0; animation: rise 0.45s var(--ease-out) both; animati
 .verdict { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: none; width: 92px; height: 92px; border: 3px solid currentColor; border-radius: 50%; animation: rise 0.5s var(--ease-spring) both; }
 .verdict b { font-size: 26px; line-height: 1; color: var(--text); }
 .verdict small { margin-top: 4px; font-size: 12px; color: var(--muted); }
+/* 羅盤：轉盤從 -100° 轉進來定位，八個方位的吉凶扇形依序亮起，最後指南針擺動幾下停在正北 */
+.luopan { display: block; width: 100%; max-width: 300px; height: auto; margin: 6px auto 4px; overflow: visible; }
+.lp-dial { transform-box: view-box; transform-origin: 50% 50%; animation: lp-turn 1.2s var(--ease-out) both; }
+@keyframes lp-turn { from { transform: rotate(-100deg); opacity: 0; } 35% { opacity: 1; } to { transform: none; opacity: 1; } }
+.lp-rim { fill: var(--card-2); stroke: var(--gold); stroke-width: 2; }
+.lp-ring { fill: none; stroke: var(--hairline-strong); stroke-width: 1; }
+.lp-tick { stroke: var(--hairline-strong); stroke-width: 1; }
+.lp-mt { fill: var(--muted); font-size: 12px; }
+.lp-mt.main { fill: var(--gold); font-weight: 700; }
+.lp-sector { stroke: var(--line); stroke-width: 1; animation: fade 0.5s ease-out both; animation-delay: calc(0.7s + var(--i, 0) * 80ms); }
+.lp-sector.plain { fill: var(--bg2); }
+.lp-sector.good { fill: var(--good-bg); }
+.lp-sector.bad { fill: var(--danger-bg); }
+.lp-dir { fill: var(--text); font-size: 12px; font-weight: 700; }
+.lp-star { fill: var(--text); font-size: 11px; }
+.lp-yao { fill: var(--gold); }
+.lp-pool { fill: var(--bg); stroke: var(--gold); stroke-width: 1.5; }
+.lp-needle { transform-box: view-box; transform-origin: 50% 50%; animation: lp-swing 1.8s ease-out both; animation-delay: 0.9s; }
+@keyframes lp-swing { 0% { transform: rotate(-50deg); } 30% { transform: rotate(28deg); } 50% { transform: rotate(-14deg); } 68% { transform: rotate(7deg); } 84% { transform: rotate(-3deg); } 100% { transform: none; } }
+.lp-needle-n { fill: var(--poor); }
+.lp-needle-s { fill: var(--text); }
+.lp-pin { fill: var(--gold); }
+.lp-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+.lp-legend span::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border-radius: 3px; }
+.lp-legend .good::before { background: var(--good-bg); border: 1px solid var(--good); }
+.lp-legend .bad::before { background: var(--danger-bg); border: 1px solid var(--poor); }
+
+/* 九宮飛星：金線照洛書順序從中宮畫出去，格子依飛到的順序落下（延遲和線同步） */
+.luoshu-wrap { position: relative; }
+.fly-path { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+/* 不能用 vector-effect: non-scaling-stroke：它讓 pathLength 失效，畫出來變虛線；線寬用 viewBox 單位（格子邊長 1） */
+.fly-line { fill: none; stroke: var(--gold); stroke-width: 0.035; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1; opacity: 0.45; animation: fly-draw 1.6s linear both; animation-delay: 0.15s; }
+@keyframes fly-draw { from { stroke-dashoffset: 1; opacity: 0.95; } 90% { opacity: 0.95; } to { stroke-dashoffset: 0; opacity: 0.45; } }
+
+/* 五行生剋圖：五個圈依序彈出，外圈相生的箭頭一段段畫出來，再浮現內圈相剋的線 */
+.wx-wheel { display: block; width: 100%; max-width: 280px; height: auto; margin: 4px auto; overflow: visible; }
+.wx-sheng { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 1; animation: fam-draw 0.5s var(--ease-out) both; animation-delay: calc(0.55s + var(--i, 0) * 160ms); }
+.wx-arrowhead { fill: var(--gold); }
+.wx-ke { stroke: var(--hairline-strong); stroke-width: 1.5; animation: fade 0.6s ease-out both; animation-delay: calc(1.4s + var(--i, 0) * 70ms); }
+.wx-pop { transform-box: fill-box; transform-origin: center; animation: fam-pop 0.55s var(--ease-spring) both; animation-delay: calc(var(--i, 0) * 100ms); }
+.wx-dot { fill: var(--card-2); stroke: currentColor; stroke-width: 3; }
+.wx-node.xi .wx-dot { fill: var(--good-bg); }
+.wx-node.ji .wx-dot { fill: var(--danger-bg); }
+.wx-node.dm .wx-dot { stroke-width: 5; }
+.wx-char { fill: var(--text); font-size: 15px; font-weight: 800; }
+.wx-tag { fill: var(--muted); font-size: 11px; font-weight: 700; }
+.wx-tag.xi { fill: var(--good); }
+.wx-tag.ji { fill: var(--poor); }
+.wx-tag.dm { fill: var(--gold); }
+
+/* 在畫面下方的圖：先停在第一格，滑到眼前才開始播（不然使用者滑到時動畫早就播完了） */
+.await-view, .await-view * { animation-play-state: paused !important; }
+
+/* 載入中：一圈八卦慢慢轉 */
+.loader { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 0; color: var(--muted); }
+.loader-svg { width: 72px; height: 72px; }
+.ld-ring { transform-box: view-box; transform-origin: 50% 50%; animation: ld-spin 6s linear infinite; }
+@keyframes ld-spin { to { transform: rotate(360deg); } }
+.ld-core { fill: none; stroke: var(--gold); stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: pulse 1.6s ease-in-out infinite; }
+
+/* 解惑：變卦裡變的那一爻，先顯示原本的樣子，翻過去變成新的爻 */
+.yao.flip { position: relative; }
+.yao.flip > span { position: absolute; inset: 0; display: flex; gap: 12px; transform-origin: center; }
+.yao.flip > span i { flex: 1; border-radius: 3px; background: var(--gold); }
+.yao-from { animation: yao-out 0.45s ease-in both; animation-delay: 1s; }
+.yao-to { animation: yao-in-flip 0.45s var(--ease-out) both; animation-delay: 1.45s; }
+@keyframes yao-out { from { transform: none; opacity: 1; } to { transform: scaleY(0); opacity: 0; } }
+@keyframes yao-in-flip { from { transform: scaleY(0); opacity: 0; } to { transform: none; opacity: 1; } }
+.yao.moving i { animation: yao-glow 1.2s ease-in-out 2 both; animation-delay: 0.8s; }
+@keyframes yao-glow { 50% { opacity: 0.4; } }
+
+/* 家人關係圖：連線用 pathLength=1 從中心畫出去，節點依序彈出；減少動態效果時（檔尾全關動畫）直接顯示畫好的圖 */
+.fam-map { display: block; width: 100%; max-width: 360px; height: auto; margin: 4px auto 0; overflow: visible; }
+.fam-orbit { fill: none; stroke: var(--hairline); stroke-width: 1; stroke-dasharray: 2 6; }
+.fam-edge { stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; animation: fam-draw 0.9s var(--ease-out) both; animation-delay: calc(0.25s + var(--i, 0) * 120ms); }
+.fam-edge.good { stroke: var(--good); }
+.fam-edge.mid { stroke: var(--gold); }
+.fam-edge.care { stroke: var(--poor); }
+@keyframes fam-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.fam-pop { transform-box: fill-box; transform-origin: center; animation: fam-pop 0.55s var(--ease-spring) both; animation-delay: calc(var(--i, 0) * 110ms); }
+@keyframes fam-pop { from { transform: scale(0.2); opacity: 0; } to { transform: none; opacity: 1; } }
+.fam-dot { fill: var(--card-2); stroke: currentColor; stroke-width: 3; }
+.fam-node.center .fam-dot { fill: var(--highlight-bg); stroke-width: 4; }
+.fam-name { fill: var(--text); font-size: 13px; font-weight: 700; }
+.fam-node.center .fam-name { font-size: 15px; }
+.fam-sub { fill: var(--muted); font-size: 11px; }
+.fam-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; margin: 6px 0 10px; font-size: 13px; color: var(--muted); }
+.fam-legend span::before { content: ''; display: inline-block; width: 18px; height: 3px; margin-right: 6px; vertical-align: middle; border-radius: 2px; background: currentColor; }
+.fam-legend .good::before { background: var(--good); }
+.fam-legend .mid::before { background: var(--gold); }
+.fam-legend .care::before { background: var(--poor); }
+.fam-pair { border-top: 1px solid var(--divider); padding: 2px 0 6px; }
+.fam-pair summary { min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; cursor: pointer; }
+.fam-who { font-weight: 700; }
+.badge.fam-good { background: var(--good-bg); color: var(--text); }
+.badge.fam-mid { background: var(--badge-bg); color: var(--text); }
+.badge.fam-care { background: var(--danger-bg); color: var(--text); }
+/* 格局化解：一項狀況一個可收合區塊，三段做法用不同底色的標籤區分（能改／擋／化） */
+.fix { border: 1px solid var(--line); border-radius: var(--radius-s); padding: 4px 12px 10px; margin: 8px 0; background: var(--bg2); }
+.fix summary { min-height: 44px; display: flex; align-items: center; font-weight: 700; cursor: pointer; }
+.fix-steps { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 8px; }
+.fix-steps li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: start; }
+.fix-tag { font-size: 12px; line-height: 1.6; padding: 1px 8px; border-radius: 999px; white-space: nowrap; color: var(--text); }
+.fix-tag.move { background: var(--good-bg); }
+.fix-tag.block { background: var(--badge-bg); }
+.fix-tag.cure { background: var(--badge-alt-bg); }
+.fix-alt { display: block; margin-top: 4px; font-size: 14px; color: var(--muted); }
+.fix-alt b { color: var(--gold); font-weight: 700; }
+.fix-checks { margin: 4px 0 8px; }
 /* 六爻排盤表：五欄在 320px 寬也要放得下，所以字小一號、爻用短線條 */
 table.liuyao { font-size: 13px; }
 /* 窄螢幕時「官鬼 辰土」在空格處換行，不要把整張表撐出卡片 */

@@ -15,12 +15,21 @@ const LINE_NAME = ['初', '二', '三', '四', '五', '上'];
 const CHANGE_TONE = { 回頭生: 'tone-good', 化進: 'tone-good', 回頭剋: 'tone-bad', 化退: 'tone-bad', 化墓: 'tone-bad', 化絕: 'tone-bad' };
 const TIMING = { key: { cls: 'tone-info', tag: '應期' }, good: { cls: 'tone-good', tag: '轉機' }, bad: { cls: 'tone-bad', tag: '小心' } };
 
-/** 六爻圖：由上（上爻）畫到下（初爻），動爻標金色 */
-function hexaEl(hx, moving = 0, label = '') {
+const bars = (yang) => (yang ? [h('i')] : [h('i'), h('i')]);
+
+/**
+ * 六爻圖：由上（上爻）畫到下（初爻），動爻標金色。
+ * flip：變卦裡變過來的那一爻——先顯示本卦原本的樣子，再翻成新的爻（減少動態效果時直接顯示新的）。
+ */
+function hexaEl(hx, moving = 0, label = '', flip = 0) {
   const lines = [...hx.lower.lines, ...hx.upper.lines];
   const rows = [];
   for (let i = 5; i >= 0; i -= 1) {
-    rows.push(h('span', { class: `yao ${lines[i] ? 'yang' : 'yin'}${moving === i + 1 ? ' moving' : ''}` }, h('i'), lines[i] ? null : h('i')));
+    if (flip === i + 1) {
+      rows.push(h('span', { class: `yao flip ${lines[i] ? 'yang' : 'yin'}` }, h('span', { class: 'yao-from' }, bars(!lines[i])), h('span', { class: 'yao-to' }, bars(lines[i]))));
+      continue;
+    }
+    rows.push(h('span', { class: `yao ${lines[i] ? 'yang' : 'yin'}${moving === i + 1 ? ' moving' : ''}` }, bars(lines[i])));
   }
   order(rows.slice().reverse());
   return h('div', { class: 'hexa-box' }, h('div', { class: 'hexa', role: 'img', 'aria-label': `${label}${hx.name}${moving ? `，第 ${moving} 爻動` : ''}` }, rows), h('b', { text: hx.name }), label ? h('small', { class: 'muted', text: label }) : null);
@@ -143,7 +152,7 @@ export function mountJiehuo(root, ctx) {
       { class: 'card feature' },
       cardHead(h, 'sparkle', `${topic.label}：${cast.base.name} → ${cast.bian.name}`, cast.basis),
       q ? h('p', { class: 'muted', text: `你問：${q}` }) : null,
-      h('div', { class: 'hexa-row' }, hexaEl(cast.base, cast.moving, '本卦（現況）'), h('span', { class: 'hexa-arrow', 'aria-hidden': 'true', text: '→' }), hexaEl(cast.bian, 0, '變卦（結果）')),
+      h('div', { class: 'hexa-row' }, hexaEl(cast.base, cast.moving, '本卦（現況）'), h('span', { class: 'hexa-arrow', 'aria-hidden': 'true', text: '→' }), hexaEl(cast.bian, 0, '變卦（結果）', cast.moving)),
       h('div', { class: 'score-hero' }, h('div', { class: `verdict ${TONE_CLASS[cast.verdict.tone]}` }, h('b', { text: cast.verdict.level }), h('small', { text: cast.verdict.title })), h('p', { class: 'summary', text: verdict.text })),
       h('ul', { class: 'reasons' },
         h('li', { class: 'tone-info', text: `現況（${cast.base.name}）：${cast.base.now}${cast.base.advice}` }),

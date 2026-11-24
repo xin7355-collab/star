@@ -62,3 +62,20 @@ export function enterView(el) {
   void el.offsetWidth;
   el.classList.add('entering');
 }
+
+/**
+ * 圖在畫面下方時，先暫停動畫，捲到眼前（露出兩成）才開始播。減少動態效果或瀏覽器沒有 IntersectionObserver 時直接顯示。
+ * 回傳同一個元素，方便寫在 h(...) 裡。
+ */
+export function playWhenVisible(el) {
+  if (!el || reducedMotion() || typeof IntersectionObserver !== 'function') return el;
+  el.classList.add('await-view');
+  const io = new IntersectionObserver((entries) => {
+    if (entries.some((e) => e.isIntersecting)) {
+      el.classList.remove('await-view');
+      io.disconnect();
+    }
+  }, { threshold: 0.2 });
+  io.observe(el);
+  return el;
+}

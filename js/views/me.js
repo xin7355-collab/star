@@ -4,9 +4,9 @@
 import { h, clear, fill } from '../ui/dom.js';
 import { createBirthForm, describeRaw } from '../ui/birthform.js';
 import { buildNatal, describePlacement, describeBirth } from '../core/natal.js';
-import { SIGNS, ELEMENTS, MODALITIES, formatDegree } from '../core/zodiac.js';
+import { SIGNS, ELEMENTS, MODALITIES, formatDegree, ASPECT_PLAIN, elementBalance } from '../core/zodiac.js';
 import { BODY_NAME } from '../core/astro.js';
-import { newId } from '../core/records.js';
+import { newId, RELATIONS, relationLabel } from '../core/records.js';
 
 const HISTORY_SHOWN = 50;
 const TYPE_LABEL = {
@@ -46,6 +46,10 @@ export function mountMe(root, ctx) {
     bloodSel.value = person?.bloodType || '';
     const orderSel = h('select', { 'aria-label': '多胞胎出生順序' }, h('option', { value: '0', text: '不是多胞胎' }), [1, 2, 3, 4, 5].map((n) => h('option', { value: String(n), text: `多胞胎・第 ${n} 個出生` })));
     orderSel.value = String(person?.birthOrder || 0);
+    // 和我的關係：「我」自己不用填；家人關係會用它挑命盤上要看的六親與宮位
+    const isSelf = person ? person.self : !!target.self;
+    const relationSel = isSelf ? null : h('select', { 'aria-label': '和我的關係' }, h('option', { value: '', text: '不填' }), RELATIONS.map((r) => h('option', { value: r.id, text: r.label })));
+    if (relationSel) relationSel.value = person?.relation || '';
     const advanced = h(
       'details',
       { class: 'more', open: !!(person && (person.fullName || person.birthOrder || person.bloodType)) },
@@ -80,7 +84,7 @@ export function mountMe(root, ctx) {
       const fullName = fullNameInput.value.trim();
       if (fullName && !/^\p{Script=Han}{2,6}$/u.test(fullName)) return ctx.toast('本名請輸入 2～6 個中文字，或留空');
       const saved = ctx.savePerson(
-        { id: person ? person.id : newId('p'), name: form.getName() || '未命名', gender: form.getGender(), self: person ? person.self : !!target.self, fullName, bloodType: bloodSel.value, birthOrder: Number(orderSel.value), raw: form.toRaw(), createdAt: person?.createdAt },
+        { id: person ? person.id : newId('p'), name: form.getName() || '未命名', gender: form.getGender(), self: isSelf, relation: relationSel ? relationSel.value : '', fullName, bloodType: bloodSel.value, birthOrder: Number(orderSel.value), raw: form.toRaw(), createdAt: person?.createdAt },
         // 只有第一次輸入、或編輯正在查看的人時才切換；新增家人不搶走「我」的位置（今日、時運預設看自己）
         { activate: first || (person && person.id === ctx.getActive()?.id) },
       );
@@ -95,6 +99,7 @@ export function mountMe(root, ctx) {
       h('h2', { text: first ? '輸入你的生日' : person ? `編輯：${person.name}` : '新增家人朋友' }),
       h('p', { class: 'hint', text: '資料只存在這支手機，不會上傳。' }),
       form.el,
+      relationSel ? h('div', { class: 'field' }, h('span', { class: 'field-label', text: '和我的關係（看家人之間怎麼互相影響）' }), relationSel) : null,
       advanced,
       h(
         'div',
@@ -157,6 +162,7 @@ export function mountMe(root, ctx) {
       h('ul', { class: 'plain' }, placements.map((t) => h('li', { text: t })), lunarLine),
       notes.length ? h('details', { class: 'more' }, h('summary', { text: `說明（${notes.length}）` }), notes.map((t) => h('p', { class: 'hint', text: t }))) : null,
       natal.mode === 'timed' ? renderChart(natal) : renderRanges(natal),
+      natal.mode === 'timed' ? renderBalance(natal) : null,
       natal.mode === 'timed' && natal.aspects.length ? renderAspects(natal) : null,
       h(
         'div',
@@ -198,14 +204,28 @@ export function mountMe(root, ctx) {
     );
   }
 
+  function renderBalance(natal) {
+    const b = elementBalance(natal);
+    return h('details', { class: 'more' },
+      h('summary', { text: `元素與模式（${Object.entries(b.el).map(([k, v]) => `${ELEMENTS[k].short} ${v}`).join('・')}）` }),
+      h('ul', { class: 'plain' }, b.lines.map((t) => h('li', { text: t }))),
+      h('p', { class: 'hint', text: `十顆行星${natal.angles ? '加上升' : ''}共 ${b.total} 個點，每個算一票；開創 ${b.md.cardinal}、固定 ${b.md.fixed}、變動 ${b.md.mutable}。` }));
+  }
+
   function renderRanges(natal) {
     const items = Object.values(natal.ranges).map((r) => h('li', { text: `${r.name}：${r.signs.map((s) => SIGNS[s].name).join(' → ')}` }));
     return h('details', { class: 'more' }, h('summary', { text: '出生當天各行星的可能星座' }), h('ul', { class: 'plain' }, items));
   }
 
+  // 只列有個人行星（日、月、水、金、火）參與的相位：外行星彼此之間的相位（例如天王星合海王星）同一年出生的人都一樣，
+  // 以前照容許度排，常常第一條就是它。太陽、月亮的相位排前面，再看容許度。
+  const PERSONAL_RANK = { Sun: 0, Moon: 0, Mercury: 1, Venus: 1, Mars: 1 };
   function renderAspects(natal) {
-    const items = natal.aspects.slice(0, 12).map((a) => h('li', { text: `${BODY_NAME[a.a]} ${a.name} ${BODY_NAME[a.b]}（容許度 ${a.orb.toFixed(1)}°）` }));
-    return h('details', { class: 'more' }, h('summary', { text: `主要相位（${natal.aspects.length}）` }), h('ul', { class: 'plain' }, items));
+    const rank = (a) => Math.min(PERSONAL_RANK[a.a] ?? 9, PERSONAL_RANK[a.b] ?? 9);
+    const personal = natal.aspects.filter((a) => rank(a) < 9).sort((x, y) => rank(x) - rank(y) || x.orb - y.orb);
+    const items = personal.slice(0, 12).map((a) => h('li', {}, h('b', { text: `${BODY_NAME[a.a]} ${a.name} ${BODY_NAME[a.b]}` }), h('span', { class: 'muted', text: `（容許度 ${a.orb.toFixed(1)}°）` }), h('div', { class: 'small', text: ASPECT_PLAIN[a.name] || '' })));
+    return h('details', { class: 'more' }, h('summary', { text: `主要相位（${personal.length}）` }), h('ul', { class: 'plain' }, items),
+      h('p', { class: 'hint', text: '只列太陽、月亮、水星、金星、火星參與的相位；外行星彼此之間的相位，同一年出生的人幾乎都一樣，所以不列。' }));
   }
 
   // ── 名單
@@ -221,7 +241,7 @@ export function mountMe(root, ctx) {
           h(
             'li',
             { class: p.id === active?.id ? 'active' : '' },
-            h('div', { class: 'people-main' }, h('b', { text: p.name }), p.self ? h('span', { class: 'badge', text: '我' }) : null, p.gender ? h('span', { class: 'badge alt', text: p.gender }) : null, p.birthOrder ? h('span', { class: 'badge', text: `多胞胎第 ${p.birthOrder}` }) : null, h('div', { class: 'muted small', text: `${p.fullName ? `本名 ${p.fullName}・` : ''}${p.bloodType ? `${p.bloodType} 型・` : ''}${describeRaw(p.raw)}` })),
+            h('div', { class: 'people-main' }, h('b', { text: p.name }), p.self ? h('span', { class: 'badge', text: '我' }) : null, p.relation ? h('span', { class: 'badge', text: relationLabel(p.relation, p.gender) }) : null, p.gender ? h('span', { class: 'badge alt', text: p.gender }) : null, p.birthOrder ? h('span', { class: 'badge', text: `多胞胎第 ${p.birthOrder}` }) : null, h('div', { class: 'muted small', text: `${p.fullName ? `本名 ${p.fullName}・` : ''}${p.bloodType ? `${p.bloodType} 型・` : ''}${describeRaw(p.raw)}` })),
             h(
               'div',
               { class: 'people-actions' },

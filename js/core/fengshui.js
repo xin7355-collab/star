@@ -10,8 +10,9 @@
 
 import { Solar, LunarYear } from '../../vendor/lunar.js';
 import { tw } from './zh.js';
-import { yearGanZhi, yongShen } from './bazi.js';
+import { yearGanZhi, yongShen, avoidReason } from './bazi.js';
 import { ZIWEI_STARS } from './reading-texts.js';
+import { KUA_STAR_DETAIL } from './fengshui-fix.js';
 
 const DIRS = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'];
 
@@ -63,7 +64,7 @@ export function personalDirections(birth, gender) {
   const k = kuaNumber(year, gender);
   if (!k) return null;
   const t = KUA[k];
-  return { kua: k, name: `${t.name}卦`, group: t.group, year, stars: KUA_STARS.map((s) => ({ ...s, dir: t[s.key] })) };
+  return { kua: k, name: `${t.name}卦`, group: t.group, year, stars: KUA_STARS.map((s) => ({ ...s, ...KUA_STAR_DETAIL[s.key], dir: t[s.key] })) };
 }
 
 // ── 九宮飛星
@@ -207,7 +208,7 @@ export function fishAdvice(ys) {
   if (primary === '火' || avoid.includes('水')) {
     return { fit: 'no', title: '不建議養魚', text: primary === '火'
       ? `水會剋火，對喜用「火」的你不加分。真的想養，選小缸、${FISH_BY_ELEMENT.火}、2 或 7 條，旁邊放綠色植物（水生木、木生火，用木來通關）。`
-      : '「水」是你八字不需要再加的五行，大魚缸會讓氣場更偏。想養寵物魚的話，選小缸、放在不常待的角落。', where: '避開辦公桌正前方與財位。', care };
+      : `「水」是你的忌神（${avoidReason(ys)}），大魚缸會讓氣場更偏。想養寵物魚的話，選小缸、放在不常待的角落。`, where: '避開辦公桌正前方與財位。', care };
   }
   if (secondary === '水') {
     return { fit: 'good', title: '適合養小缸魚', text: `你的次要喜用是「水」，養魚有幫助，但主角是「${primary}」：魚挑${FISH_BY_ELEMENT[primary]}，數量 ${HETU[primary].join(' 或 ')} 條。`, where, care };
@@ -329,16 +330,26 @@ export function buildFengshui({ bazi = null, ziwei = null, birth, gender = null,
   };
 }
 
+/**
+ * 辦公座位：每條規則附上「做不到時怎麼辦」。多數人的座位是公司排的，只講理想位置等於沒講。
+ * @returns {{rule:string, fix:string}[]}
+ */
 function deskAdvice(personal, ys) {
-  const lines = [
-    '座位背後是實牆（有靠山），不要背對門或走道。',
-    '不要正對門口（門沖），也不要坐在橫樑正下方。',
-    '桌面左邊放較高的東西（檔案、主機），右邊保持低而整齊（左青龍、右白虎）。',
-    '桌面保持清爽，壞掉的文具、枯掉的植物馬上換掉。',
-  ];
-  if (personal) lines.unshift(`面向你的生氣方「${personal.stars.find((s) => s.key === '生氣').dir}」最好；其次是天醫「${personal.stars.find((s) => s.key === '天醫').dir}」或延年「${personal.stars.find((s) => s.key === '延年').dir}」。`);
-  if (ys) lines.push(`桌上可以放：${ELEMENT_ITEMS[ys.primary].desk}。`);
-  return lines;
+  const items = [];
+  const deskItem = ys ? ELEMENT_ITEMS[ys.primary].desk.split('、')[0] : '圓葉小盆栽';
+  if (personal) {
+    const d = (k) => personal.stars.find((s) => s.key === k).dir;
+    items.push({
+      rule: `面向你的生氣方「${d('生氣')}」最好；其次是天醫「${d('天醫')}」或延年「${d('延年')}」。`,
+      fix: `至少不要面向絕命「${d('絕命')}」；在桌面靠${d('生氣')}的那一角放${deskItem}，手機、常用的文件也放那一側。`,
+    });
+  }
+  items.push({ rule: '座位背後是實牆（有靠山），不要背對門或走道。', fix: '換高背椅、椅背掛一件外套，背後放櫃子或高盆栽；桌上放一面小鏡子看得到身後。' });
+  items.push({ rule: '不要正對門口（門沖），也不要坐在橫樑或冷氣出風口正下方。', fix: '門沖就把座位斜一點，桌前放檔案架或盆栽擋；樑壓就往旁邊挪，挪不了在桌上放一盞往上照的燈；冷氣直吹加擋風板。' });
+  items.push({ rule: '桌面左邊放較高的東西（檔案、主機），右邊保持低而整齊（左青龍、右白虎）。', fix: '左右以坐在位子上為準；左邊沒空間時，至少讓右邊不要比左邊高、不要堆雜物。' });
+  items.push({ rule: '桌面保持清爽，壞掉的文具、枯掉的植物馬上換掉。', fix: '' });
+  if (ys) items.push({ rule: `桌上可以放：${ELEMENT_ITEMS[ys.primary].desk}。`, fix: '' });
+  return items;
 }
 
 export { DIRS };

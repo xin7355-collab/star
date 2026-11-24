@@ -116,3 +116,23 @@ test('血型：四型文字齊全、配對不分順序；解讀列入共同點�
   const none = buildReading({ ...base, bloodType: '' });
   assert.ok(!none.areas.some((a) => a.points.some((p) => p.system === '血型')));
 });
+
+test('紫微：命宮以外的宮不再套命宮的個性；上升用自己的文案；瑪雅 D、E 同一個詞只講一次', async () => {
+  const { ZIWEI_STARS, RISING_TEXT, mutagenIn } = await import('../js/core/reading-texts.js');
+  const r = buildReading({ natal, bazi, ziwei, birth: INPUT.date, maya: computeMaya(INPUT.date), today: TODAY, gender: '男' });
+  const social = r.areas.find((a) => a.id === 'social').points.filter((p) => p.system === '紫微').map((p) => p.text).join('');
+  assert.match(social, /這些特質會表現在/);
+  for (const [name, t] of Object.entries(ZIWEI_STARS)) assert.ok(!social.includes(t.ming), `${name} 的命宮文案出現在交友、遷移宮`);
+  const personality = r.areas.find((a) => a.id === 'personality').points.map((p) => p.text).join('');
+  assert.ok(RISING_TEXT.some((t) => personality.includes(t)));
+  assert.match(mutagenIn('化忌', '疾厄'), /^化忌在疾厄：身體狀況/);
+  // D 和 E 同一個詞：1950 年代～2025 年出生的人大多如此
+  const { MAYA_KEYWORD_TEXT } = await import('../js/core/reading-texts.js');
+  const kw = Object.keys(MAYA_KEYWORD_TEXT)[0];
+  const maya = { ...computeMaya(INPUT.date), twin: false };
+  maya.items = maya.items.map((x) => (x.key === 'D' || x.key === 'E' ? { ...x, keyword: kw } : x));
+  const same = buildReading({ natal, bazi, ziwei, birth: INPUT.date, maya, today: TODAY, gender: '男' });
+  const mayaText = same.areas.flatMap((a) => a.points).filter((p) => p.system === '瑪雅').map((p) => p.text).join('');
+  assert.match(mayaText, /表象 D 和小宇宙 E 都是/);
+  assert.equal(mayaText.split(`${kw}（`).length - 1, 1);
+});

@@ -65,6 +65,8 @@ js/core/              計算核心（不碰畫面，可在 Node 測試）
   timing.js                   吉時表、擇日、近期提醒（逆行、日月食、月相、換流月）
   career.js                   工作性質（多系統投票）、喜用行業、未來三年與十年方向
   fengshui.js                 開運佈置：財庫、八宅命卦、九宮飛星、明財位、水晶／魚／植物
+  fengshui-fix.js             格局改不了的化解（30 種形煞，能改／擋／化三段）、八宅凶方與飛星的化解原理
+  family.js                   家人關係：兩人互動、通關五行、六親與宮位、全家五行與房間方位
   iching.js iching-texts.js   梅花易數起卦、六十四卦白話、體用四階段與總斷
   liuyao.js                   六爻納甲：八宮世應、六親六神、用神旺衰、動變、伏神、應期
   jiehuo.js                   解惑的困擾類型與具體步驟
@@ -74,9 +76,9 @@ js/core/              計算核心（不碰畫面，可在 Node 測試）
   reading.js reading-texts.js 多系統綜合解讀、多胞胎、各系統白話內容
   records.js                  名單與紀錄的驗證、備份格式
   zh.js zh-data.js            簡轉台灣繁中
-js/ui/                共用元件（生日表單、圖卡、儲存、AI 佇列、自動更新、動畫 motion.js、圖示 icons.js、
+js/ui/                共用元件（生日表單、圖卡、儲存、AI 佇列、自動更新、動畫 motion.js、圖示 icons.js、命理圖 charts.js（羅盤、飛星路線、五行生剋圖、八卦載入）、
                       吉時條／彩球／時間軸／擇日格 widgets.js）
-js/views/             today（今日）、fortune（時運）、destiny（命盤：tool-career、tool-fengshui、tool-blood）、
+js/views/             today（今日）、fortune（時運）、destiny（命盤：tool-career、tool-fengshui、tool-family、tool-blood）、
                       oracle（占卜：jiehuo、tarot、lotto、match）、me（我的）；profile.js 把一個人的各系統命盤一次算好
 vendor/               打包好的第三方函式庫（來源與授權見 NOTICE.md）
 worker/               Cloudflare Worker（AI 代理，選用）

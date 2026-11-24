@@ -7,6 +7,7 @@ import { cardHead } from '../ui/icons.js';
 import { order, reveal } from '../ui/motion.js';
 import { ballsRow, partsList } from '../ui/widgets.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
+import { mainSunSign } from '../core/zodiac.js';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -37,7 +38,7 @@ export function mountLotto(root, ctx) {
       const b = buildBazi(input, { gender: person.gender || null, sect: settings.sect, solarTime: settings.solarTime, today });
       bazi = b.ok ? b : null;
     }
-    const signIndex = natal ? (natal.sun.certain ? natal.sun.sign : natal.sun.options[0]) : null;
+    const signIndex = mainSunSign(natal);
     const birth = input ? input.date : null;
     const profile = W.luckyProfile({ bazi, birth, lifePathNumber: birth ? NUM.lifePath(birth).number : null });
     const outlook = W.windfallOutlook(today, 7, { bazi, signIndex, birth });

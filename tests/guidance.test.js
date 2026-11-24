@@ -105,7 +105,8 @@ test('開運佈置總表：財位步驟、今年財星與煞位、辦公桌、�
   // 喜火的有利方位「南」2026 年剛好是五黃與太歲：要提醒改放次要喜用（木）的東、東南
   assert.deepEqual(r.clash, [{ dir: '南', what: ['五黃', '太歲'] }]);
   assert.match(r.plan.join(''), /「南」今年剛好是五黃、太歲所在.*「東、東南」/);
-  assert.ok(r.desk[0].includes('東南'));
+  assert.ok(r.desk[0].rule.includes('東南'));
+  assert.match(r.desk[0].fix, /絕命「西南」/); // 坎卦：絕命在西南
   assert.ok(r.store.ziwei.lines.length >= 1);
   // 沒有性別：個人吉方無法算，其他照常
   const noGender = buildFengshui({ bazi: BAZI, birth: INPUT.date, gender: null, today: TODAY });
@@ -236,7 +237,8 @@ test('未來方向：三年各有重點與宜忌，大運、紫微大限都算�
   const f = r.future;
   assert.deepEqual(f.years.map((y) => y.year), [2026, 2027, 2028]);
   // 2026 丙午、2027 丁未：天干火是喜用 → 順；2028 戊申：土不是喜用也不是忌 → 平
-  assert.deepEqual(f.years.map((y) => y.tone), ['good', 'good', 'mid']);
+  // 干支各自看喜忌：2026 丙午（火火都喜）、2027 丁未（火喜土平）順；2028 戊申的地支申金是忌神 → 辛苦（以前只看天干戊土會判成平）
+  assert.deepEqual(f.years.map((y) => y.tone), ['good', 'good', 'hard']);
   assert.ok(f.years.every((y) => y.headline && y.doList.length && y.points.length >= 2));
   assert.match(f.years[0].points.find((p) => p.system === '占星').text, /木星（機會）走到第 12 宮獅子座/);
   assert.deepEqual([f.dayun.current.ganzhi, f.dayun.next.ganzhi], ['丁亥', '戊子']);

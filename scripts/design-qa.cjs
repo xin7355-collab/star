@@ -137,6 +137,9 @@ async function tour(browser, width, prefix, opts) {
   await tool(page, 'fengshui');
   await page.waitForSelector('#view-destiny .luoshu');
   files.push(await snap(page, `${prefix}fengshui`, width));
+  await tool(page, 'family');
+  await page.waitForSelector('#view-destiny .fam-map, #view-destiny .card .btn.primary');
+  files.push(await snap(page, `${prefix}family`, width));
   await tool(page, 'blood');
   await page.waitForSelector('#view-destiny select[aria-label="血型"]');
   files.push(await snap(page, `${prefix}blood`, width));

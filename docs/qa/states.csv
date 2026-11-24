@@ -26,7 +26,7 @@ AI 短評卡,data_view,populated,DONE,手動 E2E（模擬 Worker 回應，先 20
 生日表單,form,default,DONE,e2e:第一次使用：輸入生日 → 星盤、農曆生日、運勢與農民曆,
 生日表單,form,focus_visible,DONE,design-qa:empty-me 快照鍵盤 Tab 實測,
 生日表單,form,validation_error,DONE,test:tests/date-tz.test.js 與 calendar-bazi.test.js 的錯誤訊息；畫面以提示訊息顯示,
-生日表單,form,submitting,DONE,e2e:送出中：按鈕顯示「計算中…」並鎖住，不會重複送出,攔住農曆函式庫的下載實測
+生日表單,form,submitting,DONE,e2e:送出中：按鈕顯示八卦載入動畫與「排盤中…」並鎖住，不會重複送出,攔住農曆函式庫的下載實測
 生日表單,form,success,DONE,code:js/views/me.js「已儲存在這支手機」＋顯示星盤,
 生日表單,form,server_error,DONE,e2e:載入失敗：提示能做什麼、已填資料保留,沒有伺服器；唯一會失敗的非同步是延後載入的農曆函式庫
 匯入備份,action,default,DONE,e2e:備份：匯出 → 清除 → 匯入，名單與紀錄都還原,
@@ -85,7 +85,7 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 姓名分析,form,default,DONE,e2e:命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生命靈數、稱骨都算得出來,
 姓名分析,form,focus_visible,DONE,npm run qa:design（name 快照鍵盤 Tab 實測）,
 姓名分析,form,validation_error,DONE,test:tests/name.test.js 錯誤處理（非中文、太短、罕用字要手動輸入筆畫）,
-姓名分析,form,submitting,DONE,code:康熙資料載入前顯示「計算中…」，資料到了才出現表單,
+姓名分析,form,submitting,DONE,code:康熙資料載入前顯示八卦載入動畫與「排盤中…」，資料到了才出現表單,
 姓名分析,form,success,DONE,e2e:王小明五格 5、7、11、9、15 與注音,
 姓名分析,form,server_error,DONE,code:js/views/destiny.js「康熙筆畫資料載入失敗，請確認網路後重新開啟 App。」,沒有伺服器；唯一會失敗的是延後載入的資料檔
 綜合解讀,data_view,loading,DONE,code:js/views/destiny.js「計算中…」,
@@ -98,15 +98,15 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 底部分頁,control,focus_visible,DONE,npm run qa:design（各快照鍵盤 Tab 實測）,
 底部分頁,control,active,DONE,code:aria-current＝page＋金色光暈滑到選到的分頁,
 底部分頁,control,disabled,NA,,分頁都可點
-工作與方向,data_view,loading,DONE,code:js/views/destiny.js 模組載入與計算時顯示「計算中…」,
+工作與方向,data_view,loading,DONE,code:js/views/destiny.js 模組載入與計算時顯示八卦載入動畫與「排盤中…」,
 工作與方向,data_view,empty,DONE,code:js/views/destiny.js 沒有名單時「先到「我的」輸入生日」；缺時間或性別時列出要補的資料,
 工作與方向,data_view,error,DONE,code:js/views/destiny.js「計算失敗：…請確認網路後重新開啟 App」,
 工作與方向,data_view,populated,DONE,e2e:命盤：工作與方向、開運佈置（財庫、財位、九宮飛星、擺設）、血型,
-開運佈置,data_view,loading,DONE,code:js/views/destiny.js 模組載入與計算時顯示「計算中…」,
+開運佈置,data_view,loading,DONE,code:js/views/destiny.js 模組載入與計算時顯示八卦載入動畫與「排盤中…」,
 開運佈置,data_view,empty,DONE,code:js/views/tool-fengshui.js 沒有性別時改說明「個人吉方要看性別」；生日不完整時只給一般原則,
 開運佈置,data_view,error,DONE,code:js/views/destiny.js「計算失敗：…請確認網路後重新開啟 App」,
 開運佈置,data_view,populated,DONE,e2e:命盤：工作與方向、開運佈置（財庫、財位、九宮飛星、擺設）、血型,
-血型,data_view,loading,DONE,code:js/views/destiny.js 模組載入時顯示「計算中…」,
+血型,data_view,loading,DONE,code:js/views/destiny.js 模組載入時顯示八卦載入動畫與「排盤中…」,
 血型,data_view,empty,DONE,code:js/views/tool-blood.js 還沒填血型時「選一個血型看看」並說明去哪裡填,
 血型,data_view,error,DONE,code:js/views/destiny.js「計算失敗：…請確認網路後重新開啟 App」,
 血型,data_view,populated,DONE,e2e:命盤：工作與方向、開運佈置（財庫、財位、九宮飛星、擺設）、血型,
@@ -119,3 +119,13 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 工作與方向,data_view,long_content,DONE,npm run qa:design（long-career 快照：20 字英文名字、50 人名單、320／390／1440 寬）,
 開運佈置,data_view,long_content,DONE,npm run qa:design（long-fengshui 快照：九宮格與房間圖在 320 寬不溢出）,
 血型,data_view,long_content,DONE,npm run qa:design（long-blood 快照：名單上 49 人的血型相處清單）,
+家人關係,data_view,loading,DONE,code:js/views/destiny.js 模組載入與計算時顯示八卦載入動畫與「排盤中…」,
+家人關係,data_view,empty,DONE,code:js/views/tool-family.js 名單只有一個人時說明要兩個人以上，按鈕直接到「我的」新增家人,
+家人關係,data_view,error,DONE,code:js/views/destiny.js「計算失敗：…請確認網路後重新開啟 App」；生日資料不完整的人列在「沒有列入」,
+家人關係,data_view,populated,DONE,e2e:家人關係：關係圖、誰幫誰、從你的命盤看家人、其他家人之間、今年要注意、房間方位,
+家人關係,data_view,long_content,DONE,npm run qa:design（long-family 快照：名單 50 人時關係圖只放 8 人，其餘列在「沒有列入」）,
+格局化解,data_view,loading,DONE,code:js/views/destiny.js 和開運佈置一起計算，期間顯示八卦載入動畫,
+格局化解,data_view,empty,DONE,code:js/views/tool-fengshui.js 還沒勾選時提示「勾選你家或座位有的狀況」,
+格局化解,data_view,error,NA,,化解清單是 App 內建的固定資料，沒有外部呼叫；勾選紀錄讀不到時當成沒勾選
+格局化解,data_view,populated,DONE,e2e:勾選後出現「能改就改／改不了：擋／擋不了：化」三段做法，重新整理後還在,
+格局化解,data_view,long_content,DONE,npm run qa:design（long-fengshui 快照含化解卡；30 項狀況全勾後用 Playwright 在 320 寬實測：頁面沒有水平捲動）,

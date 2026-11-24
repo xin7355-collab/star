@@ -4,7 +4,28 @@
 
 export const SCHEMA = 1;
 export const LIMITS = { people: 50, history: 300, name: 20, title: 60, summary: 400, detailBytes: 4000 };
-export const HISTORY_TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu', 'name', 'reading', 'lottery', 'blood', 'career', 'fengshui', 'jiehuo'];
+export const HISTORY_TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu', 'name', 'reading', 'lottery', 'blood', 'career', 'fengshui', 'jiehuo', 'family'];
+
+// 和「我」的關係：只存代碼，顯示時再配性別（父母＋男＝父親）。空字串＝沒填
+export const RELATIONS = [
+  { id: 'spouse', label: '配偶、伴侶' },
+  { id: 'parent', label: '父母', m: '父親', f: '母親' },
+  { id: 'child', label: '子女', m: '兒子', f: '女兒' },
+  { id: 'sibling', label: '兄弟姊妹', m: '兄弟', f: '姊妹' },
+  { id: 'elder', label: '祖父母、長輩' },
+  { id: 'relative', label: '其他親戚' },
+  { id: 'friend', label: '朋友' },
+  { id: 'colleague', label: '同事、主管' },
+];
+
+/** 關係的顯示名稱：有性別就說「父親／母親」，沒有就說「父母」 */
+export function relationLabel(relation, gender) {
+  const r = RELATIONS.find((x) => x.id === relation);
+  if (!r) return '';
+  if (gender === '男' && r.m) return r.m;
+  if (gender === '女' && r.f) return r.f;
+  return r.label;
+}
 
 const ID_RE = /^[a-z]{1,2}-[0-9a-f]{8,32}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -75,6 +96,8 @@ export function sanitizePerson(p) {
     birthOrder: int(p.birthOrder, 0, 5) ?? 0,
     // 血型：只收 A、B、O、AB，沒填是空字串
     bloodType: ['A', 'B', 'O', 'AB'].includes(p.bloodType) ? p.bloodType : '',
+    // 和「我」的關係（家人關係用）；「我」自己沒有這一欄
+    relation: p.self !== true && RELATIONS.some((x) => x.id === p.relation) ? p.relation : '',
     raw,
     createdAt: isoTime(p.createdAt) || new Date().toISOString(),
   };

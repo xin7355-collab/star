@@ -87,6 +87,13 @@ function jieQiInfo(jq) {
   return { name: tw(jq.getName()), date: { y: s.getYear(), m: s.getMonth(), d: s.getDay() } };
 }
 
+// lunar-typescript 1.8.6 有幾個神煞沒有任何語言的翻譯，會直接吐出「sn.sanSang」這種代碼（2020–2027 掃過一遍只有這四個）。
+// 拼音能確定對應通行名稱的三個對回中文；「sn.daTui」查不到可靠的名稱，寧可不顯示也不猜。其他沒翻譯的代碼一律不顯示。
+const SHEN_SHA_FIX = { 'sn.siLi': '四離', 'sn.sanSang': '三喪', 'sn.guiKu': '鬼哭' };
+export function shenSha(list) {
+  return twList((list || []).map((x) => SHEN_SHA_FIX[x] || x)).filter((x) => !/^[a-z]+\.[A-Za-z]+$/.test(x));
+}
+
 /** 某一天的農民曆 */
 export function almanac({ y, m, d }) {
   // 取中午：月建、節氣當天的值以白天為準（午夜那一刻常常還沒交節）
@@ -117,8 +124,8 @@ export function almanac({ y, m, d }) {
     prevJieQi: jieQiInfo(lunar.getPrevJieQi(true)),
     nextJieQi: jieQiInfo(lunar.getNextJieQi(true)),
     festivals: [...twList(lunar.getFestivals()), ...folkDays(lunar)],
-    jiShen: twList(lunar.getDayJiShen()),
-    xiongSha: twList(lunar.getDayXiongSha()),
+    jiShen: shenSha(lunar.getDayJiShen()),
+    xiongSha: shenSha(lunar.getDayXiongSha()),
     // 台灣農民曆寫「胎神占方」的「占」；tw() 的通用對照會把占轉成佔，這裡改回來
     tai: tw(lunar.getDayPositionTai()).replace(/佔/g, '占'),
     xiu: `${tw(lunar.getXiu() + lunar.getZheng() + lunar.getAnimal())}（${tw(lunar.getXiuLuck())}）`,
