@@ -9,6 +9,7 @@ import { mountMe } from './views/me.js';
 import { mountFortune } from './views/fortune.js';
 import { mountMatch } from './views/match.js';
 import { mountTarot } from './views/tarot.js';
+import { startUpdateWatcher } from './ui/update.js';
 
 const VIEWS = ['me', 'fortune', 'match', 'tarot'];
 const TITLES = { me: '我的星盤', fortune: '運勢', match: '配對', tarot: '塔羅' };
@@ -112,9 +113,10 @@ mountTarot($('#view-tarot'), ctx);
 const lastView = load('view');
 go(profile ? (VIEWS.includes(lastView) && lastView !== 'me' ? lastView : 'fortune') : 'me');
 
-// 離線快取（只在 https 或 localhost 註冊）
+// 離線快取（只在 https 或 localhost 註冊）＋偵測新版自動更新
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
+    startUpdateWatcher({ onUpdating: () => toast('發現新版本，更新中…') });
   });
 }

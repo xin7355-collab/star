@@ -1,8 +1,9 @@
 // 離線快取：App 檔案先從快取讀（秒開、沒網路也能用），同時在背景抓新版更新快取。
 // 只處理同網域的 GET；AI Worker（跨網域）一律直接走網路，不快取。
-// 發佈新版時把 VERSION 改掉，舊快取會被清除。
+// 發佈新版時 VERSION 要跟 js/version.js 的 APP_VER、version.json 一致（tests/pwa.test.js 會檢查），
+// 舊快取會在新版啟用時清除。
 
-const VERSION = 'star-2026-11-23-1';
+const VERSION = '2026.11.24-2';
 
 const ASSETS = [
   './',
@@ -15,6 +16,7 @@ const ASSETS = [
   './vendor/astronomy.min.js',
   './js/app.js',
   './js/config.js',
+  './js/version.js',
   './js/core/astro.js',
   './js/core/date.js',
   './js/core/fortune.js',
@@ -29,15 +31,23 @@ const ASSETS = [
   './js/ui/dom.js',
   './js/ui/poster.js',
   './js/ui/storage.js',
+  './js/ui/update.js',
   './js/views/fortune.js',
   './js/views/match.js',
   './js/views/me.js',
   './js/views/tarot.js',
 ];
 
+// version.json 用來偵測新版，必須每次都問伺服器，不能被快取住
+const NETWORK_ONLY = ['version.json'];
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(VERSION).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()),
+    caches
+      .open(VERSION)
+      // cache: 'reload' 跳過瀏覽器 HTTP 快取（GitHub Pages 會快取 10 分鐘），確保存進來的是新版檔案
+      .then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -54,11 +64,13 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  if (NETWORK_ONLY.some((name) => url.pathname.endsWith(`/${name}`))) return;
 
   event.respondWith(
     caches.open(VERSION).then(async (cache) => {
       const cached = await cache.match(req, { ignoreSearch: true });
-      const network = fetch(req)
+      // 背景更新快取；失敗不重試：使用者手上已有快取版本，下次開啟會再抓，重試只會拖慢離線時的回應
+      const network = fetch(req) // guardrails: ignore（同網域靜態檔，快取優先，不需退避）
         .then((res) => {
           if (res && res.ok && res.type === 'basic') cache.put(req, res.clone());
           return res;
@@ -74,7 +86,10 @@ self.addEventListener('fetch', (event) => {
         const shell = await cache.match('./index.html');
         if (shell) return shell;
       }
-      return new Response('離線中，且此檔案尚未快取。', { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+      return new Response('離線中，且此檔案尚未快取。請連上網路後重新開啟。', {
+        status: 503,
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+      });
     }),
   );
 });

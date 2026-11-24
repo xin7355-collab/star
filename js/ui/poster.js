@@ -152,17 +152,31 @@ function canvasToBlob(canvas) {
 export async function sharePoster(spec, { filename = 'star.png', sheet } = {}) {
   const canvas = renderPoster(spec);
   const blob = await canvasToBlob(canvas);
-  const file = typeof File === 'function' ? new File([blob], filename, { type: 'image/png' }) : null;
+  await shareFile(blob, filename, { sheet, previewAlt: spec.title, hint: '長按圖片即可儲存到相簿或分享' });
+}
+
+/**
+ * 分享檔案（圖卡、備份檔共用）。
+ * iOS 的 navigator.share 若同時帶 title，只會送出文字、檔案被丟掉，所以只傳 files。
+ * 不支援檔案分享時：圖片顯示在面板中（可長按儲存）並附下載連結；其他檔案直接給下載連結。
+ */
+export async function shareFile(blob, filename, { sheet, previewAlt = '', hint = '' } = {}) {
+  const file = typeof File === 'function' ? new File([blob], filename, { type: blob.type }) : null;
   if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: spec.title });
-      return;
+      await navigator.share({ files: [file] });
+      return 'shared';
     } catch (err) {
-      if (err && err.name === 'AbortError') return; // 使用者取消
+      if (err && err.name === 'AbortError') return 'cancelled'; // 使用者取消
     }
   }
   const url = URL.createObjectURL(blob);
-  const img = h('img', { src: url, alt: spec.title, class: 'sheet-img' });
-  sheet.body.replaceChildren(img, h('p', { class: 'hint center', text: '長按圖片即可儲存到相簿或分享' }));
+  const link = h('a', { href: url, download: filename, class: 'btn', text: `下載 ${filename}` });
+  const parts = [];
+  if (blob.type.startsWith('image/')) parts.push(h('img', { src: url, alt: previewAlt, class: 'sheet-img' }));
+  if (hint) parts.push(h('p', { class: 'hint center', text: hint }));
+  parts.push(h('div', { class: 'actions' }, link));
+  sheet.body.replaceChildren(...parts);
   sheet.open(() => URL.revokeObjectURL(url));
+  return 'sheet';
 }
