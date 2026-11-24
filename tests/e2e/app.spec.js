@@ -1,5 +1,9 @@
 // 手機尺寸端對端測試：真的打開網頁、點按鈕，確認功能、隱私（不上傳）、離線與版面。
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
+
+const SERVE = fileURLToPath(new URL('../../scripts/serve.mjs', import.meta.url));
 
 const ME = {
   id: 'p-0123456789abcdef', name: '我', gender: '男', self: true, createdAt: '2026-11-24T00:00:00.000Z',
@@ -17,14 +21,31 @@ async function seed(page, people = [ME]) {
 }
 
 let errors;
+let failedRequests;
 test.beforeEach(async ({ page }) => {
   errors = [];
+  failedRequests = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+  // 附上來源網址：「Failed to load resource」本身不說是哪個檔案，CI 偶發失敗時才查得出原因
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()} @ ${m.location().url || '?'}`); });
+  page.on('requestfailed', (r) => failedRequests.push(`${r.url()}（${r.failure()?.errorText || '?'}）`));
 });
 test.afterEach(() => {
-  expect(errors, '不應有執行期錯誤').toEqual([]);
+  expect(errors, `不應有執行期錯誤；失敗的請求：${failedRequests.join('、') || '無'}`).toEqual([]);
 });
+
+/** 另開一個本機伺服器（系統自動挑連接埠）；stop() 之後網站就連不上，跟手機沒訊號一樣 */
+async function startServer() {
+  const proc = spawn(process.execPath, [SERVE, '0'], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const url = await new Promise((resolve, reject) => {
+    proc.stdout.on('data', (d) => {
+      const m = String(d).match(/http:\/\/127\.0\.0\.1:\d+\//);
+      if (m) resolve(m[0]);
+    });
+    proc.once('exit', (code) => reject(new Error(`測試伺服器沒啟動就結束了（${code}）`)));
+  });
+  return { url, stop: () => new Promise((r) => { proc.once('exit', r); proc.kill(); }) };
+}
 
 test('第一次使用：輸入生日 → 星盤、農曆生日、運勢與農民曆', async ({ page }) => {
   await page.goto('/');
@@ -134,21 +155,19 @@ test.describe('送出狀態（攔截農曆函式庫的下載）', () => {
     await expect(me.locator('.hero-title')).toHaveText('獅子座');
   });
 
-  test('載入失敗：提示能做什麼、已填資料保留', async ({ page }, info) => {
-    let fail = true;
-    await page.route('**/vendor/lunar.js', (route) => (fail ? route.abort() : route.continue()));
+  // 「再按一次」會不會成功看瀏覽器：Chrome 157 會重抓失敗的模組，Chrome 153 會記住失敗（CI 實測），
+  // 所以這裡只驗提示與保留資料；提示裡已給「仍失敗請重新開啟 App」的退路
+  test('載入失敗：提示能做什麼、已填資料保留', async ({ page }) => {
+    await page.route('**/vendor/lunar.js', (route) => route.abort());
     await page.goto('/');
     const me = await fillLunarFirstUse(page);
     await me.locator('.actions .btn.primary').click();
-    await expect(page.locator('#toast')).toContainText('農曆換算元件載入失敗：請確認網路後再按一次');
+    await expect(page.locator('#toast')).toContainText('農曆換算元件載入失敗：請確認網路後再按一次；仍失敗請重新開啟 App');
     await expect(me.locator('.birth-form input[type="text"]').first()).toHaveValue('我');
     await expect(me.locator('input[inputmode="numeric"]')).toHaveValue('79');
-    // 瀏覽器會記一筆「資源載入失敗」，這是本測試故意造成的
+    await expect(me.locator('.actions .btn.primary')).toBeEnabled(); // 失敗後按鈕要恢復，才能再試
+    // 瀏覽器會記「資源載入失敗」，這是本測試故意造成的
     errors = errors.filter((e) => !/Failed to load resource|lunar\.js|module script/i.test(e));
-    if (info.project.name.includes('webkit')) return; // WebKit 不一定允許重試失敗的 import()，訊息已給「重新開啟」退路
-    fail = false;
-    await me.locator('.actions .btn.primary').click();
-    await expect(me.locator('.hero-title')).toHaveText('獅子座');
   });
 });
 
@@ -198,20 +217,27 @@ test('隱私：所有請求都在同網域、沒有送出任何資料，網址�
   expect(requests.filter((r) => /1990|0815|06(%3A|:)20/.test(r.url)), '網址不可帶生日').toEqual([]);
 });
 
-test('離線：載入過一次後，沒有網路也能開啟並計算', async ({ page, context }) => {
-  await seed(page);
-  await page.goto('/');
-  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
-  await page.reload();
-  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-  await context.setOffline(true);
+// 不用 context.setOffline：CI 的 WebKit 在模擬離線後重新整理直接失敗（WebKit encountered an internal error），
+// 分不出是 App 還是模擬本身的問題。改成真的把網站關掉：請求一律連不上，只能靠 service worker 的快取，跟手機沒訊號一樣。
+test('離線：載入過一次後，連不上網站也能開啟並計算', async ({ page }) => {
+  const server = await startServer();
+  try {
+    await seed(page);
+    await page.goto(server.url);
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    await page.reload();
+    await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  } finally {
+    await server.stop();
+  }
   await page.reload();
   await expect(page.locator('#view-fortune .score-ring')).toBeVisible();
   await expect(page.locator('#view-fortune .chip-row.yi .chip').first()).toBeVisible();
   await page.locator('.tabbar [data-view="destiny"]').click();
   await page.locator('#view-destiny select').nth(1).selectOption('ziwei');
   await expect(page.locator('.ziwei-grid .palace')).toHaveCount(12);
-  await context.setOffline(false);
+  // 檢查新版的 version.json 刻意不快取：連不上時瀏覽器會記一筆載入失敗，App 照常使用、不提示
+  errors = errors.filter((e) => !/version\.json/.test(e));
 });
 
 test('版面：320px 寬的手機，五個分頁都沒有水平捲動', async ({ page }) => {

@@ -6,7 +6,7 @@ surface,kind,state,status,evidence,note
 農民曆卡,data_view,loading,DONE,code:js/views/fortune.js「農民曆載入中…」,
 農民曆卡,data_view,empty,NA,,每一天都有農民曆資料
 農民曆卡,data_view,error,DONE,code:js/views/fortune.js「農民曆載入失敗，請確認網路後重新開啟 App」,
-農民曆卡,data_view,populated,DONE,e2e:離線：載入過一次後，沒有網路也能開啟並計算,
+農民曆卡,data_view,populated,DONE,e2e:離線：載入過一次後，連不上網站也能開啟並計算,
 AI 短評卡,data_view,loading,DONE,code:js/views/fortune.js「載入 AI 短評中…」,
 AI 短評卡,data_view,empty,DONE,code:js/views/fortune.js「這個期間的短評尚未產生」,
 AI 短評卡,data_view,error,DONE,test:tests/ai-client.test.js 退避後放棄時丟出中文錯誤；畫面顯示錯誤與「再試一次」,

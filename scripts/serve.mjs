@@ -1,5 +1,5 @@
 // 本機預覽／測試用的靜態伺服器（不需安裝套件）：gzip 壓縮、正確的 MIME，接近 GitHub Pages 的行為。
-// 用法：node scripts/serve.mjs [port]（預設 4173），開 http://127.0.0.1:4173/
+// 用法：node scripts/serve.mjs [port]（預設 4173；0 = 自動挑），開 http://127.0.0.1:4173/
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
@@ -21,7 +21,7 @@ const TYPES = {
 };
 const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.css', '.json', '.webmanifest', '.svg', '.txt']);
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     let path = decodeURIComponent(url.pathname);
@@ -46,4 +46,6 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('not found');
   }
-}).listen(PORT, '127.0.0.1', () => console.log(`http://127.0.0.1:${PORT}/`));
+});
+// PORT 給 0 時由系統挑空的連接埠，所以印實際的號碼（E2E 離線測試靠這行知道網址）
+server.listen(PORT, '127.0.0.1', () => console.log(`http://127.0.0.1:${server.address().port}/`));

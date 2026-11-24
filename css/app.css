@@ -77,6 +77,9 @@ p { margin: 6px 0; }
 .field label { font-size: 14px; color: var(--muted); }
 input[type="text"], input[type="time"], select, textarea {
   width: 100%;
+  /* WebKit 不把下拉選單、輸入框當「可壓縮」元素，最小寬度＝最長選項（「♐ 射手座（11/22–12/21）」），
+     320 寬的 iPhone 會被撐出水平捲動（CI 的 WebKit 實測 57px）；Chromium 會自動壓縮所以看不出來 */
+  min-width: 0;
   min-height: 44px;
   padding: 10px 12px;
   font-size: 16px; /* 16px 以上 iPhone 才不會自動放大畫面 */
@@ -97,8 +100,8 @@ select {
 }
 textarea { resize: vertical; margin-top: 10px; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-.row3 { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
-.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row3 { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .time-section { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; }
 .time-section[hidden] { display: none; }
 .check { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 8px 0; cursor: pointer; }
