@@ -45,10 +45,10 @@ test('取格：祿刃與月劫優先，其次會局、透干、本氣', () => {
   assert.equal(G('己亥 丙寅 甲子 辛未').name, '建祿格'); // 寅是甲的祿
   assert.equal(G('甲午 丁卯 甲寅 丙寅').name, '羊刃格'); // 卯是甲的羊刃
   assert.equal(G('乙丑 戊寅 乙亥 丙子').name, '月劫格'); // 陰干乙生寅月，本氣甲是劫財
-  // 甲日辰月，地支申子辰三合水局 → 依局取正印（《子平真詮》「會支」的例子）
+  // 甲日辰月，地支申子辰三合水局，年干壬透出 → 照透出的壬定為偏印（《子平真詮》「會支」的例子）
   const ju = G('壬申 甲辰 甲子 丙寅');
-  assert.equal(ju.name, '正印格');
-  assert.match(ju.how, /三合成水局/);
+  assert.equal(ju.name, '偏印格');
+  assert.match(ju.how, /三合成水局，年干壬透出，照它定為偏印/);
   // 酉月沒有透辛 → 仍取本氣正官
   const ben = G('甲子 癸酉 甲辰 甲子');
   assert.equal(ben.name, '正官格');
@@ -57,7 +57,7 @@ test('取格：祿刃與月劫優先，其次會局、透干、本氣', () => {
   assert.equal(G('癸亥 丙辰 戊午 甲寅').name, '正財格');
   const jie = G('甲子 戊辰 戊午 甲寅');
   assert.equal(jie.name, '月劫格');
-  assert.match(jie.how, /本氣戊是日主的比肩/);
+  assert.match(jie.how, /只有本氣戊（比肩）透出在月干戊，四庫月透出比劫歸月劫/);
 });
 
 test('正官格：財印相生成格、傷官見官破格、有印能救、成格又帶傷是「成中帶忌」', () => {
@@ -67,10 +67,14 @@ test('正官格：財印相生成格、傷官見官破格、有印能救、成�
   const broken = G('丙午 丁酉 甲寅 甲子');
   assert.equal(broken.status, '破格');
   assert.match(broken.items.find((x) => x.tone === 'bad').text, /^傷官見官（月干丁）/);
-  const saved = G('丙午 丁酉 甲寅 癸酉');
+  const saved = G('丙午 丁酉 甲寅 壬申');
   assert.equal(saved.status, '敗中有救');
-  assert.match(saved.items.find((x) => x.tone === 'good').text, /^官印相生（時干癸）/);
-  assert.match(saved.items.find((x) => x.tone === 'rescue').text, /但有印（時干癸）制住傷官/);
+  assert.match(saved.items.find((x) => x.tone === 'good').text, /^官印相生（時干壬）/);
+  assert.match(saved.items.find((x) => x.tone === 'rescue').text, /但有印（時干壬）制住傷官/);
+  // 官逢刑也算：月支酉、時支酉自刑，又沒有合來解
+  const xing = G('丙午 丁酉 甲寅 癸酉');
+  assert.equal(xing.status, '成中帶忌');
+  assert.match(xing.items.find((x) => x.tone === 'bad' && /相刑/.test(x.text)).text, /^月令酉和時支酉相刑/);
   const mixed = G('丁亥 己酉 甲子 丙寅');
   assert.equal(mixed.status, '成中帶忌');
   assert.deepEqual(tones(mixed), ['good', 'bad']);
@@ -127,6 +131,57 @@ test('格局喜忌：印重時改喜財與食傷，大運天干地支各自對�
   assert.equal(gejuTone(g, '七殺'), '忌');
   assert.equal(gejuTone(g, '比肩'), '平');
   assert.equal(gejuTone(null, '正財'), '');
+});
+
+test('審查修正：取格順序、四庫藏干名稱、會局的正偏與化劫', () => {
+  // 本氣已透就不因會局改格：申月庚透月干 → 七殺格（以前被申子辰水局改成正印格，透出的七殺完全沒提到）
+  const ben = G('癸巳 庚申 甲辰 甲子');
+  assert.equal(ben.name, '七殺格');
+  assert.match(ben.how, /本氣庚（七殺）透出在月干庚/);
+  // 丙生申月、庚不透、壬透，會子會辰 → 化為煞（照透出的壬定七殺，不是一律照中神定正官）
+  assert.equal(G('甲子 壬申 丙辰 戊子').name, '七殺格');
+  // 亥卯未會成比劫局 → 化為劫，歸月劫（以前只加一句備註、仍當印格論成敗）
+  const jie = G('辛卯 己亥 乙丑 癸未');
+  assert.equal(jie.name, '月劫格');
+  assert.match(jie.how, /化為劫/);
+  // 辰月藏戊乙癸：乙是餘氣、癸是中氣；只透出乙（劫財）→ 月劫（「透乙則用月劫」），以前退回本氣偏財格
+  const yu = G('乙丑 庚辰 甲午 丙寅');
+  assert.equal(yu.name, '月劫格');
+  assert.match(yu.how, /只有餘氣乙（劫財）透出在年干乙/);
+  // 寅月只透出比劫戊：說明不能寫「沒有透出天干」
+  assert.match(G('庚寅 戊寅 己亥 乙丑').how, /能取格的字都沒透（比劫透出不取格）/);
+  // 未月的丁是餘氣（午月留下的），不是中氣
+  assert.match(G('壬辰 丁未 戊辰 壬子').how, /餘氣丁（正印）透出/);
+});
+
+test('審查修正：成敗救應', () => {
+  // 財印相合是兩個都被綁住，不是「合財存印」
+  const heyin = G('壬辰 丁未 戊辰 壬子');
+  assert.equal(heyin.status, '破格');
+  assert.ok(heyin.items.some((x) => x.tone === 'bad' && /^財印相合/.test(x.text)));
+  assert.ok(!heyin.items.some((x) => /合財存印/.test(x.text)));
+  // 七殺格：食傷透出制殺又透印 → 帶忌；食傷只在地支時印走殺印相生，不算帶忌
+  assert.ok(G('丙子 丙申 甲午 癸酉').items.some((x) => x.tone === 'bad' && /^殺逢食制又透印（時干癸）/.test(x.text)));
+  const shaYin = G('甲午 丙寅 戊申 丙辰');
+  assert.ok(!shaYin.items.some((x) => /殺逢食制又透印/.test(x.text)));
+  assert.equal(shaYin.status, '成格');
+  // 財格：財生官又逢傷官、沒有印 → 成中帶忌
+  const cai = G('辛亥 戊戌 甲申 丁卯');
+  assert.equal(cai.name, '偏財格');
+  assert.equal(cai.status, '成中帶忌');
+  assert.ok(cai.items.some((x) => x.tone === 'bad' && /^財生官又逢傷官（時干丁）/.test(x.text)));
+  // 傷官格：佩印又遭財剋（財印緊貼）→ 帶忌
+  const pei = G('丙申 辛卯 壬寅 庚子');
+  assert.equal(pei.status, '成中帶忌');
+  assert.ok(pei.items.some((x) => x.tone === 'bad' && /^佩印又遭財剋/.test(x.text)));
+  // 食神格：生財露殺書上列為敗，不能因為「食神生財」判成成中帶忌
+  const food = G('壬辰 庚戌 丙申 戊子');
+  assert.equal(food.status, '破格');
+  assert.ok(!food.items.some((x) => x.tone === 'good'));
+  // 羊刃只能用官殺：只透財時不標「用財」；大運遇食神是格局怕的
+  const ren = G('甲午 丁卯 甲寅 戊辰');
+  assert.deepEqual([ren.name, ren.use], ['羊刃格', '']);
+  assert.equal(gejuTone(ren, '食神'), '忌');
 });
 
 test('接上真實命盤：有大運就評目前這步運；沒有出生時間要提醒時柱沒算', () => {

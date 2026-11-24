@@ -83,7 +83,9 @@ export function mingPatterns(z) {
   const ming = z.palaces.find((p) => p.name === '命宮');
   if (!ming) return [];
   const sf = sanFang(z, ming);
-  const majors = new Set(sf.list.flatMap((x) => x.stars.map((s) => s.name)));
+  // 判格局只用四個宮真正的主星，空宮只有命宮本身借對宮：三合宮借來的星其實在三方四正以外（例如福德、夫妻宮），
+  // 算進來會讓機月同梁從一成多膨脹到兩成多
+  const majors = new Set(sf.list.flatMap((x) => (x.role === '本宮' ? x.stars : x.palace.major).map((s) => s.name)));
   const minors = new Set(sf.list.flatMap((x) => x.palace.minor.map((s) => s.name)));
   const mingMajor = majorOf(z, ming).stars.map((s) => s.name);
   const has = (p, name) => p.major.some((s) => s.name === name) || p.minor.some((s) => s.name === name);
@@ -94,13 +96,16 @@ export function mingPatterns(z) {
   const add = (name, tone, text) => out.push({ name, tone, text });
 
   if (!ming.major.length) add('命無正曜', 'mixed', `命宮沒有主星，借遷移宮的${mingMajor.join('、') || '星曜'}來看：適應力強、受環境影響大，也容易搖擺，選對環境和身邊的人特別重要。`);
-  if (mingMajor.some((n) => ['七殺', '破軍', '貪狼'].includes(n))) add('殺破狼', 'mixed', '命宮坐七殺、破軍或貪狼（三顆星永遠在三方四正互相照會）：一生變動多、開創性強，適合挑戰與改變，不適合一成不變；起伏大，要有長期目標穩住。');
+  // 殺破狼只看命宮真正坐的星：空宮借來遷移宮的貪狼時，七殺、破軍在遷移宮的三合，不在命宮的三方四正（那時三方反而是府相）
+  if (ming.major.some((st) => ['七殺', '破軍', '貪狼'].includes(st.name))) add('殺破狼', 'mixed', '命宮坐七殺、破軍或貪狼（三顆星永遠在三方四正互相照會）：一生變動多、開創性強，適合挑戰與改變，不適合一成不變；起伏大，要有長期目標穩住。');
   else if (['天機', '太陰', '天同', '天梁'].every((n) => majors.has(n))) add('機月同梁', 'good', '命宮三方四正由天機、太陰、天同、天梁組成：適合在制度裡穩定發展（公職、企業內勤、專業幕僚），按部就班比冒險創業更有利。');
   const others = sf.list.slice(1).flatMap((x) => x.palace.major.map((s) => s.name));
   if (!mingMajor.includes('天府') && !mingMajor.includes('天相') && others.includes('天府') && others.includes('天相')) add('府相朝垣', 'good', '天府、天相從三方照入命宮：衣食穩定、有資源與貴人，適合在穩定的組織裡發揮。');
   if (mingMajor.includes('紫微') && ming.major.length && minors.has('左輔') && minors.has('右弼')) add('君臣慶會', 'good', '紫微坐命又會左輔、右弼：帝星有臣子輔佐，領導力能真正發揮，做事有人跟、有人幫。');
   if (mut('化祿') && mut('化權') && mut('化科')) add('三奇嘉會', 'good', '生年化祿、化權、化科都在命宮的三方四正：名、利、權都有機會兼得，是相當好的組合。');
-  if (minors.has('祿存') && mut('化祿')) add('雙祿朝垣', 'good', '祿存和化祿都在三方四正：財源不只一條，越經營越有。');
+  const luInMing = has(ming, '祿存') && [...ming.major, ...ming.minor].some((st) => st.mutagen === '化祿');
+  if (luInMing) add('雙祿守命', 'good', '祿存和化祿都在命宮：財源不只一條，越經營越有。');
+  else if (minors.has('祿存') && mut('化祿')) add('雙祿朝垣', 'good', '祿存和化祿都在三方四正：財源不只一條，越經營越有。');
   const luMa = sf.list.find((x) => has(x.palace, '天馬') && (has(x.palace, '祿存') || [...x.palace.major, ...x.palace.minor].some((s) => s.mutagen === '化祿')));
   if (luMa) add('祿馬交馳', 'good', `祿星和天馬同在${luMa.palace.name}：財和「動」結合，越跑越有，適合業務、外勤、貿易、常出差或到外地發展。`);
   if (minors.has('天魁') && minors.has('天鉞')) add('天乙拱命', 'good', '天魁、天鉞都在三方四正：一生常遇貴人提拔，關鍵時刻有人幫。');
@@ -108,7 +113,9 @@ export function mingPatterns(z) {
   if (flank('文昌', '文曲')) add('昌曲夾命', 'good', '文昌、文曲在命宮兩側：聰明好學、有文采，考試與文書運佳。');
   if (majors.has('太陽') && majors.has('天梁') && minors.has('文昌') && (minors.has('祿存') || mut('化祿'))) add('陽梁昌祿', 'good', '太陽、天梁、文昌與祿星會在三方四正：傳統上利於考試、升學、證照與公職。');
   const juMen = ming.major.find((s) => s.name === '巨門');
-  if (['子', '午'].includes(ming.branch) && juMen && (['化祿', '化權', '化科'].includes(juMen.mutagen) || has(ming, '祿存'))) add('石中隱玉', 'good', '巨門在子午坐命又見祿權科：像石頭裡藏著玉，年輕時不顯，越磨越亮；宜低調累積實力。');
+  // 巨門化忌（或命宮有化忌）就不是石中隱玉：那是羊陀夾忌、是非纏身的組合，兩格不能並存
+  const mingJi = [...ming.major, ...ming.minor].some((st) => st.mutagen === '化忌');
+  if (['子', '午'].includes(ming.branch) && juMen && !mingJi && (['化祿', '化權', '化科'].includes(juMen.mutagen) || has(ming, '祿存'))) add('石中隱玉', 'good', '巨門在子午坐命又見祿權科：像石頭裡藏著玉，年輕時不顯，越磨越亮；宜低調累積實力。');
   if (ming.branch === '卯' && ming.major.some((s) => s.name === '太陽')) add('日照雷門', 'good', '太陽在卯宮坐命（旭日東昇）：光明積極、名聲容易打開。');
   if (ming.branch === '亥' && ming.major.some((s) => s.name === '太陰')) add('月朗天門', 'good', '太陰在亥宮坐命（月亮最亮的位置）：細膩聰慧，財運與人緣都好。');
   const sunAt = z.palaces.find((p) => p.major.some((s) => s.name === '太陽'));

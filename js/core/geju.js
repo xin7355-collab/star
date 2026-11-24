@@ -136,9 +136,9 @@ export const GEJU_INFO = {
     core: '強悍、果決與競爭',
     text: '月令是日主的羊刃：力量非常強，個性剛烈、果決、不服輸。需要官殺來駕馭，才能變成武職、管理、外科、執法這類需要膽識的成就；沒有約束就容易衝動、破財、受傷。',
     work: '軍警、外科、執法、運動、工程現場主管、需要魄力的管理職。',
-    caution: '怕沒有官殺約束、怕傷官破壞約束；脾氣上來時先停十秒。',
+    caution: '怕沒有官殺約束、怕食傷破壞約束；脾氣上來時先停十秒。',
     likes: ['正官', '七殺', '正財', '偏財'],
-    fears: ['傷官', '比肩', '劫財'],
+    fears: ['傷官', '食神', '比肩', '劫財'],
   },
 };
 
@@ -153,7 +153,7 @@ export const STATUS_TEXT = {
 /** 盤上的事實：透出的天干（年、月、時干）、其他三柱地支的本氣、強弱與五行份量 */
 function factsOf(bazi) {
   const [, month, day] = bazi.pillars;
-  const stems = bazi.pillars.filter((p) => p && p.label !== '日柱').map((p) => ({ at: `${p.label[0]}干${p.gan}`, gan: p.gan, ss: p.shishen, label: p.label }));
+  const stems = bazi.pillars.filter((p) => p && p.label !== '日柱').map((p) => ({ at: `${p.label[0]}干${p.gan}`, gan: p.gan, wx: p.ganWx, ss: p.shishen, label: p.label }));
   const roots = bazi.pillars.filter((p) => p && p.label !== '月柱').map((p) => ({ at: `${p.label[0]}支${p.zhi}`, zhi: p.zhi, ss: p.hidden[0].shishen }));
   const ys = yongShen(bazi);
   const dm = day.gan;
@@ -167,13 +167,26 @@ function factsOf(bazi) {
   // 被合：這類十神的天干和「緊鄰」的另一個天干五合，作用被牽住。隔一位不算合（中間的字擋住），
   // 日主合別人也不算合去（合我仍為我用）——所以實際上只有年干、月干之間會合去。
   const POS = { 年柱: 0, 月柱: 1, 時柱: 3 };
-  const heQu = (g) => tou(g).some((s) => stems.some((o) => Math.abs(POS[o.label] - POS[s.label]) === 1 && ganRelation(s.gan, o.gan) === '五合'));
+  const nextTo = (s, o) => Math.abs(POS[o.label] - POS[s.label]) === 1;
+  const heQu = (g) => tou(g).some((s) => stems.some((o) => nextTo(s, o) && ganRelation(s.gan, o.gan) === '五合'));
+  // 兩類十神緊鄰：touching 是貼著（財貼印會剋印），heWith 是貼著又五合（例如財印相合，兩個都被綁住）
+  const touching = (g1, g2) => tou(g1).filter((s) => tou(g2).some((o) => nextTo(s, o)));
+  const heWith = (g1, g2) => tou(g1).filter((s) => tou(g2).some((o) => nextTo(s, o) && ganRelation(s.gan, o.gan) === '五合'));
   const at = (list) => list.map((x) => x.at).join('、');
   const share = (g) => (total ? ys.weight[wxOf[g]] / total : 0);
-  return { bazi, month, dm, dmWx, stems, roots, ys, tou, root, see, seeList, heQu, at, share, strength: ys.strength };
+  return { bazi, month, dm, dmWx, stems, roots, ys, tou, root, see, seeList, heQu, touching, heWith, at, share, strength: ys.strength };
 }
 
-/** 取格：回傳 kind 與取法說明 */
+// 辰戌丑未（四庫月）的藏干，函式庫的順序是「本氣、餘氣（上個月留下的）、中氣（墓庫）」，例如辰藏戊乙癸：
+// 戊是本氣、乙是卯月留下的餘氣、癸是水庫的中氣。寅申巳亥、子午卯酉照函式庫順序就是本、中、餘。
+const qiOf = (zhi, i) => ('辰戌丑未'.includes(zhi) ? ['本氣', '餘氣', '中氣'][i] : QI[i]);
+const QI_RANK = { 本氣: 0, 中氣: 1, 餘氣: 2 };
+const isBi = (ss) => GROUPS.比劫.includes(ss);
+
+/**
+ * 取格：回傳 kind 與取法說明。順序：祿刃月劫 → 本氣透出 → 三合會局 → 中氣、餘氣透出 → 四庫月透比劫歸月劫 → 本氣。
+ * 本氣已經透出時不因會局改格（《子平真詮》改格的例子都以本氣沒透為前提）；會局的正偏照透出的那個字定，沒透才照中神。
+ */
 function pickGe(f) {
   const { bazi, month, dm, stems } = f;
   const mz = month.zhi;
@@ -184,23 +197,35 @@ function pickGe(f) {
   if (YANGREN[dm] === mz) return { kind: 'yangren', how: `月支${mz}是日主${dm}的羊刃（帝旺）。`, notes };
   if (main.shishen === '劫財' && !'辰戌丑未'.includes(mz)) return { kind: 'yuejie', how: `月令${mz}的本氣${main.gan}是日主的劫財（陰干逢劫）。`, notes };
 
+  const list = month.hidden.map((x) => x.gan).join('');
+  const hidden = month.hidden
+    .map((hg, i) => ({ ...hg, qi: qiOf(mz, i), where: stems.filter((st) => st.gan === hg.gan).map((st) => st.at) }))
+    .sort((a, b) => QI_RANK[a.qi] - QI_RANK[b.qi]);
+  if (hidden[0].where.length && !isBi(main.shishen)) {
+    return { kind: KIND_OF[main.shishen], how: `月令${mz}藏${list}，本氣${main.gan}（${main.shishen}）透出在${hidden[0].where.join('、')}，取本氣為格。`, notes };
+  }
   const ju = JU.find((j) => j.zhis.includes(mz) && j.zhis.every((z) => branches.includes(z)));
   if (ju) {
-    const ss = shiShen(dm, ju.gan);
-    if (!GROUPS.比劫.includes(ss)) return { kind: KIND_OF[ss], fromJu: true, how: `月支${mz}和${ju.zhis.filter((z) => z !== mz).join('、')}三合成${ju.wx}局，依局的五行取格（${ju.wx}是日主的${ss}）。`, notes };
-    notes.push(`月支${mz}三合成${ju.wx}局，和日主同五行，自身的力量更強。`);
+    const others = ju.zhis.filter((z) => z !== mz).join('、');
+    const touJu = stems.filter((st) => st.wx === ju.wx);
+    const ss = shiShen(dm, touJu.length ? touJu[0].gan : ju.gan);
+    if (isBi(ss)) return { kind: 'yuejie', fromJu: true, how: `月支${mz}和${others}三合成${ju.wx}局，局是日主的比劫（書上說「化為劫」），歸建祿月劫一類。`, notes };
+    return { kind: KIND_OF[ss], fromJu: true, how: `月支${mz}和${others}三合成${ju.wx}局，${touJu.length ? `${touJu[0].at}透出，照它定為${ss}` : `局的五行是日主的${ss}`}，依局取格。`, notes };
   }
-  const hidden = month.hidden.map((hg, i) => ({ ...hg, qi: QI[i], where: stems.filter((s) => s.gan === hg.gan).map((s) => s.at) }));
-  const pick = hidden.find((hg) => hg.where.length && !GROUPS.比劫.includes(hg.shishen));
-  const list = month.hidden.map((x) => x.gan).join('');
-  if (pick) return { kind: KIND_OF[pick.shishen], how: `月令${mz}藏${list}，${pick.qi}${pick.gan}（${pick.shishen}）透出在${pick.where.join('、')}，取透出的字為格。`, notes };
-  if (GROUPS.比劫.includes(main.shishen)) return { kind: 'yuejie', how: `月令${mz}的本氣${main.gan}是日主的${main.shishen}，藏干也沒有其他字透出，歸建祿月劫一類。`, notes };
-  return { kind: KIND_OF[main.shishen], how: `月令${mz}藏${list}，沒有透出天干，以本氣${main.gan}（${main.shishen}）取格。`, notes };
+  const pick = hidden.find((hg) => hg.qi !== '本氣' && hg.where.length && !isBi(hg.shishen));
+  if (pick) return { kind: KIND_OF[pick.shishen], how: `月令${mz}藏${list}，本氣沒透，${pick.qi}${pick.gan}（${pick.shishen}）透出在${pick.where.join('、')}，取透出的字為格。`, notes };
+  const touBi = hidden.filter((hg) => hg.where.length && isBi(hg.shishen));
+  if ('辰戌丑未'.includes(mz) && touBi.length) {
+    return { kind: 'yuejie', how: `月令${mz}藏${list}，只有${touBi[0].qi}${touBi[0].gan}（${touBi[0].shishen}）透出在${touBi[0].where.join('、')}，四庫月透出比劫歸月劫（書上「透乙則用月劫」的例子）。`, notes };
+  }
+  if (isBi(main.shishen)) return { kind: 'yuejie', how: `月令${mz}的本氣${main.gan}是日主的${main.shishen}，其他藏干沒有透出，歸建祿月劫一類。`, notes };
+  return { kind: KIND_OF[main.shishen], how: `月令${mz}藏${list}，${touBi.length ? '能取格的字都沒透（比劫透出不取格）' : '沒有透出天干'}，以本氣${main.gan}（${main.shishen}）取格。`, notes };
 }
 
 /** 建祿、月劫、羊刃格要另外找「用」：透出的官、財、殺、食傷 */
 function luUse(f, kind) {
-  const order = kind === 'yangren' ? [['官', '用官'], ['殺', '用殺'], ['財', '用財'], ['食傷', '用食傷']] : [['官', '用官'], ['財', '用財'], ['殺', '用殺'], ['食傷', '用食傷']];
+  // 陽刃只能用官殺（書上「陽刃用官」「陽刃用煞」），只透財或食傷不算有用
+  const order = kind === 'yangren' ? [['官', '用官'], ['殺', '用殺']] : [['官', '用官'], ['財', '用財'], ['殺', '用殺'], ['食傷', '用食傷']];
   const hit = order.find(([g]) => f.tou(g).length);
   return hit ? { group: hit[0], name: hit[1] } : null;
 }
@@ -217,11 +242,12 @@ function judge(kind, f, fromJu = false) {
     const hit = rescues.find(([ok]) => ok);
     items.push(hit ? { tone: 'rescue', text: `${text}${hit[1]}` } : { tone: 'bad', text });
   };
-  const { tou, root, see, seeList, heQu, at, share, strength } = f;
+  const { tou, root, see, seeList, heQu, touching, heWith, at, share, strength } = f;
   const mz = f.month.zhi;
   const others = f.bazi.pillars.filter((p) => p && p.label !== '月柱');
   const rel = (p) => branchRelations(mz, p.zhi);
   const chong = others.filter((p) => rel(p).includes('六沖'));
+  const xing = others.filter((p) => !chong.includes(p) && rel(p).some((r) => r === '相刑' || r === '自刑'));
   // 拱合（缺中神的兩支）力量弱，不算解沖
   const heJie = others.filter((p) => !chong.includes(p) && rel(p).some((r) => ['六合', '半合'].includes(r)));
   const zhiAt = (list) => list.map((p) => `${p.label[0]}支${p.zhi}`).join('、');
@@ -234,6 +260,7 @@ function judge(kind, f, fromJu = false) {
       if (tou('殺').length) bad(`官殺混雜（${at(tou('殺'))}）：正官、七殺同時透出，規矩與壓力兩頭拉，方向容易搖擺。`, [[heQu('殺'), '但七殺被合住（合殺留官），反而變清。'], [tou('食').length, `但有食神（${at(tou('食'))}）制住七殺（去殺留官），反而變清。`]]);
       if (heQu('官')) bad('正官被合：官星被旁邊的天干合住，名分容易被牽絆，或機會讓給別人。');
       if (chong.length) bad(`月令${mz}被${zhiAt(chong)}沖：官星的根動搖，工作、職位容易變動。`, [[heJie.length, `但${zhiAt(heJie)}合住月令，合能解沖，變動有限。`]]);
+      else if (xing.length) bad(`月令${mz}和${zhiAt(xing)}相刑：官星受到牽制，容易遇到規章、法律或人事上的麻煩。`, [[heJie.length, `但${zhiAt(heJie)}合住月令，刑的力量被化解。`]]);
       break;
     }
     case 'qisha': {
@@ -244,11 +271,14 @@ function judge(kind, f, fromJu = false) {
       if (tou('財').length && !see('食傷') && !tou('印').length) bad(`七殺逢財無制（${at(tou('財'))}）：財再去生七殺，又沒有食傷制、印化，壓力與是非加倍。`);
       else if (!see('食傷') && !tou('印').length && !ren.length && strength === '身弱') bad('殺重身輕：七殺當令、日主偏弱，又沒有制化，壓力常超過能承受的範圍。');
       if (tou('官').length) bad(`官殺混雜（${at(tou('官'))}）：正官、七殺同時透出，方向容易搖擺。`, [[heQu('官'), '但正官被合住（合官留殺），反而變清。'], [tou('傷').length, `但有傷官（${at(tou('傷'))}）去掉正官（去官留殺），反而變清。`]]);
+      // 食傷透出、走「食制殺」的路才怕印；食傷只藏在地支時，印走的是殺印相生，不算帶忌
+      if (tou('食傷').length && tou('印').length) bad(`殺逢食制又透印（${at(tou('印'))}）：印剋住食傷，制殺的力量被破，壓力又回到自己身上。`, [[tou('財').length, `但有財（${at(tou('財'))}）去印存食，制殺的力量保住了。`]]);
       break;
     }
     case 'zhengcai':
     case 'piancai': {
       if (tou('官').length) good(`財旺生官（${at(tou('官'))}）：錢能換到地位，地位又保護財，事業與財富互相成全。`);
+      if (tou('官').length && tou('傷').length) bad(`財生官又逢傷官（${at(tou('傷'))}）：傷官剋官，好不容易換到的名分被破。`, [[tou('印').length, `但有印（${at(tou('印'))}）制住傷官，官星保住了。`]]);
       if (tou('食傷').length && strength !== '身弱') good(`食傷生財、自己擔得起（${at(tou('食傷'))}）：才華與技術能直接變現。`);
       // 財、印都透時，兩字不能緊貼（年干、月干相鄰），否則財直接剋印
       const yin = tou('印');
@@ -267,12 +297,15 @@ function judge(kind, f, fromJu = false) {
       if (tou('官').length) good(`官印雙全（${at(tou('官'))}）：有名分也有靠山，適合體制內、專業資格路線。`);
       if (strength === '身強' && tou('食傷').length) good(`身印兩旺、用食傷洩秀（${at(tou('食傷'))}）：學到的東西有出口，能教、能寫、能做出作品。`);
       if (heavy && tou('財').length && !root('財').length) good(`印多逢財、財透根輕（${at(tou('財'))}）：剛好把過多的印收斂，不讀死書，懂得把學問變現。`);
-      if (!heavy && tou('財').length) bad(`印輕逢財（${at(tou('財'))}）：財剋印，容易為了錢放棄學業或名聲，或和長輩意見不合。`, [[tou('比劫').length, `但有比劫（${at(tou('比劫'))}）擋住財，護住了印。`], [heQu('財'), '但財被合住（合財存印），印保住了。']]);
+      // 財能五合的只有印（陽財）或比劫（陰財）：比劫合財已算在「比劫擋財」裡，財和印相合則是兩個都被綁住，不是救
+      if (!heavy && tou('財').length) bad(`印輕逢財（${at(tou('財'))}）：財剋印，容易為了錢放棄學業或名聲，或和長輩意見不合。`, [[tou('比劫').length, `但有比劫（${at(tou('比劫'))}）擋住財，護住了印。`]]);
+      if (heWith('印', '財').length) bad(`財印相合（${at([...heWith('印', '財'), ...heWith('財', '印')])}）：印被財合住，兩個都失去作用，學業、名聲與錢財容易兩頭落空。`);
       if (strength === '身強' && heavy && tou('殺').length) bad(`身強印重又透七殺（${at(tou('殺'))}）：七殺再生印，印太多反而懶散、依賴、想很多卻不行動。`);
       break;
     }
     case 'shishen': {
-      if (tou('財').length) good(`食神生財（${at(tou('財'))}）：靠手藝、口才、作品賺錢，賺得從容。`);
+      // 「生財露殺」書上列為敗：財又去生殺時，食神生財不算好處
+      if (tou('財').length && !tou('殺').length) good(`食神生財（${at(tou('財'))}）：靠手藝、口才、作品賺錢，賺得從容。`);
       if (tou('殺').length && !tou('財').length) good(`食神制殺（${at(tou('殺'))}）：用才華與溫和的手段化解壓力，以柔克剛。`);
       if (tou('梟').length) bad(`梟神奪食（${at(tou('梟'))}）：偏印剋食神，靈感與福氣容易被打斷，計畫常卡在最後一步。`, [[tou('殺').length, `但有七殺（${at(tou('殺'))}）：偏印轉去化殺（棄食就殺），反而成格。`], [tou('財').length, `但有財（${at(tou('財'))}）制住偏印，護住食神。`]]);
       if (tou('財').length && tou('殺').length) bad(`生財又露七殺（${at(tou('殺'))}）：食神生的財再去生殺，好不容易賺到的反而招來壓力。`);
@@ -281,7 +314,7 @@ function judge(kind, f, fromJu = false) {
     case 'shangguan': {
       const strong = fromJu || share('食傷') >= 1 / 3;
       const jinShui = f.dmWx === '金' && ['亥', '子', '丑'].includes(mz);
-      if (tou('財').length) good(`傷官生財（${at(tou('財'))}）：把才華、點子變成收入，最適合創業、接案、技術變現。`);
+      if (tou('財').length && (!tou('殺').length || heQu('殺'))) good(`傷官生財（${at(tou('財'))}）：把才華、點子變成收入，最適合創業、接案、技術變現。`);
       if (tou('印').length && strong && root('印').length) good(`傷官佩印（${at(tou('印'))}）：才華有約束、有修養，說話做事有分寸，容易成為專業權威。`);
       if (strength === '身弱' && strong && tou('殺').length && tou('印').length) good(`傷官旺、身弱而透殺印（${at([...tou('殺'), ...tou('印')])}）：殺生印、印生身又制傷，反而平衡成局。`);
       if (tou('殺').length && !tou('財').length) good(`傷官駕殺（${at(tou('殺'))}）：用才華與膽識壓住壓力，適合需要突破、競爭的領域。`);
@@ -289,6 +322,7 @@ function judge(kind, f, fromJu = false) {
       else if (tou('官').length) bad(`傷官見官（${at(tou('官'))}）：才華和規矩正面衝突，容易得罪上司、惹口舌官非。`, [[tou('印').length, `但有印（${at(tou('印'))}）制住傷官，衝突可控。`]]);
       if (tou('財').length && tou('殺').length) bad(`生財又帶七殺（${at(tou('殺'))}）：財去生殺，賺錢伴隨壓力。`, [[heQu('殺'), '但七殺被合住，壓力解除。']]);
       if (tou('印').length && !strong && strength === '身強') bad(`佩印卻傷輕身旺（${at(tou('印'))}）：印把僅有的才華壓住，空有能力卻放不開。`);
+      if (touching('印', '財').length) bad(`佩印又遭財剋（${at([...touching('財', '印'), ...touching('印', '財')])}）：財緊貼著印，印被破，才華失去約束。`);
       break;
     }
     case 'yangren': {
