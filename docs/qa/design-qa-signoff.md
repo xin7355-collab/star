@@ -54,6 +54,8 @@
 - CI 的 WebKit（Safari 引擎）另外抓到、已修好的：配對頁 320 寬水平捲動 57px。星座選單選中的文字比選單寬，
   WebKit 畫面上裁掉、版面卻仍算進可捲動範圍（Chromium 不會）→ select 加 overflow:hidden＋刪節號，
   快速配對欄寬改 2:3。修正後 CI 的 E2E 18/18（Chromium 9＋WebKit 9）通過
+- 改版（今日、時運、命盤、占卜、我的）後 CI run 45334665526：E2E 28/28（Chromium 14＋WebKit 14，沒有重試）、
+  design-qa 56 張 CLEAN
 
 ## 4. 腳本量不到的（要人工）
 
