@@ -12,7 +12,11 @@ export const PERIODS = [
   { id: 'tomorrow', label: '明日' },
   { id: 'week', label: '本週' },
   { id: 'month', label: '本月' },
+  { id: 'year', label: '今年' },
 ];
+
+// 「今年」每月取 1、8、15、22 日四天（48 天）估算：逐日算 365 天在舊手機上要 1 秒以上
+const YEAR_SAMPLE_DAYS = [1, 8, 15, 22];
 
 export const AREAS = [
   { id: 'love', label: '愛情' },
@@ -87,6 +91,9 @@ export function periodDates(period, today) {
     const n = daysInMonth(today.y, today.m);
     return Array.from({ length: n }, (_, i) => ({ y: today.y, m: today.m, d: i + 1 }));
   }
+  if (period === 'year') {
+    return Array.from({ length: 12 }, (_, i) => YEAR_SAMPLE_DAYS.map((d) => ({ y: today.y, m: i + 1, d }))).flat();
+  }
   throw new Error(`未知的期間：${period}`);
 }
 
@@ -111,7 +118,16 @@ export function computeFortune(signIndex, period, today, tz = DEFAULT_TZ) {
 
   let best = null;
   let worst = null;
-  if (days.length > 1) {
+  let months = null;
+  if (period === 'year') {
+    months = Array.from({ length: 12 }, (_, i) => {
+      const inMonth = days.filter((d) => d.date.m === i + 1);
+      const avg = (area) => Math.round(inMonth.reduce((acc, d) => acc + d.scores[area], 0) / inMonth.length);
+      return { m: i + 1, scores: Object.fromEntries(['overall', ...AREAS.map((a) => a.id)].map((a) => [a, avg(a)])) };
+    });
+    best = months.reduce((a, b) => (b.scores.overall > a.scores.overall ? b : a));
+    worst = months.reduce((a, b) => (b.scores.overall < a.scores.overall ? b : a));
+  } else if (days.length > 1) {
     best = days.reduce((a, b) => (b.scores.overall > a.scores.overall ? b : a));
     worst = days.reduce((a, b) => (b.scores.overall < a.scores.overall ? b : a));
   }
@@ -122,11 +138,12 @@ export function computeFortune(signIndex, period, today, tz = DEFAULT_TZ) {
     dates,
     scores,
     days,
+    months,
     highlights,
     notes,
     best,
     worst,
-    summary: summarize(signIndex, scores, best, worst),
+    summary: summarize(signIndex, scores, best, worst, period),
   };
 }
 
@@ -143,14 +160,16 @@ function explainTransits(signIndex, transits, isRange) {
     .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
 }
 
-function summarize(signIndex, scores, best, worst) {
+function summarize(signIndex, scores, best, worst, period) {
   const ranked = AREAS.map((a) => ({ ...a, score: scores[a.id] })).sort((a, b) => b.score - a.score);
   const top = ranked[0];
   const low = ranked[ranked.length - 1];
   const overall = scores.overall;
   const mood = overall >= 75 ? '整體順風' : overall >= 58 ? '整體平穩' : overall >= 42 ? '起伏較多' : '宜放慢步調';
   let text = `${SIGNS[signIndex].name}${mood}（${overall} 分）。最順的是${top.label}（${top.score}），${low.label}（${low.score}）需要多留意。`;
-  if (best && worst && best !== worst) {
+  if (period === 'year' && best && worst && best !== worst) {
+    text += ` 最順的月份是 ${best.m} 月，最需保守的是 ${worst.m} 月。`;
+  } else if (best && worst && best !== worst) {
     text += ` 最佳日 ${best.date.m}/${best.date.d}，最需保守 ${worst.date.m}/${worst.date.d}。`;
   }
   return text;
@@ -165,6 +184,7 @@ export function scoreLevel(score) {
 
 export function periodLabel(period, dates) {
   const p = PERIODS.find((x) => x.id === period)?.label ?? period;
+  if (period === 'year') return `${dates[0].y} 年`;
   if (dates.length === 1) return `${p} ${dates[0].m}/${dates[0].d}`;
   const a = dates[0];
   const b = dates[dates.length - 1];
