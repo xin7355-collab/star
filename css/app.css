@@ -118,7 +118,7 @@ b, strong { font-weight: 700; }
 .birth-form { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .field label { font-size: 14px; color: var(--muted); }
-input[type="text"], input[type="time"], select, textarea {
+input[type="text"], input[type="time"], input[type="number"], select, textarea {
   width: 100%;
   /* WebKit 不把下拉選單、輸入框當「可壓縮」元素，最小寬度＝最長選項（「♐ 射手座（11/22–12/21）」），
      320 寬的 iPhone 會被撐出水平捲動（CI 的 WebKit 實測 57px）；Chromium 會自動壓縮所以看不出來 */
@@ -411,6 +411,9 @@ details.area[open] > .area-body { animation: rise 0.35s var(--ease-out) both; }
 .sys-瑪雅 { background: var(--sys-maya); }
 .sys-姓名 { background: var(--sys-name); }
 .sys-稱骨 { background: var(--sys-bone); }
+.sys-血型 { background: var(--sys-blood); }
+.sys-風水 { background: var(--sys-fengshui); }
+.sys-易經 { background: var(--sys-iching); }
 .point { padding: 6px 0; border-bottom: 1px solid var(--divider); }
 .point:last-child { border-bottom: 0; }
 
@@ -637,6 +640,42 @@ table.compare tr.same td, table.compare tr.same th { background: var(--accent-so
 .nine-cell b { font-size: 22px; }
 .nine-cell.on { border: 2px solid var(--gold); color: var(--text); background: var(--accent-soft); animation: rise 0.4s var(--ease-spring) both; }
 .nine-cell small { font-size: 11px; }
+
+/* ── 工作與方向、開運佈置、解惑 */
+.year-card { background: var(--bg2); border: 1px solid var(--hairline); border-radius: 14px; padding: 10px 12px; margin: 10px 0; }
+.year-card .trait-head b { font-size: 16px; }
+ol.plan { margin: 6px 0; padding-left: 22px; }
+ol.plan li { padding: 5px 0; animation: rise 0.45s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 60ms); }
+.room { display: block; width: 100%; max-width: 320px; margin: 8px auto; }
+.room-wall { fill: var(--bg2); stroke: var(--line); stroke-width: 2; }
+.room-door { stroke: var(--card); stroke-width: 6; }
+.room-arc { fill: none; stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.room-spot { fill: var(--accent-soft); stroke: var(--gold); stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: spot 2.4s ease-in-out infinite; }
+.room-label { fill: var(--text); font-size: 12px; }
+.room-label.muted { fill: var(--muted); }
+@keyframes spot { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+.luoshu { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0 2px; }
+.ls-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 8px 4px; text-align: center; background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; animation: rise 0.4s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.ls-cell.good { border-color: var(--good); }
+.ls-cell.bad { border-color: var(--poor); }
+.ls-cell b { font-size: 17px; color: var(--gold); }
+.ls-cell.bad b { color: var(--poor); }
+.ls-cell small, .ls-cell .small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.hexa-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 10px 0; }
+.hexa-arrow { font-size: 22px; color: var(--gold); }
+.hexa-box { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.hexa-box b { font-size: 16px; }
+.hexa-box small { font-size: 12px; }
+.hexa { display: flex; flex-direction: column; gap: 7px; width: 96px; }
+.yao { display: flex; gap: 12px; height: 11px; transform-origin: center; animation: yao-in 0.5s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 90ms); }
+.yao i { flex: 1; border-radius: 3px; background: var(--text); }
+.yao.moving i { background: var(--gold); }
+@keyframes yao-in { from { transform: scaleX(0); opacity: 0; } to { transform: none; opacity: 1; } }
+.verdict { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: none; width: 92px; height: 92px; border: 3px solid currentColor; border-radius: 50%; animation: rise 0.5s var(--ease-spring) both; }
+.verdict b { font-size: 26px; line-height: 1; color: var(--text); }
+.verdict small { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.num-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.num-row[hidden] { display: none; }
 
 /* 系統設定「減少動態效果」：所有動畫與轉場直接跳到結果 */
 @media (prefers-reduced-motion: reduce) {

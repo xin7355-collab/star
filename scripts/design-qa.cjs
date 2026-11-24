@@ -22,13 +22,13 @@ const PROPS = ['outlineStyle', 'outlineWidth', 'outlineColor', 'boxShadow', 'bor
 
 const hex = (n) => n.toString(16).padStart(16, '0');
 const rawOf = (i) => ({ calendar: 'solar', era: 'ad', year: 1960 + (i % 40), month: (i % 12) + 1, day: (i % 27) + 1, leap: false, knowTime: i % 3 !== 0, time: `${String(i % 24).padStart(2, '0')}:15`, placeId: 'taipei', lat: null, lon: null, tz: 'Asia/Taipei', fold: null, solar: null });
-const ME = { id: `p-${hex(1)}`, name: '我', fullName: '王小明', gender: '男', self: true, createdAt: '2026-11-24T00:00:00.000Z', raw: { ...rawOf(0), era: 'roc', year: 79, month: 8, day: 15, knowTime: true, time: '06:20' } };
+const ME = { id: `p-${hex(1)}`, name: '我', fullName: '王小明', bloodType: 'O', gender: '男', self: true, createdAt: '2026-11-24T00:00:00.000Z', raw: { ...rawOf(0), era: 'roc', year: 79, month: 8, day: 15, knowTime: true, time: '06:20' } };
 const ZH = '王陳林黃張李吳劉蔡楊許鄭謝洪郭邱曾廖賴徐';
 const LONG_PEOPLE = [ME, ...Array.from({ length: 49 }, (_, k) => {
   const i = k + 1;
   const name = i % 2 ? Array.from({ length: 20 }, (_, j) => ZH[(i + j) % ZH.length]).join('') : 'Wolfeschlegelsteinha';
   // 本名取最長的 6 個字（複姓＋四字名），檢查姓名分析的版面
-  return { id: `p-${hex(i + 1)}`, name, fullName: '司馬諸葛美玲', birthOrder: i % 5, gender: i % 2 ? '女' : '男', self: false, createdAt: '2026-11-24T00:00:00.000Z', raw: rawOf(i) };
+  return { id: `p-${hex(i + 1)}`, name, fullName: '司馬諸葛美玲', bloodType: ['A', 'B', 'O', 'AB'][i % 4], birthOrder: i % 5, gender: i % 2 ? '女' : '男', self: false, createdAt: '2026-11-24T00:00:00.000Z', raw: rawOf(i) };
 })];
 const TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu'];
 const LONG_HISTORY = Array.from({ length: 300 }, (_, i) => ({
@@ -103,7 +103,7 @@ const tab = async (page, view) => { await page.locator(`.tabbar [data-view="${vi
 const oracle = async (page, label) => { await tab(page, 'oracle'); await page.locator('#view-oracle .seg label', { hasText: label }).click(); await page.waitForTimeout(300); };
 const tool = (page, id) => page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption(id);
 
-/** 有資料的各分頁：今日 → 時運 → 我的 → 命盤（綜合解讀、八字、紫微、姓名）→ 占卜（配對、塔羅、樂透） */
+/** 有資料的各分頁：今日 → 時運 → 我的 → 命盤（綜合解讀、八字、紫微、姓名、工作方向、開運佈置、血型）→ 占卜（解惑、配對、塔羅、樂透） */
 async function tour(browser, width, prefix, opts) {
   const files = [];
   let { ctx, page } = await open(browser, width, { ...opts, activeIdx: 0 });
@@ -131,6 +131,19 @@ async function tour(browser, width, prefix, opts) {
   await tool(page, 'name');
   await page.waitForSelector('#view-destiny .grids, #view-destiny .card .warn');
   files.push(await snap(page, `${prefix}name`, width));
+  await tool(page, 'career');
+  await page.waitForSelector('#view-destiny .year-card');
+  files.push(await snap(page, `${prefix}career`, width));
+  await tool(page, 'fengshui');
+  await page.waitForSelector('#view-destiny .luoshu');
+  files.push(await snap(page, `${prefix}fengshui`, width));
+  await tool(page, 'blood');
+  await page.waitForSelector('#view-destiny select[aria-label="血型"]');
+  files.push(await snap(page, `${prefix}blood`, width));
+  await oracle(page, '解惑');
+  await page.locator('#oracle-jiehuo').getByRole('button', { name: '起卦' }).click();
+  await page.waitForSelector('#oracle-jiehuo .hexa');
+  files.push(await snap(page, `${prefix}jiehuo`, width));
   await oracle(page, '配對');
   if (opts.people.length > 2) {
     await page.locator('#oracle-match .seg label', { hasText: '精準' }).click();
@@ -143,7 +156,7 @@ async function tour(browser, width, prefix, opts) {
   await page.locator('#oracle-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
   await page.waitForSelector('#oracle-tarot ol.tarot-list li');
   files.push(await snap(page, `${prefix}tarot`, width));
-  await oracle(page, '樂透選號');
+  await oracle(page, '樂透');
   await page.waitForSelector('#oracle-lotto .balls');
   files.push(await snap(page, `${prefix}lotto`, width));
   await ctx.close();

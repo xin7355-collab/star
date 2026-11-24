@@ -77,7 +77,9 @@ test('今日號碼可重現：同人同日同彩券固定，換一天就不同',
 
 test('加權有效：幸運尾數出現得比較多（統計檢查）', () => {
   const profile = luckyProfile({ bazi: BAZI, birth: INPUT.date, lifePathNumber: 6 });
-  assert.ok(profile.element);
+  // 幸運五行和開運佈置、姓名搭配一樣取喜用神（這個命盤身強取財＝火）
+  assert.equal(profile.element, '火');
+  assert.deepEqual(profile.digits, [2, 7]);
   let lucky = 0;
   let other = 0;
   for (let i = 0; i < 3000; i += 1) {

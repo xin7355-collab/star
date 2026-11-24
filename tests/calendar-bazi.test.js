@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { solarToLunar, lunarToSolar, leapMonthOf, almanac, folkZodiac } from '../js/core/calendar.js';
-import { buildBazi, shiShen, GAN, yearGanZhi, taiSui, taiSuiList, liunian, equationOfTime, branchRelations } from '../js/core/bazi.js';
+import { buildBazi, shiShen, GAN, yearGanZhi, taiSui, taiSuiList, liunian, equationOfTime, branchRelations, yongShen } from '../js/core/bazi.js';
 import { LunarUtil, Solar } from '../vendor/lunar.js';
 import { tw } from '../js/core/zh.js';
 import { CHAR, AMBIGUOUS } from '../js/core/zh-data.js';
@@ -150,4 +150,53 @@ test('流年與犯太歲：2026 丙午年 → 馬值／刑太歲、鼠沖、牛�
   assert.equal(ln[0].ganzhi, '丙午');
   assert.ok(ln[0].shishenText.length > 10);
   assert.ok(ln[0].dayun);
+});
+
+// ── 喜用神（扶抑法）：用手排的四柱檢查身強身弱與取用，再用一個真實命盤確認接得上 buildBazi
+const GW = { 甲: '木', 乙: '木', 丙: '火', 丁: '火', 戊: '土', 己: '土', 庚: '金', 辛: '金', 壬: '水', 癸: '水' };
+const ZW = { 子: '水', 丑: '土', 寅: '木', 卯: '木', 辰: '土', 巳: '火', 午: '火', 未: '土', 申: '金', 酉: '金', 戌: '土', 亥: '水' };
+function fakeBazi(gzs) {
+  const labels = ['年柱', '月柱', '日柱', '時柱'];
+  const pillars = gzs.map((gz, i) => ({ label: labels[i], gan: gz[0], zhi: gz[1], ganWx: GW[gz[0]], zhiWx: ZW[gz[1]], hidden: LunarUtil.ZHI_HIDE_GAN[gz[1]].map((g) => ({ gan: g, wx: GW[g] })) }));
+  const withHidden = { 木: 0, 火: 0, 土: 0, 金: 0, 水: 0 };
+  for (const p of pillars) {
+    withHidden[p.ganWx] += 1;
+    for (const hg of p.hidden) withHidden[hg.wx] += 1;
+  }
+  return { ok: true, dayMaster: { gan: gzs[2][0], wx: GW[gzs[2][0]] }, pillars, wuxing: { withHidden } };
+}
+
+test('喜用神：身強比劫多取官殺、印多取財，身弱取印比，中和補最弱', () => {
+  // 甲木生寅月、滿盤木：木 7、火 3.2、土 1.2 → 幫身 61%；比劫多取官殺（金），財（土）生官殺為輔
+  const strongBi = yongShen(fakeBazi(['甲寅', '丙寅', '甲寅', '丙寅']));
+  assert.equal(strongBi.strength, '身強');
+  assert.deepEqual([strongBi.primary, strongBi.secondary, strongBi.roles.primary, strongBi.roles.secondary], ['金', '土', '官殺', '財']);
+  assert.deepEqual(strongBi.avoid, ['水', '木']);
+  assert.match(strongBi.reasons[0], /得令/);
+  // 甲木生子月、滿盤水（印）：幫身 86%，印比比劫多 → 取財（土）；冬天缺火要提調候
+  const strongYin = yongShen(fakeBazi(['壬子', '壬子', '甲子', '壬申']));
+  assert.equal(strongYin.strength, '身強');
+  assert.deepEqual([strongYin.primary, strongYin.roles.primary], ['土', '財']);
+  assert.match(strongYin.tiaohou, /冬天出生/);
+  // 甲木生酉月、滿盤金：幫身 15% → 取印（水）、比劫（木），忌官殺（金）與財（土）
+  const weak = yongShen(fakeBazi(['庚申', '乙酉', '甲申', '庚午']));
+  assert.equal(weak.strength, '身弱');
+  assert.deepEqual([weak.primary, weak.secondary, weak.roles.primary], ['水', '木', '印']);
+  assert.deepEqual(weak.avoid, ['金', '土']);
+  assert.match(weak.reasons[0], /失令/);
+  // 丁火：幫身 44% → 中和，補最弱的火，其次土；最旺的木不要再加
+  const mid = yongShen(fakeBazi(['甲子', '己卯', '丁酉', '壬子']));
+  assert.equal(mid.strength, '中和');
+  assert.deepEqual([mid.primary, mid.secondary, mid.avoid], ['火', '土', ['木']]);
+  assert.equal(yongShen(null), null);
+  assert.equal(yongShen({ ok: false }), null);
+});
+
+test('喜用神：真實命盤（1990-08-15 06:20 庚午 甲申 壬子 癸卯）', () => {
+  const b = buildBazi({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: null, fold: null }, {});
+  const r = yongShen(b);
+  // 壬水生申月（金生水，得令），印（金）比比劫（水）多 → 身強取財（火），食傷（木）為輔
+  assert.equal(r.strength, '身強');
+  assert.deepEqual([r.primary, r.secondary, r.avoid], ['火', '木', ['金', '水']]);
+  assert.match(r.reasons.join(''), /申月.*得令.*身強.*印/);
 });

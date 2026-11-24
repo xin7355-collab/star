@@ -1,6 +1,7 @@
 // 姓名學：康熙筆畫、五格四種姓名結構、三才、81 數理、注音、錯誤處理。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { buildBazi } from '../js/core/bazi.js';
 import { loadNameData, analyzeName, wuge, sancai, reduce81, elementOfNumber, splitName, charInfo, relationTo } from '../js/core/name.js';
 import { NUMBERS_81 } from '../js/core/name-texts.js';
 import { toZhuyin } from '../js/core/zhuyin.js';
@@ -120,12 +121,14 @@ test('錯誤處理：非中文、太短、罕用字要手動輸入筆畫', () =>
   assert.equal(fixed.given[0].source, '手動輸入');
 });
 
-test('與八字搭配：名字補到最弱的五行會說明', () => {
-  const bazi = { ok: true, wuxing: { withHidden: { 木: 5, 火: 3, 土: 2, 金: 2, 水: 0 } } };
+test('與八字搭配：用喜用神判斷名字有沒有補到', () => {
+  // 1990-08-15 06:20：壬水生申月、印多身強 → 喜火（財），其次木（食傷），金、水不需要再加
+  const bazi = buildBazi({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: null, fold: null }, {});
   const r = analyzeName('王小明', data, { bazi });
-  assert.ok(r.bazi.lines[0].includes('最弱的是「水」'));
-  // 王小明：人格 7 金、地格 11 木、總格 15 土，都不是水
-  assert.equal(r.bazi.helps.length, 0);
+  assert.match(r.bazi.lines[0], /身強，喜用五行是「火」，其次是「木」/);
+  // 王小明：人格 7 金、地格 11 木、總格 15 土 → 地格的木是喜用；人格的金是已經夠多的五行
+  assert.deepEqual(r.bazi.helps, ['地格']);
+  assert.deepEqual(r.bazi.extra, ['人格']);
   assert.ok(r.score >= 0 && r.score <= 100);
   assert.ok(r.summary.length >= 3);
 });

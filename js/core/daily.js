@@ -1,5 +1,5 @@
 // 今日綜合指數與幸運小物：把星座日運、八字流日、農民曆黃道黑道、生命靈數流日數合成一個分數，
-// 每一項加減分都列出來源。幸運色／數字取八字最弱的五行（簡化的「補不足」），方位取農民曆的喜神與財神。
+// 每一項加減分都列出來源。幸運色／數字取八字的喜用五行（bazi.js 的 yongShen），方位取農民曆的喜神與財神。
 
 import { Solar } from '../../vendor/lunar.js';
 import { tw } from './zh.js';
@@ -7,8 +7,8 @@ import { dayScores } from './fortune.js';
 import { personalDay } from './timing.js';
 import { personalDayNumber } from './windfall.js';
 import { DEFAULT_TZ } from './tz.js';
+import { yongShen } from './bazi.js';
 
-const WUXING = ['木', '火', '土', '金', '水'];
 const SHISHEN_DAY = { 正印: 8, 偏印: 2, 正官: 5, 七殺: -6, 正財: 6, 偏財: 5, 食神: 7, 傷官: -3, 比肩: 1, 劫財: -5 };
 const SHISHEN_PLAIN = {
   正印: '有貴人、適合學習與求助', 偏印: '想法多、適合研究，別鑽牛角尖', 正官: '按部就班、適合處理正事', 七殺: '壓力與挑戰多，凡事三思',
@@ -76,11 +76,7 @@ export function dailyIndex({ date, bazi = null, signIndex = null, birth = null, 
 /** 幸運色、幸運數字、喜神與財神方位 */
 export function luckyItems({ date, bazi = null }) {
   const lunar = Solar.fromYmd(date.y, date.m, date.d).getLunar();
-  let element = null;
-  if (bazi && bazi.ok) {
-    const c = bazi.wuxing.withHidden;
-    element = [...WUXING].sort((a, b) => c[a] - c[b])[0];
-  }
+  const element = yongShen(bazi)?.primary ?? null;
   return {
     element,
     color: element ? LUCKY_COLORS[element] : null,

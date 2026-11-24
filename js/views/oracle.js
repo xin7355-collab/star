@@ -1,4 +1,4 @@
-// 「占卜」：塔羅、樂透選號、配對放在同一個分頁，上方分段切換。各面板沿用自己的模組，只負責切換與記住上次停在哪。
+// 「占卜」：解惑、塔羅、樂透選號、配對放在同一個分頁，上方分段切換。各面板沿用自己的模組，只負責切換與記住上次停在哪。
 
 import { h, segmented, fill } from '../ui/dom.js';
 import { load, save } from '../ui/storage.js';
@@ -6,16 +6,18 @@ import { reducedMotion } from '../ui/motion.js';
 import { mountTarot } from './tarot.js';
 import { mountMatch } from './match.js';
 import { mountLotto } from './lotto.js';
+import { mountJiehuo } from './jiehuo.js';
 
 const PANELS = [
+  { value: 'jiehuo', label: '解惑' },
   { value: 'tarot', label: '塔羅' },
-  { value: 'lotto', label: '樂透選號' },
+  { value: 'lotto', label: '樂透' },
   { value: 'match', label: '配對' },
 ];
 
 export function mountOracle(root, ctx) {
-  let panel = load('oraclePanel', 'tarot');
-  if (!PANELS.some((p) => p.value === panel)) panel = 'tarot';
+  let panel = load('oraclePanel', 'jiehuo');
+  if (!PANELS.some((p) => p.value === panel)) panel = 'jiehuo';
   const boxes = Object.fromEntries(PANELS.map((p) => [p.value, h('div', { class: 'subview', id: `oracle-${p.value}` })]));
   const segBox = h('div', { class: 'oracle-switch' });
   let lotto = null;
@@ -37,9 +39,10 @@ export function mountOracle(root, ctx) {
     }
   }
 
+  mountJiehuo(boxes.jiehuo, ctx);
   mountTarot(boxes.tarot, ctx);
   mountMatch(boxes.match, ctx);
-  root.append(segBox, boxes.tarot, boxes.lotto, boxes.match);
+  root.append(segBox, boxes.jiehuo, boxes.tarot, boxes.lotto, boxes.match);
   show(panel);
   return {
     open(opts) {

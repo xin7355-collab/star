@@ -7,12 +7,12 @@
 // ・星座：當天的財運分數（金星、木星等行運，fortune.js）。
 // ・生命靈數：流日數（8 跟財務與機會最有關）。
 //
-// 樂透號碼：每天固定一組（同一個人、同一天、同一種彩券不會變），依你的幸運五行（河圖數）、生日、靈數加權抽出。
+// 樂透號碼：每天固定一組（同一個人、同一天、同一種彩券不會變），依你的喜用五行（河圖數）、生日、靈數加權抽出。
 // 一定要講清楚：任何一組號碼中獎機率都一樣，幸運號碼只是好玩，不會提高中獎機率。
 
 import { Solar } from '../../vendor/lunar.js';
 import { tw } from './zh.js';
-import { shiShen } from './bazi.js';
+import { shiShen, yongShen } from './bazi.js';
 import { dayScores } from './fortune.js';
 import { isoDate, addDays } from './date.js';
 import { DEFAULT_TZ } from './tz.js';
@@ -234,13 +234,9 @@ function weightedPick(weights, k, rand) {
   return out.sort((a, b) => a - b);
 }
 
-/** 個人的幸運元素：八字最弱的五行（簡化的「補不足」）、生日、生命靈數 */
+/** 個人的幸運元素：喜用五行（bazi.js 的 yongShen，扶抑法）、生日、生命靈數 */
 export function luckyProfile({ bazi = null, birth = null, lifePathNumber = null } = {}) {
-  let element = null;
-  if (bazi && bazi.ok) {
-    const c = bazi.wuxing.withHidden;
-    element = [...WUXING].sort((a, b) => c[a] - c[b])[0];
-  }
+  const element = yongShen(bazi)?.primary ?? null;
   return {
     element,
     digits: element ? HETU[element] : [],
@@ -268,7 +264,7 @@ export function luckyNumbers(gameId, { seedKey = '', date = null, profile = {}, 
     if (profile.lifePath && (n === profile.lifePath || n % 10 === profile.lifePath)) w *= 1.5;
     return w;
   });
-  if (profile.element) reasons.push(`尾數 ${profile.digits.join('、')} 加重：你八字最弱的五行是「${profile.element}」，河圖數是 ${profile.digits.join('、')}（補不足的想法）。`);
+  if (profile.element) reasons.push(`尾數 ${profile.digits.join('、')} 加重：你的喜用五行是「${profile.element}」，河圖數是 ${profile.digits.join('、')}。`);
   if (profile.birthDay && profile.birthDay <= game.max) reasons.push(`你的生日 ${profile.birthDay} 號加重。`);
   if (profile.lifePath) reasons.push(`生命靈數 ${profile.lifePath} 加重。`);
   const main = weightedPick(weights, game.pick, rand);

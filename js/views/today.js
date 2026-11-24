@@ -154,6 +154,7 @@ export function mountToday(root, ctx) {
       { class: 'card' },
       cardHead(h, 'bell', '今天要注意', '綜合八字、農民曆、天象與吉時'),
       h('ul', { class: 'reasons' }, lines.slice(0, 6).map((t) => h('li', { class: /避開|沖|逆行|忌|緩/.test(t) ? 'tone-bad' : 'tone-good', text: t }))),
+      h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn', text: '遇到困難？問一卦', onclick: () => ctx.go('oracle', { panel: 'jiehuo' }) })),
     );
   }
 
@@ -209,9 +210,10 @@ export function mountToday(root, ctx) {
     return h(
       'section',
       { class: 'card' },
-      cardHead(h, 'gem', '今日幸運小物', lucky.element ? `依你八字最弱的五行「${lucky.element}」來補` : '填生日後依你的八字推算'),
+      cardHead(h, 'gem', '今日幸運小物', lucky.element ? `依你的喜用五行「${lucky.element}」` : '填生日後依你的八字推算'),
       h('div', { class: 'stat-row' }, stats.map((s) => h('div', { class: 'stat' }, h('div', { class: 'sv' }, s.v), h('div', { class: 'sl', text: s.l })))),
-      h('p', { class: 'hint', text: '幸運色與尾數取「補不足」的簡化看法；方位取自當天農民曆。' }),
+      h('p', { class: 'hint', text: '幸運色與尾數看你的喜用五行（依日主強弱）；方位取自當天農民曆。' }),
+      lucky.element ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn', text: '財位與開運擺設', onclick: () => ctx.go('destiny', { tool: 'fengshui' }) })) : null,
     );
   }
 

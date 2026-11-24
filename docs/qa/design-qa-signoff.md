@@ -18,7 +18,8 @@
 
 ## 2. 狀態表（`state_matrix_checker.py --matrix docs/qa/states.csv`）
 
-- 判定：`design-qa state matrix: COMPLETE  (19 surfaces, 100% of required states covered; 0 blocker, 0 high, 0 warn)`
+- 判定：`design-qa state matrix: COMPLETE  (23 surfaces, 100% of required states covered; 0 blocker, 0 high, 0 warn)`
+- 新增四個畫面：工作與方向、開運佈置、血型（資料畫面，含長內容）、解惑（表單：驗證錯誤、起卦中、成功、模組載入失敗）
 - 改版新增的畫面：今日儀表板、吉時表、近期提醒、擇日、樂透選號、姓名分析、綜合解讀、底部分頁
 - 標 NA 的狀態與理由：運勢卡／名單／查詢紀錄的 loading（本機同步計算或讀取）、運勢卡 error（純計算，沒有外部呼叫）、
   農民曆 empty（每天都有資料）、塔羅與匯入備份的 busy／disabled（同步完成）、所有 hover（觸控裝置為主）
@@ -28,20 +29,23 @@
 
 ## 3. 實際畫面稽核（`rendered_audit.py`，每張快照一次）
 
-`npm run qa:design` 共 56 張，全部 `CLEAN`（0 blocker、0 high、0 warn）。快照時開「減少動態效果」並等動畫播完，量的是使用者最後看到的畫面：
+`npm run qa:design` 共 76 張，全部 `CLEAN`（0 blocker、0 high、0 warn）。快照時開「減少動態效果」並等動畫播完，量的是使用者最後看到的畫面：
 
 | 快照組 | 寬度 | 狀態 | 判定 | Blocker | 豁免 |
 |---|---|---|---|---|---|
 | empty-me、empty-today、empty-destiny | 320／390 | 第一次使用（空白） | CLEAN | 0 | 2（見下） |
-| today、fortune、me、reading、bazi、ziwei、name、match、tarot、lotto | 320／390 | 有資料 | CLEAN | 0 | 2（me） |
-| long-*（同上十頁） | 320／390 | 長內容：50 人、300 筆紀錄、20 字無空格英文名字、6 字本名、宜 30 項、AI 200 字 | CLEAN | 0 | 2（me） |
-| wide-*（同上十頁） | 1440 | 長內容 | CLEAN | 0 | 2（me） |
+| today、fortune、me、reading、bazi、ziwei、name、career、fengshui、blood、jiehuo、match、tarot、lotto | 320／390 | 有資料 | CLEAN | 0 | 2（me） |
+| long-*（同上十四頁） | 320／390 | 長內容：50 人、300 筆紀錄、20 字無空格英文名字、6 字本名、宜 30 項、AI 200 字 | CLEAN | 0 | 2（me） |
+| wide-*（同上十四頁） | 1440 | 長內容 | CLEAN | 0 | 2（me） |
 
 - 改版時抓到、已修好的：擇日熱度格綠底白字對比只有 3.79:1（改深綠，最亮格仍有 6.4:1）、
   吉時條在 320 寬每格只有 17.7px（窄螢幕改兩排，每格 34px）、分數環的金色進度弧沒畫出來
   （`@property --p` 設成不繼承，畫在 `::before` 的弧永遠是 0；E2E 改成檢查 `::before` 本身，先確認測試抓得到這個錯再修）、
   畫面出現「nullnullnull」（原生 `replaceChildren` 會把 null 印成文字，農民曆卡片原本就有這個問題；
   全部改用 `fill()`，並加上靜態檢查與 E2E「不得出現 null／undefined」）
+- 新功能抓到、已修好的：解惑「適合的日子」顯示「[object Object]」（擇日的理由是物件，直接 join 成文字；
+  修好後把這個錯放回去確認 E2E 會失敗，版面測試也加上「[object」檢查）；開運佈置說喜火的人有利方位是南，
+  同一頁又說今年南方五黃不能放紅色（改成碰到五黃、二黑、太歲時提醒今年改放次要喜用的方位）；飛星說明出現「（…（…））」雙層括號
 - 稽核工具本身的時機問題（已處理）：進場動畫第一格是透明，剛插入就量會得到 1:1 對比 → 腳本改成等畫面刷新兩格、有限動畫播完再量
 
 - 豁免（`docs/qa/design-qa-waivers.csv`）：「選擇備份檔」隱藏的檔案輸入框 TARGET_TOO_SMALL、FOCUS_UNVERIFIED。

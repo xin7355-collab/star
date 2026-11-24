@@ -11,6 +11,7 @@
 
 import { NUMBERS_81, GRADE_TEXT, WEALTH_NUMBERS, GRID_TEXT, SANCAI_RELATION } from './name-texts.js';
 import { toZhuyin, initialOf } from './zhuyin.js';
+import { yongShen } from './bazi.js';
 
 export const COMPOUND_SURNAMES = [
   '歐陽', '司馬', '上官', '諸葛', '東方', '皇甫', '尉遲', '公孫', '慕容', '長孫', '夏侯', '軒轅', '令狐', '端木',
@@ -151,25 +152,19 @@ export function phonetics(infos) {
 }
 
 /**
- * 名字的五行（人格、地格、總格）和八字五行強弱的搭配。
- * 真正的「喜用神」要看日主強弱、出生季節與格局，這裡只用五行數量做簡化判斷，畫面上會講明。
+ * 名字的五行（人格、地格、總格）和八字喜用神（bazi.js 的 yongShen，依日主強弱判斷）的搭配。
  */
 export function nameVsBazi(grids, bazi) {
-  if (!bazi || !bazi.ok) return null;
-  const counts = bazi.wuxing.withHidden;
-  const sorted = [...WUXING].sort((a, b) => counts[a] - counts[b]);
-  const min = counts[sorted[0]];
-  const weak = WUXING.filter((w) => counts[w] === min);
-  const strong = sorted[4];
+  const ys = yongShen(bazi);
+  if (!ys) return null;
   const nameEls = [['人格', grids.人格.element], ['地格', grids.地格.element], ['總格', grids.總格.element]];
-  const helps = nameEls.filter(([, el]) => weak.includes(el));
-  const heavy = nameEls.filter(([, el]) => el === strong && counts[strong] >= 4);
-  const lines = [];
-  lines.push(`你的八字（含藏干）五行：${WUXING.map((w) => `${w}${counts[w]}`).join('、')}；最弱的是「${weak.join('、')}」，最旺的是「${strong}」。`);
-  if (helps.length) lines.push(`名字的${helps.map(([g, el]) => `${g}屬${el}`).join('、')}，剛好補到八字比較弱的五行，這是加分的搭配。`);
-  else lines.push(`名字的人格、地格、總格是「${nameEls.map(([, el]) => el).join('、')}」，沒有直接補到最弱的「${weak.join('、')}」，可以從生活習慣、穿搭顏色或興趣補強。`);
-  if (heavy.length) lines.push(`${heavy.map(([g]) => g).join('、')}屬${strong}，會讓原本就旺的${strong}更旺，個性上同類特質會更明顯。`);
-  return { weak, strong, helps: helps.map(([g]) => g), heavy: heavy.map(([g]) => g), lines };
+  const helps = nameEls.filter(([, el]) => el === ys.primary || el === ys.secondary);
+  const extra = nameEls.filter(([, el]) => ys.avoid.includes(el));
+  const lines = [`你的八字${ys.strength}，喜用五行是「${ys.primary}」，其次是「${ys.secondary}」；不需要再加的是「${ys.avoid.join('、')}」。`];
+  if (helps.length) lines.push(`名字的${helps.map(([g, el]) => `${g}屬${el}`).join('、')}，剛好是你的喜用五行，這是加分的搭配。`);
+  else lines.push(`名字的人格、地格、總格是「${nameEls.map(([, el]) => el).join('、')}」，沒有直接補到喜用的「${ys.primary}」，可以從穿搭顏色、居家擺設補強（見「開運佈置」）。`);
+  if (extra.length) lines.push(`${extra.map(([g, el]) => `${g}屬${el}`).join('、')}，是你八字裡已經夠多的五行，影響不大，同類的個性會更明顯。`);
+  return { primary: ys.primary, secondary: ys.secondary, strength: ys.strength, helps: helps.map(([g]) => g), extra: extra.map(([g]) => g), lines };
 }
 
 const GRADE_POINT = { good: 100, mixed: 65, bad: 35 };

@@ -42,13 +42,16 @@ export function mountMe(root, ctx) {
     });
     // 進階欄位：本名（姓名學用）與多胞胎出生順序
     const fullNameInput = h('input', { type: 'text', maxlength: 6, value: person?.fullName || '', 'aria-label': '本名（姓名學用）', placeholder: '例如：王小明（可不填）' });
+    const bloodSel = h('select', { 'aria-label': '血型' }, h('option', { value: '', text: '不知道／不填' }), ['A', 'B', 'O', 'AB'].map((t) => h('option', { value: t, text: `${t} 型` })));
+    bloodSel.value = person?.bloodType || '';
     const orderSel = h('select', { 'aria-label': '多胞胎出生順序' }, h('option', { value: '0', text: '不是多胞胎' }), [1, 2, 3, 4, 5].map((n) => h('option', { value: String(n), text: `多胞胎・第 ${n} 個出生` })));
     orderSel.value = String(person?.birthOrder || 0);
     const advanced = h(
       'details',
-      { class: 'more', open: !!(person && (person.fullName || person.birthOrder)) },
-      h('summary', { text: '進階：本名與多胞胎（可不填）' }),
+      { class: 'more', open: !!(person && (person.fullName || person.birthOrder || person.bloodType)) },
+      h('summary', { text: '進階：本名、血型、多胞胎（可不填）' }),
       h('div', { class: 'field' }, h('span', { class: 'field-label', text: '本名（給姓名分析用，暱稱照上面填）' }), fullNameInput),
+      h('div', { class: 'field' }, h('span', { class: 'field-label', text: '血型' }), bloodSel),
       h('div', { class: 'field' }, h('span', { class: 'field-label', text: '多胞胎' }), orderSel),
       h('p', { class: 'hint', text: '同一天出生的多胞胎，八字與生命靈數會一樣；出生時間（精確到分）、本名與出生順序能區分彼此。' }),
     );
@@ -77,7 +80,7 @@ export function mountMe(root, ctx) {
       const fullName = fullNameInput.value.trim();
       if (fullName && !/^\p{Script=Han}{2,6}$/u.test(fullName)) return ctx.toast('本名請輸入 2～6 個中文字，或留空');
       const saved = ctx.savePerson(
-        { id: person ? person.id : newId('p'), name: form.getName() || '未命名', gender: form.getGender(), self: person ? person.self : !!target.self, fullName, birthOrder: Number(orderSel.value), raw: form.toRaw(), createdAt: person?.createdAt },
+        { id: person ? person.id : newId('p'), name: form.getName() || '未命名', gender: form.getGender(), self: person ? person.self : !!target.self, fullName, bloodType: bloodSel.value, birthOrder: Number(orderSel.value), raw: form.toRaw(), createdAt: person?.createdAt },
         // 只有第一次輸入、或編輯正在查看的人時才切換；新增家人不搶走「我」的位置（今日、時運預設看自己）
         { activate: first || (person && person.id === ctx.getActive()?.id) },
       );
@@ -218,7 +221,7 @@ export function mountMe(root, ctx) {
           h(
             'li',
             { class: p.id === active?.id ? 'active' : '' },
-            h('div', { class: 'people-main' }, h('b', { text: p.name }), p.self ? h('span', { class: 'badge', text: '我' }) : null, p.gender ? h('span', { class: 'badge alt', text: p.gender }) : null, p.birthOrder ? h('span', { class: 'badge', text: `多胞胎第 ${p.birthOrder}` }) : null, h('div', { class: 'muted small', text: `${p.fullName ? `本名 ${p.fullName}・` : ''}${describeRaw(p.raw)}` })),
+            h('div', { class: 'people-main' }, h('b', { text: p.name }), p.self ? h('span', { class: 'badge', text: '我' }) : null, p.gender ? h('span', { class: 'badge alt', text: p.gender }) : null, p.birthOrder ? h('span', { class: 'badge', text: `多胞胎第 ${p.birthOrder}` }) : null, h('div', { class: 'muted small', text: `${p.fullName ? `本名 ${p.fullName}・` : ''}${p.bloodType ? `${p.bloodType} 型・` : ''}${describeRaw(p.raw)}` })),
             h(
               'div',
               { class: 'people-actions' },
@@ -273,7 +276,7 @@ export function mountMe(root, ctx) {
               ),
             ),
           )
-          : h('p', { class: 'hint', text: '塔羅抽牌、配對結果，以及你在「命盤」或「樂透選號」按「存到紀錄」的內容，會保存在這裡。' }),
+          : h('p', { class: 'hint', text: '塔羅抽牌、配對結果，以及你在「命盤」「解惑」「樂透」按「存到紀錄」的內容，會保存在這裡。' }),
         // 最多存 300 筆但只列最近 50 筆（一次畫太多在舊手機會卡）；要講清楚，不然使用者以為舊紀錄不見了
         list.length > HISTORY_SHOWN ? h('p', { class: 'hint', text: `只列出最近 ${HISTORY_SHOWN} 筆；全部 ${list.length} 筆都在「匯出備份檔」裡。` }) : null,
         list.length

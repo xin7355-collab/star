@@ -1,4 +1,4 @@
-// 綜合解讀：把星座、八字、紫微、生命靈數、瑪雅、姓名、稱骨放在同一張桌上看。
+// 綜合解讀：把星座、八字、紫微、生命靈數、瑪雅、姓名、稱骨、血型放在同一張桌上看。
 //
 // 做法：
 // 1. 每個系統依你的盤面給出「特質標籤」（例：太陽獅子座 → 有主見、有創意；日主丙火 → 有主見、有創意）。
@@ -10,8 +10,9 @@
 import { SIGNS, signAspect } from './zodiac.js';
 import { positionsAt } from './astro.js';
 import { MEANINGS } from './numerology.js';
-import { SHISHEN_TEXT, liunian, WUXING } from './bazi.js';
+import { SHISHEN_TEXT, liunian, WUXING, yongShen } from './bazi.js';
 import { natalWealth, ziweiWealth } from './windfall.js';
+import { BLOOD } from './blood.js';
 import { CHENGGU_PLAIN, DAYMASTER, LIFEPATH_DETAIL, MAYA_KEYWORD_TEXT, MOON_ELEMENT, MUTAGEN_TEXT, SHISHEN_GROUPS, SIGN_DETAIL, TAGS, WUXING_HEALTH, ZIWEI_STARS } from './reading-texts.js';
 
 const ELEMENT_OF_SIGN = ['fire', 'earth', 'air', 'water'];
@@ -102,13 +103,13 @@ export function twinsInfo({ birthOrder, natal = null, hasTime = false, method = 
   return { lines, shift: birthOrder >= 2 ? (method === 'travel' && birthOrder === 2 ? 6 : birthOrder - 1) : 0 };
 }
 
-const PERSONAL_YEAR = {
+export const PERSONAL_YEAR = {
   1: '新循環的開始：適合立新目標、換跑道、主動出擊。', 2: '合作與耐心的一年：感情與夥伴關係是重點，別急。', 3: '表達與社交的一年：多曝光、多創作，人緣好。',
   4: '打基礎的一年：踏實工作、整理財務與健康，辛苦但有回報。', 5: '變動的一年：搬家、轉職、旅行機會多，保持彈性。', 6: '家庭與責任的一年：家人、伴侶與承諾是主題。',
   7: '沉澱學習的一年：適合進修、研究、獨處思考，不宜衝動。', 8: '收成與財務的一年：努力容易換成實際成果，也是升遷加薪的機會。', 9: '整理與告別的一年：結束不適合的人事物，為下個循環騰出空間。',
 };
 
-function personalYearNumber(birth, year) {
+export function personalYearNumber(birth, year) {
   let n = [birth.m, birth.d, year].join('').split('').reduce((a, c) => a + Number(c), 0);
   while (n > 9) n = String(n).split('').reduce((a, c) => a + Number(c), 0);
   return n;
@@ -116,9 +117,9 @@ function personalYearNumber(birth, year) {
 
 /**
  * @param {{natal?:object, bazi?:object, ziwei?:object, birth:{y,m,d}, maya?:object, name?:object, chenggu?:object,
- *          today:{y,m,d}, gender?:string, birthOrder?:number, twinMethod?:'sibling'|'travel'}} input
+ *          today:{y,m,d}, gender?:string, birthOrder?:number, twinMethod?:'sibling'|'travel', bloodType?:string}} input
  */
-export function buildReading({ natal = null, bazi = null, ziwei = null, birth, maya = null, name = null, chenggu = null, today, gender = null, birthOrder = 0, twinMethod = 'sibling' }) {
+export function buildReading({ natal = null, bazi = null, ziwei = null, birth, maya = null, name = null, chenggu = null, today, gender = null, birthOrder = 0, twinMethod = 'sibling', bloodType = '' }) {
   const lp = (() => {
     const digits = `${birth.y}${String(birth.m).padStart(2, '0')}${String(birth.d).padStart(2, '0')}`.split('').map(Number);
     let n = digits.reduce((a, b) => a + b, 0);
@@ -147,6 +148,8 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     for (const s of stars) if (ZIWEI_STARS[s.name]) vote(ZIWEI_STARS[s.name].tags, `紫微：命宮${s.name}`);
   }
   vote(LIFEPATH_DETAIL[lp].tags, `生命靈數 ${lp}`);
+  const blood = BLOOD[bloodType] || null;
+  if (blood) vote(blood.tags, `血型 ${bloodType} 型（流行文化）`);
   const ranked = Object.entries(votes).map(([tag, sources]) => ({ tag, label: TAGS[tag].label, count: sources.length, sources })).sort((a, b) => b.count - a.count);
   const consensus = ranked.filter((t) => t.count >= 2).slice(0, 3);
   const top = consensus.length ? consensus : ranked.slice(0, 2);
@@ -170,6 +173,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     maya && { system: '瑪雅', text: mayaLine(maya) },
     name && name.ok && { system: '姓名', text: `人格 ${name.grids.人格.value}（${name.grids.人格.title}）：${name.grids.人格.text}` },
     chenggu && chenggu.ok && { system: '稱骨', text: `骨重 ${chenggu.text}。${CHENGGU_PLAIN[chenggu.total] || ''}` },
+    blood && { system: '血型', text: `${bloodType} 型：${blood.personality}（流行文化說法）` },
   ]);
 
   // ── 3. 事業
@@ -183,6 +187,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     zw && { system: '紫微', text: starLine(zw, '官祿', 'career') },
     { system: '生命靈數', text: LIFEPATH_DETAIL[lp].career },
     name && name.ok && { system: '姓名', text: `總格 ${name.grids.總格.value}（${name.grids.總格.title}，${name.grids.總格.gradeText}）看中年以後的成就：${name.grids.總格.text}` },
+    blood && { system: '血型', text: `${blood.work}常見適合：${blood.jobs.join('、')}。` },
   ]);
 
   // ── 4. 財運
@@ -209,6 +214,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     bazi && bazi.ok && { system: '八字', text: spouseLine(bazi, gender) },
     zw && { system: '紫微', text: starLine(zw, '夫妻', 'love') },
     { system: '生命靈數', text: LIFEPATH_DETAIL[lp].love },
+    blood && { system: '血型', text: blood.love },
   ]);
 
   // ── 6. 健康
@@ -216,6 +222,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     bazi && bazi.ok && { system: '八字', text: healthLine(bazi) },
     sun !== null && { system: '占星', text: `太陽${signName(sun)}對應的身體部位：${SIGN_DETAIL[sun].body}。` },
     zw && { system: '紫微', text: (() => { const { stars } = palaceStars(zw, '疾厄'); return stars.length ? `疾厄宮有${stars.map((s) => s.name).join('、')}：壓力大時，這些星代表的個性（${stars.map((s) => ZIWEI_STARS[s.name]?.tags.map((t) => TAGS[t].label).join('、')).join('；')}）容易反映在身體上，記得適度放鬆。` : null; })() },
+    blood && { system: '血型', text: `壓力來時：${blood.stress}${blood.cope}` },
   ]);
 
   // ── 7. 人際與貴人
@@ -256,10 +263,8 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
 
 function wuxingBalance(bazi) {
   const c = bazi.wuxing.withHidden;
-  const sorted = [...WUXING].sort((a, b) => c[b] - c[a]);
-  const strong = sorted[0];
-  const weak = sorted.filter((w) => c[w] === c[sorted[4]]);
-  return `五行（含藏干）：${WUXING.map((w) => `${w}${c[w]}`).join('、')}。最旺的是${strong}，最弱的是${weak.join('、')}；生活上可以多接觸「${weak.join('、')}」相關的顏色、環境與興趣來平衡（簡化看法，真正的喜用神要看整體格局）。`;
+  const ys = yongShen(bazi);
+  return `五行（含藏干）：${WUXING.map((w) => `${w}${c[w]}`).join('、')}。日主${ys.strength}，喜用五行是「${ys.primary}」（${ys.roles.primary}），其次「${ys.secondary}」；生活上多接觸「${ys.primary}」相關的顏色、環境與興趣來平衡（「開運佈置」有完整做法）。`;
 }
 
 function spouseLine(bazi, gender) {

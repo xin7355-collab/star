@@ -6,6 +6,7 @@ import { createBirthForm } from '../ui/birthform.js';
 import { buildNatal, signOptions } from '../core/natal.js';
 import { scorePair, scoreGroup, MAX_PEOPLE } from '../core/synastry.js';
 import { SIGNS } from '../core/zodiac.js';
+import { bloodMatch } from '../core/blood.js';
 import { load, save } from '../ui/storage.js';
 
 const ROWS = [
@@ -144,7 +145,7 @@ export function mountMatch(root, ctx) {
         const p = ctx.getPeople().find((x) => x.id === slot.personId);
         const natal = p ? ctx.natalOf(p) : null;
         if (!natal) return ctx.toast(`第 ${i + 1} 位的生日資料不完整，請到「我的」編輯`);
-        result.push({ name: p.name, natal });
+        result.push({ name: p.name, natal, bloodType: p.bloodType || '' });
         continue;
       }
       const r = await slot.form.read();
@@ -170,6 +171,8 @@ export function mountMatch(root, ctx) {
     clear(resultBox);
     if (people.length === 2) {
       const r = scorePair(people[0], people[1]);
+      // 兩人都在名單裡填了血型才加這一行；不計分（流行文化說法）
+      const bm = bloodMatch(people[0].bloodType, people[1].bloodType);
       const rows = (people[0].natal ? ROWS : ROWS.slice(0, 1)).map(([key, label]) =>
         h('tr', {}, h('th', { scope: 'row', text: label }), h('td', { text: signText(people[0], key) }), h('td', { text: signText(people[1], key) })),
       );
@@ -183,6 +186,7 @@ export function mountMatch(root, ctx) {
           r.bands.filter((b) => b.available).map((b) => bandBar(b)),
           h('p', { class: 'hint', text: `計分依據：${r.basis}。` }),
           r.story ? h('div', { class: 'tips' }, h('h3', { text: '相處建議' }), h('ul', { class: 'plain' }, r.story.tips.map((t) => h('li', { text: t })))) : null,
+          bm ? h('div', { class: 'point' }, h('span', { class: 'sys sys-血型', text: '血型' }), h('span', { text: `${bm.pair}：${bm.text}（流行文化說法，不計分）` })) : null,
           shareButton(`${people[0].name} × ${people[1].name}`, r.total, r.label, [r.story ? r.story.summary : '', ...(r.story ? r.story.tips : [])]),
         ),
       );

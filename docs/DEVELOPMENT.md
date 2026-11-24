@@ -14,7 +14,7 @@
 | `npm test` | 單元測試（計算核心、紀錄、Worker、PWA 規則） | 只要 Node 20 以上，不用安裝套件 |
 | `npm ci --ignore-scripts` | 安裝開發套件（版本固定在 package-lock.json） | 下面幾個指令都要先跑 |
 | `npm run test:e2e` | 手機尺寸端對端測試（Playwright，iPhone 13） | 加 `PW_WEBKIT=1` 另跑 WebKit |
-| `npm run qa:design` | design-qa 版面稽核：320／390／1440 與長內容 56 張快照，全部要 CLEAN | Python 3 |
+| `npm run qa:design` | design-qa 版面稽核：320／390／1440 與長內容 76 張快照，全部要 CLEAN | Python 3 |
 | `npm run build` | 重新打包 `vendor/`（農曆、紫微、天文函式庫）與 `worker/dist/` | |
 | `node scripts/gen-preload.mjs` | 重新產生 `index.html` 的 modulepreload 清單 | |
 | `python3 scripts/gen-zh-map.py` | 重新產生簡轉繁對照表 `js/core/zh-data.js` | `pip install -r requirements-dev.txt` |
@@ -63,6 +63,11 @@ js/core/              計算核心（不碰畫面，可在 Node 測試）
   maya.js numerology.js chenggu.js  瑪雅曆、生命靈數、稱骨
   name.js name-texts.js zhuyin.js kangxi-data.js  姓名學（康熙筆畫、五格三才、81 數理、注音）
   timing.js                   吉時表、擇日、近期提醒（逆行、日月食、月相、換流月）
+  career.js                   工作性質（多系統投票）、喜用行業、未來三年與十年方向
+  fengshui.js                 開運佈置：財庫、八宅命卦、九宮飛星、明財位、水晶／魚／植物
+  iching.js iching-texts.js   梅花易數起卦、六十四卦白話、體用生剋
+  jiehuo.js                   解惑的困擾類型與具體步驟
+  blood.js                    血型性格與相處（流行文化）
   windfall.js                 偏財指數、樂透幸運號碼
   daily.js                    今日綜合指數、幸運色與方位
   reading.js reading-texts.js 多系統綜合解讀、多胞胎、各系統白話內容
@@ -70,7 +75,8 @@ js/core/              計算核心（不碰畫面，可在 Node 測試）
   zh.js zh-data.js            簡轉台灣繁中
 js/ui/                共用元件（生日表單、圖卡、儲存、AI 佇列、自動更新、動畫 motion.js、圖示 icons.js、
                       吉時條／彩球／時間軸／擇日格 widgets.js）
-js/views/             today（今日）、fortune（時運）、destiny（命盤）、oracle（占卜：tarot、lotto、match）、me（我的）
+js/views/             today（今日）、fortune（時運）、destiny（命盤：tool-career、tool-fengshui、tool-blood）、
+                      oracle（占卜：jiehuo、tarot、lotto、match）、me（我的）；profile.js 把一個人的各系統命盤一次算好
 vendor/               打包好的第三方函式庫（來源與授權見 NOTICE.md）
 worker/               Cloudflare Worker（AI 代理，選用）
 scripts/              打包、產生清單與資料、本機伺服器、design-qa

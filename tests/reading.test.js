@@ -7,6 +7,7 @@ import { buildZiwei } from '../js/core/ziwei.js';
 import { buildNatal } from '../js/core/natal.js';
 import { computeMaya } from '../js/core/maya.js';
 import { CHENGGU_PLAIN } from '../js/core/reading-texts.js';
+import { BLOOD, BLOOD_TYPES, bloodMatch } from '../js/core/blood.js';
 
 const INPUT = { date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: { lon: 121.5, lat: 25.04 }, fold: null };
 const TODAY = { y: 2026, m: 11, d: 24 };
@@ -92,4 +93,26 @@ test('多胞胎的瑪雅曆：加上各自的出生時分後結果不同，解�
 
 test('稱骨白話：21～72 兩都有', () => {
   for (let w = 21; w <= 72; w += 1) assert.ok(CHENGGU_PLAIN[w] && CHENGGU_PLAIN[w].includes('現代看法'), String(w));
+});
+
+test('血型：四型文字齊全、配對不分順序；解讀列入共同點投票並標明流行文化，沒填就不出現', () => {
+  for (const t of BLOOD_TYPES) {
+    for (const k of ['personality', 'strengths', 'watch', 'work', 'love', 'stress', 'cope', 'advice']) assert.ok(BLOOD[t][k].length > 8, `${t} ${k}`);
+    assert.ok(BLOOD[t].jobs.length >= 5 && BLOOD[t].tags.length === 2);
+  }
+  for (const a of BLOOD_TYPES) {
+    for (const b of BLOOD_TYPES) {
+      const m = bloodMatch(a, b);
+      assert.ok(m && m.text.length > 10, `${a}×${b}`);
+      assert.equal(m.text, bloodMatch(b, a).text);
+    }
+  }
+  assert.equal(bloodMatch('A', ''), null);
+  assert.equal(bloodMatch('C', 'A'), null);
+  const base = { natal, bazi, ziwei, birth: INPUT.date, maya: computeMaya(INPUT.date), today: TODAY, gender: '男' };
+  const r = buildReading({ ...base, bloodType: 'AB' });
+  assert.ok(r.ranked.some((t) => t.sources.includes('血型 AB 型（流行文化）')));
+  for (const id of ['personality', 'career', 'love', 'health']) assert.ok(r.areas.find((a) => a.id === id).points.some((p) => p.system === '血型'), id);
+  const none = buildReading({ ...base, bloodType: '' });
+  assert.ok(!none.areas.some((a) => a.points.some((p) => p.system === '血型')));
 });

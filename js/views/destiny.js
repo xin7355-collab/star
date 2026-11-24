@@ -1,5 +1,5 @@
-// 「命盤」：選人＋選工具（下拉）：綜合解讀（多系統一起看）、八字命盤、流年大運太歲、紫微命盤、姓名分析、
-// 瑪雅密碼、生命靈數、袁天罡稱骨。各工具的函式庫用到才載入（紫微約 51KB、康熙筆畫約 85KB gzip）。
+// 「命盤」：選人＋選工具（下拉）：綜合解讀（多系統一起看）、工作與未來方向、開運佈置、八字命盤、流年大運太歲、
+// 紫微命盤、姓名分析、血型、瑪雅密碼、生命靈數、袁天罡稱骨。各工具的函式庫用到才載入（紫微約 51KB、康熙筆畫約 85KB gzip）。
 // 結果可「存到紀錄」（只存在手機）或存成圖卡。多胞胎依「我的」裡填的出生順序套用紫微借宮。
 
 import { h, clear, segmented, fill } from '../ui/dom.js';
@@ -7,13 +7,17 @@ import { load, save } from '../ui/storage.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
 import { cardHead } from '../ui/icons.js';
 import { reveal, order, ringTo } from '../ui/motion.js';
+import { loadProfile } from './profile.js';
 
 const TOOLS = [
   { id: 'reading', label: '綜合解讀（多系統一起看）' },
+  { id: 'career', label: '工作與未來方向' },
+  { id: 'fengshui', label: '開運佈置（財庫、財位、擺設）' },
   { id: 'bazi', label: '八字命盤' },
   { id: 'liunian', label: '流年・大運・太歲' },
   { id: 'ziwei', label: '紫微命盤' },
   { id: 'name', label: '姓名分析' },
+  { id: 'blood', label: '血型' },
   { id: 'maya', label: '瑪雅密碼' },
   { id: 'numerology', label: '生命靈數' },
   { id: 'chenggu', label: '袁天罡稱骨' },
@@ -81,8 +85,13 @@ export function mountDestiny(root, ctx) {
       return;
     }
     const opts = { gender: p.gender || null, sect: settings.sect, solarTime: settings.solarTime, today: zoneToday(DEFAULT_TZ) };
+    // 新工具放在各自的檔案，用到才載入；共用存紀錄按鈕與多胞胎瑪雅設定
+    const kit = { ctx, actions, mayaTime: mayaTwinTime(p, input) };
     const draw = {
       reading: () => drawReading(p, input, opts),
+      career: () => import('./tool-career.js').then((m) => m.drawCareer(p, input, opts, kit)),
+      fengshui: () => import('./tool-fengshui.js').then((m) => m.drawFengshui(p, input, opts, kit)),
+      blood: () => import('./tool-blood.js').then((m) => m.drawBlood(p, kit)),
       name: () => drawName(p, input, opts),
       bazi: () => drawBazi(p, input, opts),
       liunian: () => drawLiunian(p, input, opts),
@@ -386,38 +395,9 @@ export function mountDestiny(root, ctx) {
 
   // ── 綜合解讀：星座、八字、紫微、生命靈數、瑪雅、姓名、稱骨一起看
   async function drawReading(p, input, opts) {
-    const [B, Z, M, C, CAL, R, NM] = await Promise.all([
-      import('../core/bazi.js'), import('../core/ziwei.js'), import('../core/maya.js'), import('../core/chenggu.js'),
-      import('../core/calendar.js'), import('../core/reading.js'), import('../core/name.js'),
-    ]);
-    const natal = ctx.natalOf(p);
-    const bz = B.buildBazi(input, opts);
-    const bazi = bz.ok ? bz : null;
-    const zw = input.time && (p.gender === '男' || p.gender === '女') ? Z.buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today }) : null;
-    let chenggu = null;
-    if (input.time && bazi) {
-      const clk = B.baziClock(input, { solarTime: opts.solarTime });
-      if (clk.ok) {
-        const l = CAL.solarToLunar(clk.clock);
-        chenggu = C.chengGu({ yearGanZhi: bazi.pillars[0].gan + bazi.pillars[0].zhi, lunarMonth: l.month, lunarDay: l.day, hour: clk.clock.h });
-      }
-    }
-    let name = null;
-    if (p.fullName) {
-      try {
-        name = NM.analyzeName(p.fullName, await NM.loadNameData(), { bazi });
-      } catch {
-        name = null; // 康熙筆畫資料載入失敗時，其他系統照常解讀
-      }
-    }
-    const r = R.buildReading({
-      natal, bazi, ziwei: zw && zw.ok ? zw : null, birth: input.date, maya: M.computeMaya(input.date, mayaTwinTime(p, input)), name, chenggu,
-      today: opts.today, gender: p.gender || null, birthOrder: p.birthOrder || 0, twinMethod: ctx.getSettings().twinMethod,
-    });
-    const missing = [];
-    if (!input.time) missing.push('出生時間（上升星座、紫微、稱骨）');
-    if (!p.gender) missing.push('性別（紫微、大運）');
-    if (!p.fullName) missing.push('本名（姓名學）');
+    const prof = await loadProfile(ctx, p, input, opts, { mayaTime: mayaTwinTime(p, input) });
+    const r = prof.reading;
+    const { missing } = prof;
     const traitList = h('div', { class: 'traits' }, r.traits.map((t) => h(
       'div',
       { class: 'trait' },
@@ -436,7 +416,7 @@ export function mountDestiny(root, ctx) {
       h(
         'section',
         { class: 'card feature' },
-        cardHead(h, 'book', `${p.name}的綜合解讀`, '星座・八字・紫微・生命靈數・瑪雅・姓名・稱骨'),
+        cardHead(h, 'book', `${p.name}的綜合解讀`, '星座・八字・紫微・生命靈數・瑪雅・姓名・稱骨・血型'),
         h('h3', { text: '各系統的共同點' }),
         r.traits.length ? traitList : h('p', { class: 'muted', text: '資料還不夠多，補上出生時間與性別會更準。' }),
         h('p', { class: 'hint', text: '同一個特質被兩個以上的系統提到，代表比較可信；只出現一次的看法列在各面向裡當參考。' }),
@@ -530,7 +510,7 @@ export function mountDestiny(root, ctx) {
         h('ul', { class: 'reasons' }, (r.phonetics.ok ? r.phonetics.notes : [r.phonetics.text]).map((t) => h('li', { class: 'tone-info', text: t }))),
         r.bazi ? h('h3', { text: '和八字五行的搭配' }) : null,
         r.bazi ? h('ul', { class: 'reasons' }, r.bazi.lines.map((t) => h('li', { class: 'tone-info', text: t }))) : null,
-        r.bazi ? h('p', { class: 'hint', text: '真正的喜用神要看日主強弱與季節格局，這裡用五行數量做簡化判斷。' }) : null,
+        r.bazi ? h('p', { class: 'hint', text: '喜用五行依日主強弱判斷（扶抑法），怎麼算的在「開運佈置」有完整說明。' }) : null,
         h('details', { class: 'more' }, h('summary', { text: '計算規則' }), h('ul', { class: 'plain small' },
           h('li', { text: '台灣最常見的熊崎式：筆畫用康熙字典筆畫（部首還原本字：氵4、扌4、忄4、艹6、阝左 8 右 7、王字旁 5）。' }),
           h('li', { text: '國字數字一～十以數值計（「四」算 4 畫）。罕用字查不到時可以手動輸入筆畫。' }),
@@ -543,4 +523,14 @@ export function mountDestiny(root, ctx) {
 
   ctx.onProfile(render);
   render();
+  return {
+    // 其他分頁可以直接跳到某個工具（例如今日的「財位與開運擺設」）
+    open(o) {
+      if (o && o.tool && TOOLS.some((t) => t.id === o.tool) && o.tool !== tool) {
+        tool = o.tool;
+        save('destinyTool', tool);
+        render();
+      }
+    },
+  };
 }

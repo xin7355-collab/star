@@ -6,7 +6,7 @@
 // ・日柱、時柱看當地時間：出生在日光節約時間時，自動扣回標準時間（台灣 1945–1979 年夏季要減 1 小時）；
 //   可選用真太陽時（經度時差＋均時差，均時差公式參考 tianji，MIT）。
 // ・23:00 起算隔天的子時（sect 1，同 lilith-diviner 的選擇）；可改成 0 點換日（sect 2）。
-// 五行統計只看字面，不代表喜用神判斷；解說文字為本 App 撰寫，僅供參考。
+// 五行統計只看字面；喜用神用 yongShen（扶抑法簡化版）。解說文字為本 App 撰寫，僅供參考。
 
 import { Solar, LunarUtil } from '../../vendor/lunar.js';
 import { tw } from './zh.js';
@@ -235,6 +235,85 @@ export function buildBazi(input, { gender = null, sect = 1, solarTime = 'standar
     notes.push('沒有選性別：大運順逆行要看性別，暫不排大運。');
   }
   return result;
+}
+
+// 五行生剋：生我＝印、我生＝食傷、我剋＝財、剋我＝官殺
+const MOTHER = { 木: '水', 火: '木', 土: '火', 金: '土', 水: '金' };
+const CHILD = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' };
+const WEALTH_OF = { 木: '土', 火: '金', 土: '水', 金: '木', 水: '火' };
+const OFFICER_OF = { 木: '金', 火: '水', 土: '木', 金: '火', 水: '土' };
+const ROLE_NAME = (dm, wx) => (wx === dm ? '比劫' : wx === MOTHER[dm] ? '印' : wx === CHILD[dm] ? '食傷' : wx === WEALTH_OF[dm] ? '財' : '官殺');
+const MONTH_WEIGHT = 3; // 月令（月支）最重要：同一個字在月支的影響力約是其他位置的三倍（扶抑法的通則）
+const SIDE_QI = 0.3; // 地支藏干的中氣、餘氣
+
+/**
+ * 喜用神（扶抑法，簡化版）。
+ * 為什麼不用「缺什麼補什麼」：五行最少的那個，可能正好是讓本來就弱的日主更弱的五行（例如身弱還去補財），
+ * 和命理書的主流看法相反；開運佈置、幸運色、樂透尾數、姓名搭配都改用這裡的結果，全 App 說法一致。
+ * 1. 日主力量：天干各 1，地支本氣各 1、月支本氣 3，藏干中氣餘氣各 0.3；同五行（比劫）與生我（印）算幫身。
+ * 2. 幫身的力量不小於剋洩耗（占 50% 以上）算身強，不到 40% 算身弱，中間算中和。
+ *    1950–2010 年取 4032 個樣本盤：身強 32%、中和 15%、身弱 53%（比劫＋印只占五行中的兩種，所以身弱較多）。
+ * 3. 身弱喜印、比劫；身強時幫身主要來自印就喜財（財制印）、食傷為輔（食傷生財），
+ *    主要來自比劫就喜官殺（官殺制比劫）、財為輔（財生官殺）。輔助的五行要和主要的相生，不能互剋（例如官殺配食傷會互相抵消）；
+ *    中和取最弱的五行。另外冬天出生缺火、夏天出生缺水時，附上「調候」的提醒。
+ */
+export function yongShen(bazi) {
+  if (!bazi || !bazi.ok || !Array.isArray(bazi.pillars)) return null;
+  const dm = bazi.dayMaster.wx;
+  const weight = Object.fromEntries(WUXING.map((w) => [w, 0]));
+  for (const p of bazi.pillars.filter(Boolean)) {
+    if (p.label !== '日柱') weight[p.ganWx] += 1;
+    weight[p.zhiWx] += p.label === '月柱' ? MONTH_WEIGHT : 1;
+    for (const hg of p.hidden.slice(1)) weight[hg.wx] += SIDE_QI;
+  }
+  const round = (n) => Math.round(n * 100) / 100;
+  const bi = weight[dm];
+  const yin = weight[MOTHER[dm]];
+  const self = bi + yin;
+  const total = WUXING.reduce((a, w) => a + weight[w], 0);
+  const ratio = total ? self / total : 0.5;
+  const strength = ratio >= 0.5 ? '身強' : ratio < 0.4 ? '身弱' : '中和';
+  const monthZhi = bazi.pillars[1].zhi;
+  const monthWx = ZHI_WX[monthZhi];
+  const deLing = monthWx === dm || monthWx === MOTHER[dm];
+  const reasons = [`日主「${bazi.dayMaster.gan}${dm}」生在${monthZhi}月：月令屬${monthWx}，${deLing ? `${monthWx === dm ? '和日主同五行' : `${monthWx}生${dm}`}，算「得令」` : '不幫日主，算「失令」'}。`];
+  reasons.push(`幫身的力量（比劫＋印）占 ${Math.round(ratio * 100)}%：${strength}。`);
+  let primary;
+  let secondary;
+  let avoid;
+  if (strength === '身弱') {
+    primary = MOTHER[dm];
+    secondary = dm;
+    avoid = [OFFICER_OF[dm], WEALTH_OF[dm]];
+    reasons.push(`身弱需要生扶：取生你的「${primary}」（印）為主，同類的「${secondary}」（比劫）為輔。`);
+  } else if (strength === '身強') {
+    primary = yin > bi ? WEALTH_OF[dm] : OFFICER_OF[dm];
+    secondary = yin > bi ? CHILD[dm] : WEALTH_OF[dm];
+    avoid = [MOTHER[dm], dm];
+    reasons.push(yin > bi
+      ? `身強而且主要是印（生你的${MOTHER[dm]}）多：取「${primary}」（財）為主，財能制印，把多的能量變成成果；「${secondary}」（食傷）為輔，食傷生財。`
+      : `身強而且主要是比劫（同類的${dm}）多：取「${primary}」（官殺）為主，用規矩與目標約束過旺的自己；「${secondary}」（財）為輔，財生官殺。`);
+  } else {
+    const sorted = [...WUXING].sort((a, b) => weight[a] - weight[b]);
+    [primary, secondary] = sorted;
+    avoid = [sorted[4]];
+    reasons.push(`日主力量中和：取最弱的「${primary}」補平衡，其次是「${secondary}」。`);
+  }
+  let tiaohou = null;
+  const c = bazi.wuxing.withHidden;
+  if (['亥', '子', '丑'].includes(monthZhi) && c.火 <= 1) tiaohou = '冬天出生、八字偏寒：民間也重視用「火」調候（暖色、向陽、多運動），可以和喜用一起參考。';
+  if (['巳', '午', '未'].includes(monthZhi) && c.水 <= 1) tiaohou = '夏天出生、八字偏燥：民間也重視用「水」調候（冷色、親水、多喝水），可以和喜用一起參考。';
+  return {
+    strength,
+    ratio: round(ratio),
+    weight: Object.fromEntries(WUXING.map((w) => [w, round(weight[w])])),
+    primary,
+    secondary,
+    avoid,
+    roles: { primary: ROLE_NAME(dm, primary), secondary: ROLE_NAME(dm, secondary) },
+    reasons,
+    tiaohou,
+  };
 }
 
 /** 某個西元年的流年干支（以立春為界的那一年） */

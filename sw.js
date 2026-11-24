@@ -3,7 +3,7 @@
 // 發佈新版時 VERSION 要跟 js/version.js 的 APP_VER、version.json 一致（tests/pwa.test.js 會檢查），
 // 舊快取會在新版啟用時清除。
 
-const VERSION = '2026.11.24-7';
+const VERSION = '2026.11.24-8';
 
 const ASSETS = [
   './',
@@ -38,6 +38,12 @@ const ASSETS = [
   './js/core/reading.js',
   './js/core/reading-texts.js',
   './js/core/daily.js',
+  './js/core/blood.js',
+  './js/core/career.js',
+  './js/core/fengshui.js',
+  './js/core/iching.js',
+  './js/core/iching-texts.js',
+  './js/core/jiehuo.js',
   './js/core/date.js',
   './js/core/fortune.js',
   './js/core/natal.js',
@@ -66,6 +72,11 @@ const ASSETS = [
   './js/views/tarot.js',
   './js/views/today.js',
   './js/views/oracle.js',
+  './js/views/jiehuo.js',
+  './js/views/profile.js',
+  './js/views/tool-blood.js',
+  './js/views/tool-career.js',
+  './js/views/tool-fengshui.js',
   './js/views/lotto.js',
 ];
 

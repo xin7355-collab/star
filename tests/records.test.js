@@ -84,3 +84,9 @@ test('本名與多胞胎順序：只收中文 2～6 字、順序 0～5；舊備�
   assert.equal(sanitizeSettings({ twinMethod: 'travel' }).twinMethod, 'travel');
   assert.equal(sanitizeSettings({ twinMethod: 'x' }).twinMethod, 'sibling');
 });
+
+test('血型：只收 A、B、O、AB，其他（含小寫、Rh 寫法、物件）一律存成沒填', () => {
+  for (const t of ['A', 'B', 'O', 'AB']) assert.equal(sanitizePerson({ name: 'x', bloodType: t, raw }).bloodType, t);
+  for (const t of ['a', 'A+', 'O型', 'ab', '', null, 42, { t: 'A' }]) assert.equal(sanitizePerson({ name: 'x', bloodType: t, raw }).bloodType, '');
+  assert.equal(sanitizePerson({ name: '舊資料', raw }).bloodType, '');
+});

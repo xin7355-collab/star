@@ -232,7 +232,7 @@ test('名單：新增農曆生日的家人（不搶走「我」）、從名單�
 test('占卜：樂透選號（今日固定、隨機一組、機率表、存紀錄）', async ({ page }) => {
   await seed(page);
   await page.goto('/');
-  await oracle(page, '樂透選號');
+  await oracle(page, '樂透');
   const lv = page.locator('#oracle-lotto');
   await expect(lv.locator('ol.days li')).toHaveCount(7);
   const first = await lv.locator('.balls').getAttribute('aria-label');
@@ -329,7 +329,7 @@ test('隱私：所有請求都在同網域、沒有送出任何資料，網址�
     await tab(page, view);
     await page.waitForTimeout(300);
   }
-  await oracle(page, '樂透選號');
+  await oracle(page, '樂透');
   await expect(page.locator('#oracle-lotto .balls')).toBeVisible();
   await tab(page, 'destiny');
   const tool = page.getByRole('combobox', { name: '選擇命理工具' });
@@ -371,18 +371,95 @@ test('離線：載入過一次後，連不上網站也能開啟並計算', async
   errors = errors.filter((e) => !/version\.json/.test(e));
 });
 
+test('命盤：工作與方向、開運佈置（財庫、財位、九宮飛星、擺設）、血型', async ({ page }) => {
+  await seed(page, [{ ...ME, bloodType: 'O' }]);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  const tool = dv.getByRole('combobox', { name: '選擇命理工具' });
+  await tool.selectOption('career');
+  await expect(dv.getByRole('heading', { name: '最適合的工作性質' })).toBeVisible();
+  await expect(dv.locator('.trait .count').first()).toHaveText(/[2-9] 個系統/);
+  await expect(dv.locator('.year-card')).toHaveCount(3);
+  await expect(dv.locator('.year-card').first()).toContainText('2026');
+  await expect(dv.getByText(/大運 丁亥/)).toBeVisible();
+  await tool.selectOption('fengshui');
+  await expect(dv.getByText('怎麼改善：開運佈置重點')).toBeVisible();
+  await expect(dv.locator('.luoshu .ls-cell')).toHaveCount(9);
+  await expect(dv.locator('.ls-cell', { hasText: '五黃' })).toContainText('南');
+  await expect(dv.getByText(/你是坎卦（東四命）/)).toBeVisible();
+  await expect(dv.getByText(/「南」今年剛好是五黃、太歲所在/)).toBeVisible();
+  await expect(dv.getByText('養魚：不建議養魚')).toBeVisible();
+  await dv.locator('.seg label', { hasText: '左邊' }).click();
+  await expect(dv.getByText(/右手邊最裡面/).first()).toBeVisible();
+  await tool.selectOption('blood');
+  await expect(dv.getByRole('combobox', { name: '血型' })).toHaveValue('O');
+  await expect(dv.getByText(/個性：目標明確/)).toBeVisible();
+  await tool.selectOption('reading');
+  await expect(dv.locator('.sys.sys-血型').first()).toBeVisible();
+});
+
+test('占卜：解惑（選困擾、起卦、命盤、好日子、具體做法、存紀錄；問題文字不送出）', async ({ page }) => {
+  await seed(page);
+  const urls = [];
+  page.on('request', (r) => urls.push(r.url()));
+  await page.goto('/');
+  await oracle(page, '解惑');
+  const jv = page.locator('#oracle-jiehuo');
+  await jv.getByRole('combobox', { name: '困擾的類型' }).selectOption('health');
+  const q = '最近壓力很大睡不好怎麼辦';
+  await jv.getByRole('textbox', { name: '想問的事（可不填）' }).fill(q);
+  await jv.getByRole('button', { name: '起卦' }).click();
+  await expect(jv.getByText('本卦（現況）')).toBeVisible();
+  await expect(jv.locator('.verdict b')).toHaveText(/^(大吉|吉|小吉|小凶|凶)$/);
+  await expect(jv.locator('.hexa').first().locator('.yao')).toHaveCount(6);
+  await expect(jv.locator('.yao.moving')).toHaveCount(1);
+  await expect(jv.getByText('你的命盤怎麼看這件事')).toBeVisible();
+  await expect(jv.getByText('接下來 30 天適合處理這件事的日子')).toBeVisible();
+  await expect(jv.getByText(/1925 安心專線/)).toBeVisible();
+  await expect(jv).not.toContainText('[object Object]');
+  // 數字起卦：8、16 都是坤、6 是上爻
+  await jv.locator('.seg label', { hasText: '自己選三個數字' }).click();
+  await jv.getByRole('spinbutton', { name: '第 1 個數字' }).fill('8');
+  await jv.getByRole('spinbutton', { name: '第 2 個數字' }).fill('16');
+  await jv.getByRole('spinbutton', { name: '第 3 個數字' }).fill('6');
+  await jv.getByRole('button', { name: '起卦' }).click();
+  await expect(jv.locator('.card-head h2').nth(1)).toContainText('坤為地');
+  await jv.getByRole('button', { name: '存到紀錄' }).click();
+  await tab(page, 'me');
+  await page.locator('#view-me summary', { hasText: '查詢紀錄（1）' }).click();
+  await expect(page.locator('#view-me').getByText(/健康、壓力、睡不好・坤為地/)).toBeVisible();
+  // 問題文字只存在手機：只向自己的網站拿程式檔，網址裡沒有問題內容
+  expect(urls.filter((u) => !u.startsWith('http://127.0.0.1:4173/'))).toEqual([]);
+  expect(urls.some((u) => decodeURIComponent(u).includes(q))).toBe(false);
+});
+
+test('今日：遇到困難直接到解惑，幸運小物直接到財位與開運擺設', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  const tv = page.locator('#view-today');
+  await tv.getByRole('button', { name: '遇到困難？問一卦' }).click();
+  await expect(page.locator('#oracle-jiehuo')).toBeVisible();
+  await tab(page, 'today');
+  await tv.getByRole('button', { name: '財位與開運擺設' }).click();
+  await expect(page.getByRole('combobox', { name: '選擇命理工具' })).toHaveValue('fengshui');
+  await expect(page.getByText('怎麼改善：開運佈置重點')).toBeVisible();
+});
+
 test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、沒有「null／undefined」字樣', async ({ page }) => {
   await seed(page);
   await page.setViewportSize({ width: 320, height: 640 });
   await page.goto('/');
-  const stops = [['today'], ['fortune'], ['destiny'], ['destiny', 'name'], ['oracle', '塔羅'], ['oracle', '樂透選號'], ['oracle', '配對'], ['me']];
+  const stops = [['today'], ['fortune'], ['destiny'], ['destiny', 'name'], ['destiny', 'career'], ['destiny', 'fengshui'], ['destiny', 'blood'], ['oracle', '解惑'], ['oracle', '塔羅'], ['oracle', '樂透'], ['oracle', '配對'], ['me']];
   for (const [view, sub] of stops) {
     if (view === 'oracle') await oracle(page, sub);
     else await tab(page, view);
     if (view === 'destiny' && sub) await page.getByRole('combobox', { name: '選擇命理工具' }).selectOption(sub);
+    // 解惑要起過卦，結果（卦象、好日子）才會出現
+    if (sub === '解惑') await page.locator('#oracle-jiehuo').getByRole('button', { name: '起卦' }).click();
     await page.waitForTimeout(700);
     const visible = await page.locator(`#view-${view}`).innerText();
-    expect(visible, `${view}${sub ? `／${sub}` : ''} 出現程式值`).not.toMatch(/\bnull\b|\bundefined\b|NaN/);
+    expect(visible, `${view}${sub ? `／${sub}` : ''} 出現程式值`).not.toMatch(/\bnull\b|\bundefined\b|NaN|\[object /);
     const { overflow, culprits } = await page.evaluate(() => {
       const vw = document.documentElement.clientWidth;
       // 列出超出右邊界最多的元素：CI 的 WebKit 才會溢出時，靠這份清單就知道要修哪裡

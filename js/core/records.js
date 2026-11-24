@@ -4,7 +4,7 @@
 
 export const SCHEMA = 1;
 export const LIMITS = { people: 50, history: 300, name: 20, title: 60, summary: 400, detailBytes: 4000 };
-export const HISTORY_TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu', 'name', 'reading', 'lottery'];
+export const HISTORY_TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu', 'name', 'reading', 'lottery', 'blood', 'career', 'fengshui', 'jiehuo'];
 
 const ID_RE = /^[a-z]{1,2}-[0-9a-f]{8,32}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -73,6 +73,8 @@ export function sanitizePerson(p) {
     fullName: typeof p.fullName === 'string' && /^\p{Script=Han}{2,6}$/u.test(p.fullName.trim()) ? p.fullName.trim() : '',
     // 多胞胎出生順序：0＝不是多胞胎或沒填，1～5＝第幾個出生
     birthOrder: int(p.birthOrder, 0, 5) ?? 0,
+    // 血型：只收 A、B、O、AB，沒填是空字串
+    bloodType: ['A', 'B', 'O', 'AB'].includes(p.bloodType) ? p.bloodType : '',
     raw,
     createdAt: isoTime(p.createdAt) || new Date().toISOString(),
   };
