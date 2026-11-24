@@ -247,7 +247,21 @@ test('版面：320px 寬的手機，五個分頁都沒有水平捲動', async ({
   for (const view of ['me', 'fortune', 'destiny', 'match', 'tarot']) {
     await page.locator(`.tabbar [data-view="${view}"]`).click();
     await page.waitForTimeout(400);
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(overflow, `${view} 不應水平捲動`).toBeLessThanOrEqual(0);
+    const { overflow, culprits } = await page.evaluate(() => {
+      const vw = document.documentElement.clientWidth;
+      // 列出超出右邊界最多的元素：CI 的 WebKit 才會溢出時，靠這份清單就知道要修哪裡
+      const culprits = [...document.querySelectorAll('body *')]
+        .map((el) => ({ el, r: el.getBoundingClientRect() }))
+        .filter(({ el, r }) => r.width > 0 && r.right > vw + 0.5 && !el.closest('[hidden]'))
+        .sort((a, b) => b.r.right - a.r.right)
+        .slice(0, 6)
+        .map(({ el, r }) => {
+          const cs = getComputedStyle(el);
+          const cls = typeof el.className === 'string' && el.className ? `.${el.className.trim().split(/\s+/).join('.')}` : '';
+          return `${el.tagName.toLowerCase()}${cls}「${(el.textContent || '').trim().slice(0, 16)}」left ${Math.round(r.left)} width ${Math.round(r.width)} right ${Math.round(r.right)}（position ${cs.position}、min-width ${cs.minWidth}、white-space ${cs.whiteSpace}）`;
+        });
+      return { overflow: document.documentElement.scrollWidth - vw, culprits };
+    });
+    expect(overflow, `${view} 不應水平捲動；超出的元素：${culprits.join('；') || '無'}`).toBeLessThanOrEqual(0);
   }
 });
