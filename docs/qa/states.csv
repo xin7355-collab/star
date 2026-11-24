@@ -41,7 +41,7 @@ AI 短評卡,data_view,populated,DONE,手動 E2E（模擬 Worker 回應，先 20
 塔羅抽牌,action,disabled,NA,,沒有停用狀態
 塔羅抽牌,action,busy,NA,,同步抽牌
 塔羅抽牌,action,failure,NA,,只用手機內建加密亂數，沒有外部呼叫
-整頁,page,narrow_320,DONE,e2e:版面：320px 寬的手機，五個分頁都沒有水平捲動,
+整頁,page,narrow_320,DONE,e2e:版面：320px 寬的手機，五個分頁都沒有水平捲動,CI 上 Chromium 與 WebKit 都跑
 整頁,page,wide_1440,DONE,npm run qa:design（wide-* 6 張 1440 快照 CLEAN）,
 整頁,page,long_content,DONE,npm run qa:design（long-* 12 張 320／390 快照 CLEAN）,名單 50 人、紀錄 300 筆、名字 20 字無空格英文
 運勢卡,data_view,long_content,DONE,npm run qa:design（long-fortune：今年 12 個月與 AI 短評 200 字）,
