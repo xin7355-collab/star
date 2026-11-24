@@ -70,7 +70,7 @@ export function mountMatch(root, ctx) {
       const nameInput = h('input', { type: 'text', maxlength: 20, value: p.name, 'aria-label': `第 ${i + 1} 位名字`, oninput: (e) => { p.name = e.target.value; } });
       const select = h('select', { 'aria-label': `第 ${i + 1} 位星座`, onchange: (e) => { p.sunSign = parseInt(e.target.value, 10); } }, SIGNS.map((s, idx) => h('option', { value: String(idx), text: `${s.glyph} ${s.name}（${s.range}）` })));
       select.value = String(p.sunSign);
-      return h('div', { class: 'card person' }, personHeader(i, quickPeople), h('div', { class: 'row2' }, nameInput, select));
+      return h('div', { class: 'card person' }, personHeader(i, quickPeople), h('div', { class: 'row2 name-sign' }, nameInput, select));
     });
     return h(
       'div',

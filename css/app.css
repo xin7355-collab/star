@@ -92,6 +92,11 @@ input[type="text"], input[type="time"], select, textarea {
   appearance: none;
 }
 select {
+  /* 選中的文字比選單寬時（配對頁「♌ 獅子座（7/23–8/22）」），WebKit 雖然畫面上裁掉，版面仍把文字算進可捲動範圍，
+     320 寬會水平捲動 57px（CI 的 WebKit 實測；Chromium 不會）。裁掉並顯示刪節號 */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
   background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
   background-size: 5px 5px;
@@ -102,6 +107,8 @@ textarea { resize: vertical; margin-top: 10px; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .row3 { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+/* 快速配對：名字通常很短，星座選單需要比較寬，320 寬時星座名稱才不會被截成「獅子…」 */
+.row2.name-sign { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
 .time-section { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; }
 .time-section[hidden] { display: none; }
 .check { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 8px 0; cursor: pointer; }

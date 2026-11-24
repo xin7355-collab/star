@@ -260,7 +260,41 @@ test('版面：320px 寬的手機，五個分頁都沒有水平捲動', async ({
           const cls = typeof el.className === 'string' && el.className ? `.${el.className.trim().split(/\s+/).join('.')}` : '';
           return `${el.tagName.toLowerCase()}${cls}「${(el.textContent || '').trim().slice(0, 16)}」left ${Math.round(r.left)} width ${Math.round(r.width)} right ${Math.round(r.right)}（position ${cs.position}、min-width ${cs.minWidth}、white-space ${cs.whiteSpace}）`;
         });
-      return { overflow: document.documentElement.scrollWidth - vw, culprits };
+      const overflowNow = () => document.documentElement.scrollWidth - vw;
+      const overflow = overflowNow();
+      // 外框都沒超出卻還能捲動時（文字、偽元素、表單元件內部溢出）：逐層「只留一個子元素、其他先藏起來」，
+      // 留下它仍會捲動就往裡面找，最後停在自己造成溢出的元素（同時有好幾個也找得到其中一個）
+      const path = [];
+      if (overflow > 0) {
+        const pinned = []; // 往下找時把其他分支先藏著，免得別的分支（例如另一張一樣的卡片）干擾判斷；最後全部還原
+        const hide = (els) => els.map((el) => { const keep = el.style.display; el.style.display = 'none'; return [el, keep]; });
+        const restore = (list) => list.forEach(([el, keep]) => { el.style.display = keep; });
+        let node = document.body;
+        for (let depth = 0; depth < 30; depth += 1) {
+          const kids = [...node.children].filter((k) => getComputedStyle(k).display !== 'none');
+          const all = hide(kids);
+          const selfCause = overflowNow() > 0;
+          restore(all);
+          if (selfCause) {
+            if (path.length) path.push('（子元素全藏仍會捲動：是它自己的文字、::before／::after 或表單元件內部）');
+            break;
+          }
+          const hit = kids.find((k) => {
+            const others = hide(kids.filter((o) => o !== k));
+            const still = overflowNow() > 0;
+            restore(others);
+            return still;
+          });
+          if (!hit) break;
+          pinned.push(...hide(kids.filter((o) => o !== hit)));
+          const r = hit.getBoundingClientRect();
+          const cls = typeof hit.className === 'string' && hit.className ? `.${hit.className.trim().split(/\s+/).join('.')}` : '';
+          path.push(`${hit.tagName.toLowerCase()}${cls}（left ${Math.round(r.left)}、width ${Math.round(r.width)}、scrollWidth ${hit.scrollWidth}、overflow ${getComputedStyle(hit).overflowX}）`);
+          node = hit;
+        }
+        restore(pinned.reverse());
+      }
+      return { overflow, culprits: culprits.length ? culprits : path.length ? [`只留這一路就會捲動：${path.join(' > ')}`] : [] };
     });
     expect(overflow, `${view} 不應水平捲動；超出的元素：${culprits.join('；') || '無'}`).toBeLessThanOrEqual(0);
   }
