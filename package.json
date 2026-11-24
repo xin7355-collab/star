@@ -5,7 +5,10 @@
   "description": "星座手帳：手機優先、離線計算的星座網頁 App",
   "scripts": {
     "test": "node --test \"tests/*.test.js\"",
-    "build:vendor": "node scripts/build-vendor.mjs"
+    "build:vendor": "node scripts/build-vendor.mjs",
+    "build:worker": "node scripts/build-worker.mjs",
+    "build": "npm run build:vendor && npm run build:worker",
+    "test:e2e": "playwright test --trace off"
   },
   "engines": {
     "node": ">=20"

@@ -11,6 +11,12 @@
 i18next 以 `overrides` 從 iztro 預設的 23.x 升到 26.7.2，修掉 npm audit 回報的 GHSA-6jcc-5g8w-32mx；
 升級前後 6 組紫微命盤輸出逐字相同。
 
+## 來自 skl 技能庫（同一位擁有者）
+
+| 檔案 | 來源 |
+|---|---|
+| `worker/model_router.cjs`、`worker/router_cases.json` | skl `xin-toolkit/skills/ai-model-router/assets/`（原封不動複製；更新時從 skl 重新複製） |
+
 ## 由工具產生的資料
 
 | 檔案 | 產生方式 | 授權 |

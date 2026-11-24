@@ -1,33 +1,35 @@
-// 星座手帳 AI 短評代理（Cloudflare Workers，單一檔案，可直接貼到 Cloudflare 網頁後台）
+// 星座手帳 AI 短評代理（Cloudflare Workers）。
+// 原始碼在這裡；要貼到 Cloudflare 後台的是打包好的單一檔案 worker/dist/star-ai-worker.js（npm run build:worker）。
 //
 // 設計重點：
-// 1. API Key 只存在 Cloudflare Secret（ANTHROPIC_API_KEY），前端與 GitHub 都看不到。
-// 2. 內容只依「期間」產生、12 星座一次產生，並以「台灣日期」為快取鍵存進 KV：
-//    不論多少人使用，每天最多約 1 次 AI 呼叫（週、月各再 1 次），費用有上限。
+// 1. API Key 只存在 Cloudflare Secret（ANTHROPIC_API_KEY），前端與 GitHub 都看不到；金鑰只走 HTTP 標頭。
+// 2. 不寫死模型名稱：用 skl 的 ai-model-router，只指定等級 smart（寫一段像樣的文字）；
+//    模型下架自動換、回覆不是合格 JSON 就自動升級到 best；一次最多送 6 個請求，避免費用失控。
+// 3. 內容只依「期間」產生、12 星座一次產生，並以「台灣日期」為快取鍵存進 KV：
+//    不論多少人使用，每天約 1 次 AI 呼叫（週、月、年各再 1 次），費用有上限。
 //    （修正 mastra-fortune-telling 用 UTC 日期，導致台灣早上 8 點前拿到昨天的問題）
-// 3. 同一份內容產生中時，其他請求回 202 請前端稍後再試；失敗後冷卻 60 秒，避免被反覆觸發。
-// 4. 呼叫 AI 失敗（429／5xx／網路）時指數退避重試。
+// 4. 同一份內容產生中時，其他請求回 202 請前端稍後再試；失敗後冷卻 60 秒，避免被反覆觸發。
 // 5. 只接受 ALLOWED_ORIGINS 列出的網站呼叫（CORS）。
 //
 // 需要的設定（Cloudflare 後台 → Workers → 你的 Worker → Settings）：
-//   Secret   ANTHROPIC_API_KEY  你的 Anthropic API Key
+//   Secret   ANTHROPIC_API_KEY  你的 Anthropic API Key（可用逗號放多把）
 //   KV 綁定  FORTUNE_KV         一個 KV namespace
 //   變數     ALLOWED_ORIGINS    例：https://你的帳號.github.io （多個用逗號分隔）
-//   變數     MODEL（選填）      預設 claude-opus-5-5
+//   變數     MODEL（選填）      指定優先使用的模型；不填就自動挑最新的 Sonnet 等級
 // 排程（選填）：Triggers → Cron → `5 16 * * *`（台灣 00:05）預先產生當天內容。
-//
-// 註：因為要能在手機上直接貼進 Cloudflare 後台（無法用 npm 打包 SDK），這裡用 REST API 呼叫。
 
+import routerModule from './model_router.cjs';
+
+const { ModelRouter } = routerModule;
 const TZ_OFFSET_HOURS = 8; // 台灣自 1980 年起固定 UTC+8，無日光節約
 const SIGNS = [
   ['aries', '牡羊座'], ['taurus', '金牛座'], ['gemini', '雙子座'], ['cancer', '巨蟹座'],
   ['leo', '獅子座'], ['virgo', '處女座'], ['libra', '天秤座'], ['scorpio', '天蠍座'],
   ['sagittarius', '射手座'], ['capricorn', '摩羯座'], ['aquarius', '水瓶座'], ['pisces', '雙魚座'],
 ];
-const PERIODS = ['today', 'tomorrow', 'week', 'month'];
-const DEFAULT_MODEL = 'claude-opus-5-5';
-const API_URL = 'https://api.anthropic.com/v1/messages';
-const PROMPT_VERSION = 'v1';
+const PERIODS = ['today', 'tomorrow', 'week', 'month', 'year'];
+const PROMPT_VERSION = 'v2';
+const MAX_AI_CALLS = 6;
 
 // ── 台灣日期工具 ─────────────────────────────────────────────
 const DAY_MS = 86400000;
@@ -59,8 +61,8 @@ function isoWeek({ y, m, d }) {
 }
 
 /**
- * 期間 → 快取鍵、日期範圍、到期時間
- * @returns {{key:string, label:string, start:{y,m,d}, end:{y,m,d}, expiresAt:number, validUntil:number}}
+ * 期間 → 快取鍵、說明文字、到期時間
+ * @returns {{key:string, label:string, expiresAt:number, validUntil:number}}
  */
 export function periodInfo(period, nowMs) {
   const today = taipeiDate(nowMs);
@@ -70,8 +72,6 @@ export function periodInfo(period, nowMs) {
     return {
       key: `daily:${iso(day)}`,
       label: `${day.y} 年 ${day.m} 月 ${day.d} 日`,
-      start: day,
-      end: day,
       expiresAt: taipeiMidnightUtc(addDays(day, 1)) + 3600000,
       validUntil: nextMidnight,
     };
@@ -81,13 +81,16 @@ export function periodInfo(period, nowMs) {
     const sunday = addDays(monday, 6);
     const w = isoWeek(today);
     const end = taipeiMidnightUtc(addDays(sunday, 1));
-    return { key: `weekly:${w.year}-W${pad2(w.week)}`, label: `${monday.m}/${monday.d}–${sunday.m}/${sunday.d} 這一週`, start: monday, end: sunday, expiresAt: end + 3600000, validUntil: end };
+    return { key: `weekly:${w.year}-W${pad2(w.week)}`, label: `${monday.m}/${monday.d}–${sunday.m}/${sunday.d} 這一週`, expiresAt: end + 3600000, validUntil: end };
   }
   if (period === 'month') {
-    const first = { y: today.y, m: today.m, d: 1 };
     const nextFirst = today.m === 12 ? { y: today.y + 1, m: 1, d: 1 } : { y: today.y, m: today.m + 1, d: 1 };
     const end = taipeiMidnightUtc(nextFirst);
-    return { key: `monthly:${today.y}-${pad2(today.m)}`, label: `${today.y} 年 ${today.m} 月`, start: first, end: addDays(nextFirst, -1), expiresAt: end + 3600000, validUntil: end };
+    return { key: `monthly:${today.y}-${pad2(today.m)}`, label: `${today.y} 年 ${today.m} 月`, expiresAt: end + 3600000, validUntil: end };
+  }
+  if (period === 'year') {
+    const end = taipeiMidnightUtc({ y: today.y + 1, m: 1, d: 1 });
+    return { key: `yearly:${today.y}`, label: `${today.y} 年`, expiresAt: end + 3600000, validUntil: end };
   }
   throw new Error('invalid period');
 }
@@ -111,87 +114,31 @@ function json(status, body, origin, extra = {}) {
   });
 }
 
-// ── AI 呼叫 ──────────────────────────────────────────────────
-const SCHEMA = {
-  type: 'object',
-  properties: Object.fromEntries(SIGNS.map(([id]) => [id, { type: 'string' }])),
-  required: SIGNS.map(([id]) => id),
-  additionalProperties: false,
-};
-
+// ── AI 呼叫（ai-model-router） ───────────────────────────────
 const SYSTEM_PROMPT = [
   '你是台灣星座生活專欄的作者，替一個娛樂性質的星座 App 撰寫十二星座的短評。',
   '讀者是台灣的一般使用者，請使用繁體中文與台灣慣用語（例如：牡羊座、捷運、上班族、資訊、品質）。',
-  '每個星座寫 50 到 90 個字，語氣溫暖、具體、可行動，例如給一個今天可以做的小建議。',
+  '每個星座寫 50 到 90 個字，語氣溫暖、具體、可行動，例如給一個可以馬上做的小建議。',
   '這是娛樂內容：不要做醫療、投資、法律方面的具體建議或保證，不要製造恐懼，不要提及其他 App 或品牌。',
   '每個星座的內容要彼此不同，不要重複同樣的句型。',
+  '只輸出一個 JSON 物件，不要加任何說明、標題或 Markdown 程式碼框。',
 ].join('\n');
 
 function periodPrompt(period, info) {
-  const scope = period === 'week' ? `一週（${info.label}）` : period === 'month' ? `一個月（${info.label}）` : `一天（${info.label}）`;
-  return `請為十二星座分別撰寫「${scope}」的生活短評。依 JSON 格式輸出，鍵為星座英文代號：${SIGNS.map(([id, name]) => `${id}=${name}`).join('、')}。`;
+  const scope = { week: '一週', month: '一個月', year: '一整年' }[period] || '一天';
+  const keys = SIGNS.map(([id, name]) => `"${id}"（${name}）`).join('、');
+  return `請為十二星座分別撰寫「${scope}（${info.label}）」的生活短評。\n輸出格式：{"aries":"……","taurus":"……", …}，鍵必須剛好是這 12 個：${keys}，值是短評文字。`;
 }
 
-function supportsServerFallback(model) {
-  return /^claude-(opus-5|fable-5|sonnet-5-5|mythos-5)/.test(model);
-}
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-/** 呼叫 Claude API，429／5xx／529／網路錯誤時指數退避重試 */
-export async function callClaude(env, period, info, { fetchImpl = fetch, maxAttempts = 3, baseDelayMs = 2000 } = {}) {
-  if (!env.ANTHROPIC_API_KEY) throw new Error('missing ANTHROPIC_API_KEY');
-  const model = env.MODEL || DEFAULT_MODEL;
-  const body = {
-    model,
-    max_tokens: 16000,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: periodPrompt(period, info) }],
-    output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-  };
-  const headers = {
-    'content-type': 'application/json',
-    'x-api-key': env.ANTHROPIC_API_KEY,
-    'anthropic-version': '2026-10-21',
-  };
-  if (supportsServerFallback(model)) {
-    // 遭安全分類器婉拒時，由伺服器自動改用建議的備援模型重跑
-    body.fallbacks = 'default';
-    headers['anthropic-beta'] = 'server-side-fallback-2026-07-01';
-  }
-
-  let lastError = null;
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    let res = null;
-    try {
-      res = await fetchImpl(API_URL, { method: 'POST', headers, body: JSON.stringify(body) });
-    } catch (err) {
-      lastError = new Error(`network: ${err.message}`);
-    }
-    if (res && res.ok) {
-      const data = await res.json();
-      return parseResult(data);
-    }
-    if (res) {
-      const retryable = res.status === 429 || res.status >= 500;
-      lastError = new Error(`anthropic http ${res.status}`);
-      if (!retryable) throw lastError; // 400／401／403 等設定錯誤不重試
-    }
-    if (attempt < maxAttempts - 1) {
-      const ra = res ? Number(res.headers.get('retry-after')) : NaN;
-      const wait = Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 20000) : baseDelayMs * 2 ** attempt;
-      await sleep(wait + Math.random() * wait * 0.25);
-    }
-  }
-  throw lastError || new Error('anthropic failed');
-}
-
-export function parseResult(data) {
-  if (!data || !Array.isArray(data.content)) throw new Error('bad response');
-  if (data.stop_reason === 'refusal') throw new Error('refused');
-  if (data.stop_reason === 'max_tokens') throw new Error('truncated');
-  const text = data.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-  const parsed = JSON.parse(text);
+/** 從 AI 回覆取出 12 個星座的短評；格式不合格就丟錯（router 會因此升級等級重試） */
+export function parseSigns(text) {
+  let s = String(text || '').trim();
+  const fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(s);
+  if (fence) s = fence[1];
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start < 0 || end <= start) throw new Error('no json');
+  const parsed = JSON.parse(s.slice(start, end + 1));
   const signs = {};
   for (const [id] of SIGNS) {
     const v = parsed[id];
@@ -199,7 +146,37 @@ export function parseResult(data) {
     // 去除控制字元、限制長度（前端也只用 textContent 顯示）
     signs[id] = v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 200);
   }
-  return { signs, model: data.model || null };
+  return signs;
+}
+
+export async function callClaude(env, period, info, { fetchImpl, sleep } = {}) {
+  const keys = String(env.ANTHROPIC_API_KEY || '').split(',').map((k) => k.trim()).filter(Boolean);
+  if (!keys.length) throw new Error('missing ANTHROPIC_API_KEY');
+  const router = new ModelRouter('anthropic', {
+    keys,
+    fetch: fetchImpl,
+    sleep,
+    override: env.MODEL ? { smart: String(env.MODEL) } : undefined,
+    maxCalls: MAX_AI_CALLS,
+    timeoutMs: 120000,
+    log: (m) => console.warn(m),
+  });
+  const text = await router.chat(
+    'smart',
+    [{ role: 'system', content: SYSTEM_PROMPT }, { role: 'user', content: periodPrompt(period, info) }],
+    {
+      maxTokens: 16000,
+      validate: (t) => {
+        try {
+          parseSigns(t);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    },
+  );
+  return { signs: parseSigns(text) };
 }
 
 // ── 產生並快取 ───────────────────────────────────────────────
@@ -216,13 +193,13 @@ async function getOrGenerate(env, period, nowMs, options = {}) {
 
   await env.FORTUNE_KV.put(lockKey, '1', { expirationTtl: 120 });
   try {
-    const { signs, model } = await callClaude(env, period, info, options);
-    const record = { key: info.key, generatedAt: new Date(nowMs).toISOString(), model, signs };
+    const { signs } = await callClaude(env, period, info, options);
+    const record = { key: info.key, generatedAt: new Date(nowMs).toISOString(), signs };
     const expiration = Math.floor(info.expiresAt / 1000);
     await env.FORTUNE_KV.put(dataKey, JSON.stringify(record), { expiration: Math.max(expiration, Math.floor(nowMs / 1000) + 120) });
     return { status: 200, body: { ...record, period, validUntil: new Date(info.validUntil).toISOString() } };
   } catch (err) {
-    console.error('generate failed', info.key, err.message); // 只記在 Cloudflare 日誌，不回傳細節
+    console.error('generate failed', info.key, err && err.message); // 只記在 Cloudflare 日誌（router 的訊息不含金鑰）
     await env.FORTUNE_KV.put(failKey, '1', { expirationTtl: 60 });
     return { status: 503, body: { error: 'temporarily unavailable' }, retryAfter: 60 };
   } finally {
@@ -246,7 +223,7 @@ export async function handleRequest(request, env, nowMs = Date.now(), options = 
   if (!originOk) return json(403, { error: 'origin not allowed' }, null);
 
   const period = url.searchParams.get('period');
-  if (!PERIODS.includes(period)) return json(400, { error: 'period must be today, tomorrow, week or month' }, corsOrigin);
+  if (!PERIODS.includes(period)) return json(400, { error: 'period must be today, tomorrow, week, month or year' }, corsOrigin);
   if (!env.FORTUNE_KV) return json(500, { error: 'KV not configured' }, corsOrigin);
 
   const r = await getOrGenerate(env, period, nowMs, options);
@@ -264,7 +241,7 @@ export default {
     }
   },
   // 排程：依序預先產生（一次一個，避免同時大量呼叫）
-  async scheduled(event, env, ctx) {
+  async scheduled(event, env) {
     const now = Date.now();
     for (const period of PERIODS) {
       try {
