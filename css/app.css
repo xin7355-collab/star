@@ -265,7 +265,7 @@ ol.tarot-list li.rev { border-style: dashed; }
 /* ── 底部分頁 */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   height: calc(var(--tabbar-h) + var(--safe-b));
   padding-bottom: var(--safe-b);
   background: rgba(17, 24, 51, 0.96);
@@ -278,6 +278,7 @@ ol.tarot-list li.rev { border-style: dashed; }
   background: none; border: 0; color: var(--muted); font-size: 12px; font-family: inherit; cursor: pointer;
 }
 .tabbar .tab-ico { font-size: 20px; line-height: 1; }
+.tabbar .tab-text { font-size: 17px; font-weight: 700; }
 .tabbar button[aria-current="page"] { color: var(--accent); font-weight: 700; }
 
 /* ── 分享面板與提示 */
@@ -307,3 +308,101 @@ body[data-view="fortune"] .toast { bottom: calc(var(--tabbar-h) + var(--period-h
 @media (prefers-reduced-motion: reduce) {
   .bar-fill { transition: none; }
 }
+
+/* ── 共用小元件 */
+.small { font-size: 13px; }
+.field-label { font-size: 14px; color: var(--muted); display: block; margin: 8px 0 4px; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.badge.danger { background: #6a2333; }
+details.more.first { margin-top: 0; border-top: 0; padding-top: 0; }
+.controls .row2 { align-items: end; }
+
+/* ── 我的：切換、名單、紀錄 */
+.person-switch { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.person-switch select { flex: 1; }
+ul.people { list-style: none; padding: 0; margin: 4px 0; }
+ul.people li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); flex-wrap: wrap; }
+ul.people li.active .people-main b { color: var(--accent); }
+.people-main { min-width: 0; flex: 1 1 60%; }
+.people-main .badge { margin-left: 6px; }
+.people-actions { display: flex; gap: 4px; align-items: center; }
+ul.history { list-style: none; padding: 0; margin: 4px 0; }
+ul.history li { border-bottom: 1px solid rgba(255, 255, 255, 0.06); padding: 4px 0; }
+ul.history summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.import-box { border: 1px dashed var(--line); border-radius: 12px; padding: 8px 12px; margin-top: 8px; }
+
+/* ── 農民曆 */
+.almanac-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px; }
+.festival { color: var(--mid); margin: 4px 0; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.chip-label { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; flex: none; }
+.chip-row.yi .chip-label { background: #1f5c46; }
+.chip-row.ji .chip-label { background: #6a2333; }
+.chip { background: var(--bg2); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 14px; }
+
+/* ── 八字 */
+table.pillars th, table.pillars td { text-align: center; white-space: normal; }
+table.pillars tbody th { text-align: left; color: var(--muted); font-weight: 500; font-size: 13px; }
+table.pillars tr.big td { font-size: 26px; font-weight: 800; }
+table.pillars tr.small td { font-size: 13px; color: var(--muted); }
+.wx-wood { color: #6fd08c; }
+.wx-fire { color: #ff7b6b; }
+.wx-earth { color: #e3b35b; }
+.wx-metal { color: #d9dde8; }
+.wx-water { color: #6fb6ff; }
+.wx-row { display: grid; grid-template-columns: 24px 1fr 20px auto; align-items: center; gap: 8px; padding: 3px 0; }
+.wx-row b { color: var(--text); text-align: right; }
+ol.dayun, ol.liunian { list-style: none; padding: 0; margin: 6px 0; }
+ol.dayun li { padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+ol.dayun li.current { color: var(--accent); }
+ol.liunian li { padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.ln-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.taisui li.mine { color: var(--mid); }
+blockquote.poem { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var(--accent2); background: var(--bg2); border-radius: 0 12px 12px 0; line-height: 1.9; }
+
+/* ── 紫微命盤（4×4，外圈 12 宮、中間 2×2 放基本資料） */
+.ziwei-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, auto); gap: 3px; margin: 8px 0; }
+.palace {
+  min-width: 0; min-height: 96px; padding: 4px; text-align: left;
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--bg2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+  font-family: inherit; font-size: 12px; line-height: 1.35; cursor: pointer;
+}
+.palace.soul { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.palace.decadal { background: #1d2a55; }
+.palace.yearly { outline: 2px dashed var(--mid); outline-offset: -3px; }
+.pal-name { display: flex; justify-content: space-between; align-items: center; }
+.pal-name b { font-size: 12px; }
+.pal-name .tag { font-size: 10px; background: var(--accent2); color: #0b1020; border-radius: 4px; padding: 0 3px; }
+.pal-stars .major { display: flex; gap: 2px; align-items: center; font-weight: 600; white-space: nowrap; }
+.pal-minor { color: var(--muted); font-size: 11px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.pal-foot { margin-top: auto; display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
+.palace-center { grid-row: 2 / 4; grid-column: 2 / 4; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; text-align: center; font-size: 12px; padding: 6px; border: 1px dashed var(--line); border-radius: 8px; }
+.palace-center b { font-size: 16px; }
+.mg { display: inline-block; font-size: 10px; line-height: 1.4; padding: 0 3px; border-radius: 4px; color: #0b1020; font-weight: 700; }
+.mg-lu { background: var(--good); }
+.mg-quan { background: var(--accent2); }
+.mg-ke { background: var(--accent); }
+.mg-ji { background: var(--poor); }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--muted); }
+.legend-box { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
+.legend-box.decadal { background: #1d2a55; border: 1px solid var(--line); }
+.legend-box.yearly { border: 2px dashed var(--mid); }
+.palace-detail { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+@media (max-width: 359px) {
+  .pal-minor { display: none; }
+  .palace { min-height: 84px; font-size: 11px; }
+}
+
+/* ── 瑪雅、生命靈數 */
+.maya-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 8px 0; }
+.maya-cell { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
+.maya-cell.wide { grid-column: 1 / -1; }
+.maya-value { font-size: 30px; font-weight: 800; color: var(--accent); line-height: 1.2; }
+table.compare tr.same td, table.compare tr.same th { background: rgba(143, 179, 255, 0.12); }
+.nine-grid { display: grid; grid-template-columns: repeat(3, 64px); gap: 8px; justify-content: center; margin: 8px 0; }
+.nine-cell { width: 64px; height: 64px; border-radius: 50%; border: 1px dashed var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); }
+.nine-cell b { font-size: 22px; }
+.nine-cell.on { border: 2px solid var(--accent); color: var(--text); background: rgba(143, 179, 255, 0.12); }
+.nine-cell small { font-size: 11px; }
+.score-ring b { font-size: 24px; }

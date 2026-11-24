@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1020">
   <meta name="color-scheme" content="dark">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="description" content="手機上離線計算的星座手帳：本命星盤、每日運勢、星座配對、塔羅抽牌。">
+  <meta name="description" content="手機上離線計算的星座手帳：星盤、運勢、八字、紫微、流年、農民曆、配對、塔羅。">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -26,14 +26,16 @@
   <main id="main">
     <section id="view-me" class="view" aria-label="我的星盤"></section>
     <section id="view-fortune" class="view" aria-label="運勢" hidden></section>
+    <section id="view-destiny" class="view" aria-label="命理" hidden></section>
     <section id="view-match" class="view" aria-label="配對" hidden></section>
     <section id="view-tarot" class="view" aria-label="塔羅" hidden></section>
-    <p class="footnote">星座內容僅供娛樂參考。行星位置以 astronomy-engine 在手機上計算，生日不會上傳。</p>
+    <p class="footnote">命理與星座內容僅供娛樂參考。所有計算都在手機上完成，名單與紀錄只存在這支手機。</p>
   </main>
 
   <nav class="tabbar" aria-label="主選單">
     <button type="button" data-view="me"><span class="tab-ico" aria-hidden="true">☉</span><span>我的</span></button>
     <button type="button" data-view="fortune"><span class="tab-ico" aria-hidden="true">✦</span><span>運勢</span></button>
+    <button type="button" data-view="destiny"><span class="tab-ico tab-text" aria-hidden="true">命</span><span>命理</span></button>
     <button type="button" data-view="match"><span class="tab-ico" aria-hidden="true">♡</span><span>配對</span></button>
     <button type="button" data-view="tarot"><span class="tab-ico" aria-hidden="true">✧</span><span>塔羅</span></button>
   </nav>

@@ -29,7 +29,7 @@ export function mountTarot(root, ctx) {
         }),
         question,
         h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn primary', text: '洗牌並抽牌', onclick: draw })),
-        h('p', { class: 'hint', text: '使用手機的加密亂數，78 張牌每張機率相同、同一次不會重複，正逆位各半。' }),
+        h('p', { class: 'hint', text: '使用手機的加密亂數，78 張牌每張機率相同、同一次不會重複，正逆位各半。抽到的牌會存進「我的」查詢紀錄（只在這支手機），問題不會存。' }),
       ),
       resultBox,
     );
@@ -70,6 +70,12 @@ export function mountTarot(root, ctx) {
         })),
       ),
     );
+    // 存進本機紀錄：只存牌，不存問題（畫面上承諾問題不儲存）
+    ctx.addHistory({
+      type: 'tarot',
+      title: `${r.label}牌陣`,
+      summary: r.cards.map((c) => `${c.position}：${c.card}（${c.orientation}）`).join('；'),
+    });
     resultBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 

@@ -1,4 +1,5 @@
-// 「配對」：快速（只選星座）／精準（輸入生日，可算月亮、金星、火星）；最多 5 人，多人取兩兩平均。
+// 「配對」：快速（只選星座）／精準（從名單選人或另外輸入生日，可算月亮、金星、火星）；
+// 最多 5 人，多人取兩兩平均。每次配對結果自動存進「我的」查詢紀錄（只在手機）。
 
 import { h, clear, segmented, scoreClass } from '../ui/dom.js';
 import { createBirthForm } from '../ui/birthform.js';
@@ -17,20 +18,21 @@ const ROWS = [
 export function mountMatch(root, ctx) {
   let mode = load('matchMode', 'quick') === 'precise' ? 'precise' : 'quick';
   let quickPeople = [];
-  let precisePeople = [];
+  let slots = []; // 精準模式：{ personId|'manual', form? }
   const resultBox = h('div', { class: 'match-result' });
 
   function initPeople() {
     const natal = ctx.getNatal();
-    const profile = ctx.getProfile();
+    const active = ctx.getActive();
     const mySign = natal ? (natal.sun.certain ? natal.sun.sign : natal.sun.options[0]) : 0;
     quickPeople = [
-      { name: natal ? '我' : 'A', sunSign: mySign },
+      { name: active ? active.name : 'A', sunSign: mySign },
       { name: 'B', sunSign: (mySign + 4) % 12 },
     ];
-    precisePeople = [
-      createBirthForm({ initial: profile ? { ...profile, name: '我' } : { name: 'A' }, withName: true }),
-      createBirthForm({ initial: { name: 'B' }, withName: true }),
+    const people = ctx.getPeople();
+    slots = [
+      { personId: active ? active.id : 'manual', form: null },
+      { personId: people.find((p) => p.id !== active?.id)?.id || 'manual', form: null },
     ];
   }
 
@@ -59,9 +61,7 @@ export function mountMatch(root, ctx) {
       'div',
       { class: 'person-head' },
       h('b', { text: `第 ${i + 1} 位` }),
-      list.length > 2
-        ? h('button', { type: 'button', class: 'link danger', text: '移除', onclick: () => { list.splice(i, 1); render(); } })
-        : null,
+      list.length > 2 ? h('button', { type: 'button', class: 'link danger', text: '移除', onclick: () => { list.splice(i, 1); render(); } }) : null,
     );
   }
 
@@ -79,50 +79,69 @@ export function mountMatch(root, ctx) {
       h(
         'div',
         { class: 'actions' },
-        quickPeople.length < MAX_PEOPLE
-          ? h('button', { type: 'button', class: 'btn ghost', text: '＋ 加一個人', onclick: () => { quickPeople.push({ name: String.fromCharCode(65 + quickPeople.length), sunSign: 0 }); render(); } })
-          : null,
+        quickPeople.length < MAX_PEOPLE ? h('button', { type: 'button', class: 'btn ghost', text: '＋ 加一個人', onclick: () => { quickPeople.push({ name: String.fromCharCode(65 + quickPeople.length), sunSign: 0 }); render(); } }) : null,
         h('button', { type: 'button', class: 'btn primary', text: '開始配對', onclick: () => run(quickPeople.map((p, i) => ({ name: p.name.trim() || `第 ${i + 1} 位`, sunSign: p.sunSign }))) }),
       ),
     );
   }
 
   function renderPrecise() {
-    const cards = precisePeople.map((form, i) => h('div', { class: 'card person' }, personHeader(i, precisePeople), form.el));
+    const people = ctx.getPeople();
+    const cards = slots.map((slot, i) => {
+      const sel = h(
+        'select',
+        {
+          'aria-label': `第 ${i + 1} 位`,
+          onchange: (e) => {
+            slot.personId = e.target.value;
+            slot.form = null;
+            render();
+          },
+        },
+        people.map((p) => h('option', { value: p.id, text: p.self ? `${p.name}（我）` : p.name })),
+        h('option', { value: 'manual', text: '另外輸入生日…' }),
+      );
+      sel.value = people.some((p) => p.id === slot.personId) ? slot.personId : 'manual';
+      slot.personId = sel.value;
+      if (slot.personId === 'manual' && !slot.form) slot.form = createBirthForm({ withName: true, name: String.fromCharCode(65 + i) });
+      return h('div', { class: 'card person' }, personHeader(i, slots), sel, slot.personId === 'manual' ? slot.form.el : null);
+    });
     return h(
       'div',
       {},
-      h('p', { class: 'hint', text: '有出生時間會更準（月亮位置）；沒有也可以，系統會用當天的可能範圍平均。' }),
+      h('p', { class: 'hint', text: '從「我的」名單選人最快；有出生時間會更準（月亮位置）。' }),
       cards,
       h(
         'div',
         { class: 'actions' },
-        precisePeople.length < MAX_PEOPLE
-          ? h('button', { type: 'button', class: 'btn ghost', text: '＋ 加一個人', onclick: () => { precisePeople.push(createBirthForm({ initial: { name: String.fromCharCode(65 + precisePeople.length) }, withName: true })); render(); } })
-          : null,
+        slots.length < MAX_PEOPLE ? h('button', { type: 'button', class: 'btn ghost', text: '＋ 加一個人', onclick: () => { slots.push({ personId: 'manual', form: null }); render(); } }) : null,
         h('button', { type: 'button', class: 'btn primary', text: '開始配對', onclick: runPrecise }),
       ),
     );
   }
 
-  function runPrecise() {
-    const people = [];
-    for (let i = 0; i < precisePeople.length; i += 1) {
-      const form = precisePeople[i];
-      const r = form.read();
-      if (!r.ok) {
-        ctx.toast(`第 ${i + 1} 位：${r.error}`);
-        return;
+  async function runPrecise() {
+    const result = [];
+    for (let i = 0; i < slots.length; i += 1) {
+      const slot = slots[i];
+      if (slot.personId !== 'manual') {
+        const p = ctx.getPeople().find((x) => x.id === slot.personId);
+        const natal = p ? ctx.natalOf(p) : null;
+        if (!natal) return ctx.toast(`第 ${i + 1} 位的生日資料不完整，請到「我的」編輯`);
+        result.push({ name: p.name, natal });
+        continue;
       }
+      const r = await slot.form.read();
+      if (!r.ok) return ctx.toast(`第 ${i + 1} 位：${r.error}`);
       const natal = buildNatal(r.value);
       if (!natal.ok) {
-        if (natal.needFold) form.askFold(natal.options, runPrecise);
+        if (natal.needFold) slot.form.askFold(natal.options, runPrecise);
         else ctx.toast(`第 ${i + 1} 位：${natal.error}`);
         return;
       }
-      people.push({ name: r.value.name || `第 ${i + 1} 位`, natal });
+      result.push({ name: r.value.name || `第 ${i + 1} 位`, natal });
     }
-    run(people);
+    run(result);
   }
 
   function signText(person, key) {
@@ -151,6 +170,7 @@ export function mountMatch(root, ctx) {
           shareButton(`${people[0].name} × ${people[1].name}`, r.total, r.label, [r.story ? r.story.summary : '', ...(r.story ? r.story.tips : [])]),
         ),
       );
+      ctx.addHistory({ type: 'match', personId: null, title: `${people[0].name} × ${people[1].name}`, summary: `${r.total} 分・${r.label}${r.story ? `。${r.story.summary}` : ''}` });
     } else {
       const g = scoreGroup(people);
       const pairs = [...g.pairs].sort((a, b) => b.total - a.total);
@@ -164,6 +184,7 @@ export function mountMatch(root, ctx) {
           shareButton(`${people.length} 人合盤`, g.total, g.label, pairs.slice(0, 4).map((p) => `${p.a} × ${p.b}：${p.total}`)),
         ),
       );
+      ctx.addHistory({ type: 'match', personId: null, title: `${people.length} 人合盤`, summary: `${g.total} 分・${g.label}；${pairs.map((p) => `${p.a}×${p.b} ${p.total}`).join('、')}` });
     }
     resultBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
