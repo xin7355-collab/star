@@ -28,7 +28,10 @@ export function mountDestiny(root, ctx) {
   if (!TOOLS.some((t) => t.id === tool)) tool = 'reading';
   let personId = null;
   let compareId = null;
-  let twin = false;
+  // 瑪雅曆的雙胞胎分流：填了出生順序（多胞胎）就預設打開，手動切換的結果按人記住。
+  // 解讀和瑪雅工具共用同一個判斷，避免兩邊結果不一致（之前解讀從來不加時分，雙胞胎的瑪雅一模一樣）。
+  const twinOverride = new Map();
+  const mayaTwinTime = (p, input) => (input.time && (twinOverride.has(p.id) ? twinOverride.get(p.id) : !!p.birthOrder) ? input.time : null);
   let token = 0;
 
   const person = () => ctx.getPeople().find((p) => p.id === personId) || ctx.getActive();
@@ -299,10 +302,9 @@ export function mountDestiny(root, ctx) {
   // ── 瑪雅密碼
   async function drawMaya(p, input) {
     const [{ computeMaya, compareMaya }, { MAYA_POSITION_TEXT, MAYA_KEYWORD_TEXT }] = await Promise.all([import('../core/maya.js'), import('../core/reading-texts.js')]);
-    const twinTime = twin && input.time ? input.time : null;
-    const r = computeMaya(input.date, twinTime);
+    const r = computeMaya(input.date, mayaTwinTime(p, input));
     const others = ctx.getPeople().filter((x) => x.id !== p.id);
-    const twinBox = h('input', { type: 'checkbox', id: 'maya-twin', checked: twin && !!input.time, disabled: !input.time, onchange: (e) => { twin = e.target.checked; render(); } });
+    const twinBox = h('input', { type: 'checkbox', id: 'maya-twin', checked: r.twin, disabled: !input.time, onchange: (e) => { twinOverride.set(p.id, e.target.checked); render(); } });
     let compareBlock = null;
     if (others.length) {
       const sel = h('select', { 'aria-label': '和誰合盤', onchange: (e) => { compareId = e.target.value || null; render(); } }, h('option', { value: '', text: '和誰合盤？' }), others.map((x) => h('option', { value: x.id, text: x.name })));
@@ -409,7 +411,7 @@ export function mountDestiny(root, ctx) {
       }
     }
     const r = R.buildReading({
-      natal, bazi, ziwei: zw && zw.ok ? zw : null, birth: input.date, maya: M.computeMaya(input.date), name, chenggu,
+      natal, bazi, ziwei: zw && zw.ok ? zw : null, birth: input.date, maya: M.computeMaya(input.date, mayaTwinTime(p, input)), name, chenggu,
       today: opts.today, gender: p.gender || null, birthOrder: p.birthOrder || 0, twinMethod: ctx.getSettings().twinMethod,
     });
     const missing = [];

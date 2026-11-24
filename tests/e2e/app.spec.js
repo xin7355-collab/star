@@ -165,10 +165,14 @@ test('多胞胎：第 2 個出生時紫微借兄弟宮，解讀說明哪裡一�
   const dv = page.locator('#view-destiny');
   await expect(dv.getByText('多胞胎怎麼看')).toBeVisible();
   await expect(dv.getByText(/上升星座平均每 2 小時換一個/)).toBeVisible();
+  // 填了出生順序就要自動把出生時分加進瑪雅曆（否則兩個雙胞胎的瑪雅結果一模一樣）
+  await expect(dv.getByText(/已把出生時分加進計算/)).toBeVisible();
   await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('ziwei');
   await expect(dv.getByText(/多胞胎第 2 個出生/)).toBeVisible();
   await dv.locator('.palace', { hasText: '命宮' }).click();
   await expect(dv.locator('.palace-detail h3')).toContainText('原本的兄弟');
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('maya');
+  await expect(dv.locator('#maya-twin')).toBeChecked();
 });
 
 test.describe('動畫開啟時', () => {

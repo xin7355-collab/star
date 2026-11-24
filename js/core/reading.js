@@ -305,5 +305,6 @@ function mayaLine(maya) {
   const d = maya.items.find((x) => x.key === 'D');
   const e = maya.items.find((x) => x.key === 'E');
   const kw = (x) => (x && x.keyword ? `${x.keyword}（${MAYA_KEYWORD_TEXT[x.keyword].replace(/。$/, '')}）` : '—');
-  return `表象 D 是「${kw(d)}」，別人看到的你；小宇宙 E 是「${kw(e)}」，你內在真正的核心。`;
+  const twin = maya.twin ? '（多胞胎：已把出生時分加進計算，和手足會不同）' : '';
+  return `表象 D 是「${kw(d)}」，別人看到的你；小宇宙 E 是「${kw(e)}」，你內在真正的核心。${twin}`;
 }

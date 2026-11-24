@@ -76,6 +76,20 @@ test('多胞胎說明：一樣與不一樣的地方都講清楚', () => {
   assert.equal(twinsInfo({ birthOrder: 0 }), null);
 });
 
+test('多胞胎的瑪雅曆：加上各自的出生時分後結果不同，解讀寫明有加', () => {
+  const plain = computeMaya(INPUT.date);
+  const older = computeMaya(INPUT.date, { h: 6, mi: 20 });
+  const younger = computeMaya(INPUT.date, { h: 6, mi: 35 });
+  assert.equal(plain.twin, false);
+  assert.equal(older.twin, true);
+  // 1990+8+15=2013 → 6；加 6 時 20 分 → 2039 → 14；加 6 時 35 分 → 2054 → 11
+  assert.deepEqual([plain, older, younger].map((m) => m.items.find((x) => x.key === 'D').value), [6, 14, 11]);
+  const line = (maya) => buildReading({ natal, bazi, ziwei, birth: INPUT.date, maya, today: TODAY, gender: '男', birthOrder: 2 })
+    .areas.find((a) => a.id === 'personality').points.find((pt) => pt.system === '瑪雅').text;
+  assert.match(line(older), /已把出生時分加進計算/);
+  assert.doesNotMatch(line(plain), /出生時分/);
+});
+
 test('稱骨白話：21～72 兩都有', () => {
   for (let w = 21; w <= 72; w += 1) assert.ok(CHENGGU_PLAIN[w] && CHENGGU_PLAIN[w].includes('現代看法'), String(w));
 });

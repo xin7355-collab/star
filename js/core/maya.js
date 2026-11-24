@@ -46,6 +46,7 @@ export function computeMaya({ y, m, d }, twinTime = null) {
   const values = { A, B, C, D, E };
   return {
     exception,
+    twin: !!twinTime,
     sum: N,
     digitTotal: S,
     items: POSITIONS.map((p) => {
