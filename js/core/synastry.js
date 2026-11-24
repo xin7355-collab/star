@@ -1,11 +1,14 @@
 // 合盤／配對評分。
-// 設計參考 tianji scripts/fortune_calc.py（MIT）：
-//   ・星座相位分數表 XINGZUO_ASPECT_SCORE（合/三分 15、六分 14、半六分 11、對分 8、四分 5、梅花 2）
-//   ・多人合盤一律取「人對均值」，2 人與 5 人的分數同一量尺、可直接比較
-// 以 JS 重寫，並把八字項目換成星座項目。
+// ・快速模式（只知道太陽星座）：看星座間隔。設計參考 tianji scripts/fortune_calc.py（MIT）的星座相位分數表
+//   （合/三分 15、六分 14、半六分 11、對分 8、四分 5、梅花 2）。
+// ・精準模式（兩人都有生日）：改看兩張星盤的實際度數相位（A 的行星和 B 的行星相差幾度），
+//   依容許度與行星組合加權，分成情感默契、吸引力、溝通理解、長久穩定四項。星座相位只看「同一個星座範圍」，
+//   同是三分相，差 1° 和差 9° 的影響差很多，度數才是合盤的主流做法。
+// ・多人合盤一律取「人對均值」，2 人與 5 人的分數同一量尺、可直接比較。
 
 import { SIGNS, ELEMENTS, signDistance, SIGN_ASPECTS } from './zodiac.js';
 import { signOptions } from './natal.js';
+import { positionsAt } from './astro.js';
 
 // 索引 = 相差格數 0~6；數值 = tianji 分數 / 15
 const ASPECT_RATIO = [15, 11, 14, 5, 15, 2, 8].map((v) => v / 15);
@@ -43,8 +46,9 @@ function opts(person, key) {
   return null;
 }
 
-/** 兩人配對分數 */
+/** 兩人配對分數：兩人都有星盤就看度數相位，否則看太陽星座 */
 export function scorePair(a, b) {
+  if (a.natal && b.natal) return aspectPair(a, b);
   const bands = [];
   const add = (id, ratio) => {
     const band = BANDS.find((x) => x.id === id);
@@ -149,4 +153,174 @@ export function sunSignMatrix() {
 
 export function lookupMatrix(matrix, a, b) {
   return matrix[`${SIGNS[a].id}-${SIGNS[b].id}`] || matrix[`${SIGNS[b].id}-${SIGNS[a].id}`] || null;
+}
+
+// ── 精準模式：度數相位合盤
+const SYN_BODIES = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'];
+const SYN_NAME = { Sun: '太陽', Moon: '月亮', Mercury: '水星', Venus: '金星', Mars: '火星', Jupiter: '木星', Saturn: '土星' };
+// 合盤容許度：日月 8°、個人行星 6°、木土 5°；六分相取六成。天王、海王、冥王同年代的人都差不多，不列入
+const ORB = { Sun: 8, Moon: 8, Mercury: 6, Venus: 6, Mars: 6, Jupiter: 5, Saturn: 5 };
+const SYN_ASPECTS = [
+  { name: '合相', angle: 0, k: 1 },
+  { name: '六分相', angle: 60, k: 0.6 },
+  { name: '四分相', angle: 90, k: 1 },
+  { name: '三分相', angle: 120, k: 1 },
+  { name: '對分相', angle: 180, k: 1 },
+];
+// 每種行星組合（不分誰是誰）的重要性與歸類；28 種組合全列
+const PAIR = {
+  'Sun|Moon': [10, 'emotion'], 'Moon|Moon': [7, 'emotion'], 'Moon|Venus': [7, 'emotion'], 'Moon|Jupiter': [4, 'emotion'],
+  'Venus|Mars': [9, 'attraction'], 'Sun|Venus': [6, 'attraction'], 'Venus|Venus': [4, 'attraction'], 'Sun|Mars': [4, 'attraction'], 'Moon|Mars': [4, 'attraction'], 'Mars|Mars': [3, 'attraction'], 'Mars|Jupiter': [2, 'attraction'],
+  'Sun|Sun': [5, 'talk'], 'Mercury|Mercury': [5, 'talk'], 'Moon|Mercury': [4, 'talk'], 'Sun|Mercury': [3, 'talk'], 'Mercury|Venus': [3, 'talk'], 'Mercury|Mars': [2, 'talk'], 'Mercury|Jupiter': [2, 'talk'], 'Mercury|Saturn': [3, 'talk'],
+  'Sun|Saturn': [6, 'bond'], 'Moon|Saturn': [6, 'bond'], 'Venus|Saturn': [6, 'bond'], 'Mars|Saturn': [3, 'bond'], 'Saturn|Saturn': [2, 'bond'], 'Jupiter|Saturn': [1, 'bond'], 'Sun|Jupiter': [4, 'bond'], 'Venus|Jupiter': [4, 'bond'], 'Jupiter|Jupiter': [1, 'bond'],
+};
+export const THEMES = [
+  { id: 'emotion', label: '情感默契（日月、月亮）' },
+  { id: 'attraction', label: '吸引力（金星、火星）' },
+  { id: 'talk', label: '溝通理解（水星、太陽）' },
+  { id: 'bond', label: '長久穩定（土星、木星）' },
+];
+// 分數換算：四項各自從 55 起算；總分從 56 起算。3160 組隨機配對：總分平均約 65、標準差約 10
+const THEME_BASE = 55;
+const THEME_K = 2.2;
+const TOTAL_BASE = 56;
+
+const pairKey = (x, y) => [x, y].sort((p, q) => SYN_BODIES.indexOf(p) - SYN_BODIES.indexOf(q)).join('|');
+const sep = (a, b) => Math.abs(((((a - b) % 360) + 540) % 360) - 180);
+
+/** 相位對合盤的影響方向：三分、六分加分，四分、對分扣分；金火的四分、對分是火花，日月對分是互補，土星相位都比較沉重 */
+function natureOf(key, aspect) {
+  const sat = key.includes('Saturn');
+  if (aspect === '三分相') return sat ? 0.7 : 1;
+  if (aspect === '六分相') return sat ? 0.6 : 0.8;
+  if (aspect === '合相') {
+    if (sat) return 0.1;
+    if (key === 'Mars|Mars') return 0;
+    return key.includes('Mars') && key !== 'Venus|Mars' ? 0.3 : 0.8;
+  }
+  if (aspect === '四分相') return key === 'Venus|Mars' ? 0.1 : sat ? -0.9 : -0.7;
+  return key === 'Venus|Mars' ? 0.3 : key === 'Sun|Moon' ? 0.2 : sat ? -0.9 : -0.4; // 對分相
+}
+
+/** 一個人的行星位置；沒有出生時間取當天中間，margin 是一天內可能移動的一半（月亮約 6°） */
+export function synPoints(natal) {
+  if (natal.mode === 'timed') return Object.fromEntries(SYN_BODIES.map((k) => [k, { lon: natal.positions[k].lon, margin: 0 }]));
+  const a = positionsAt(natal.dayStartUtc, SYN_BODIES);
+  const b = positionsAt(natal.dayEndUtc, SYN_BODIES);
+  return Object.fromEntries(SYN_BODIES.map((k) => {
+    const delta = ((((b[k].lon - a[k].lon) % 360) + 540) % 360) - 180;
+    return [k, { lon: (((a[k].lon + delta / 2) % 360) + 360) % 360, margin: Math.abs(delta) / 2 }];
+  }));
+}
+
+// 相位白話：{a} 是順序在前那顆行星的主人、{b} 是另一顆的主人（例如日月相位的 {a} 是太陽那一方）。
+// 用人名講，行星寫在標題裡；寫成「我的金星欣賞媽媽的太陽」讀起來很怪。
+const PAIR_TEXT = {
+  'Sun|Moon': { soft: '{a}給方向、{b}給安全感，彼此合拍，這是傳統最看重的配對指標。', conj: '{a}的本性正是{b}內心需要的，很容易有「就是這個人」的感覺。', hard: '{a}在意目標、{b}在意感受，需要的東西不一樣，要學會翻譯彼此的需要。' },
+  'Moon|Moon': { soft: '情緒節奏相近，生活習慣、安全感的來源很像，相處不累。', conj: '心情和需要幾乎同步，很懂對方；心情不好時也會一起低落。', hard: '情緒反應不同步：一個需要說、一個需要靜，先講好怎麼安撫對方。' },
+  'Moon|Venus': { soft: '溫柔體貼、互相照顧，{a}在{b}身邊很有安全感。', conj: '甜蜜溫柔，{b}很懂得疼{a}，有像家人一樣的親近感。', hard: '表達愛的方式不同，{a}偶爾覺得{b}不夠體貼，其實只是習慣不一樣。' },
+  'Moon|Jupiter': { soft: '{b}讓{a}心情變好、更有安全感，相處很療癒。', conj: '在一起很開心、很放鬆，{b}很包容{a}。', hard: '{b}的大方有時太隨性，{a}會覺得承諾不夠踏實。' },
+  'Venus|Mars': { soft: '吸引力自然：{b}的主動剛好是{a}喜歡的方式，互動有火花又舒服。', conj: '彼此有強烈的吸引力，一見就有感覺。', hard: '吸引力很強，也容易因步調不同擦出火氣：{b}想衝、{a}想慢慢來。這是熱情，也是挑戰。' },
+  'Sun|Venus': { soft: '{b}欣賞{a}原本的樣子，相處愉快。', conj: '{b}很自然地喜歡{a}，戀人與好朋友都常見的相位。', hard: '{b}欣賞的方式未必是{a}要的，多問對方喜歡什麼。' },
+  'Venus|Venus': { soft: '品味和喜歡的生活方式相近，約會、花錢容易有共識。', conj: '審美與價值觀很像，很會一起享受生活。', hard: '喜好不同，要互相遷就；把各自喜歡的事輪流安排。' },
+  'Sun|Mars': { soft: '{b}的行動力支持{a}的目標，一起做事很有效率。', conj: '互相激勵、充滿能量，也容易爭主導權。', hard: '意志力互相碰撞，容易爭誰說了算；分工比爭吵有效。' },
+  'Moon|Mars': { soft: '{b}的熱情能點燃{a}，互動有溫度。', conj: '情緒和慾望綁在一起，很有感覺，也容易一點就燃。', hard: '{b}的直接容易刺傷{a}的情緒，說話放軟一點。' },
+  'Mars|Mars': { soft: '做事步調一致，一起運動、一起拚都順。', conj: '幹勁相同，一起衝很有力，吵起來也一樣兇。', hard: '脾氣容易一起爆，衝突時先冷靜再談。' },
+  'Sun|Sun': { soft: '個性方向相近或互補，做事節奏容易配合。', conj: '個性很像、價值觀一致；兩個人都想主導時要輪流讓步。', hard: '個性方向不同，能學到對方沒有的；尊重差異，不要想改變對方。' },
+  'Mercury|Mercury': { soft: '想法和說話方式合得來，聊得起來、很少誤會。', conj: '思考方式很像，一說就懂。', hard: '思考與溝通方式不同，容易誤會；重要的事寫下來、說清楚。' },
+  'Moon|Mercury': { soft: '{b}說的話能安撫{a}的情緒，溝通讓人安心。', conj: '{b}很懂得用{a}聽得進去的方式說話。', hard: '{b}講道理、{a}講感受，溝通時先回應情緒再談事情。' },
+  'Sun|Mercury': { soft: '{b}欣賞{a}的想法，討論事情很順。', conj: '常常想到一塊去，很適合一起規劃。', hard: '意見常常不同，記得對事不對人。' },
+  'Mercury|Venus': { soft: '說話好聽、互相欣賞，相處愉快。', conj: '聊天就是一種享受，很會逗對方開心。', hard: '說話的方式偶爾讓對方不舒服，語氣放軟一點。' },
+  'Sun|Saturn': { soft: '{b}給{a}穩定與支持，關係有長久的基礎。', conj: '責任感很重的連結：{b}對{a}有承諾，也會給壓力。', hard: '{b}容易對{a}要求太高、管太多，{a}會覺得被限制。' },
+  'Moon|Saturn': { soft: '{b}讓{a}有安全感，像可靠的依靠。', conj: '很忠誠的連結，但{b}的冷靜可能讓{a}覺得不夠溫暖。', hard: '{b}的冷靜或嚴格，可能讓{a}覺得冷淡、不被理解。' },
+  'Venus|Saturn': { soft: '感情穩定、重承諾，是長久關係常見的相位。', conj: '很認真的感情，甜度不高但可靠。', hard: '愛的表達被責任或現實壓住，需要刻意經營浪漫。' },
+  'Sun|Jupiter': { soft: '彼此帶來好運與信心，在一起更樂觀、更敢做夢。', conj: '互相鼓勵、一起成長，是很有福氣的組合。', hard: '一起時容易樂觀過頭、承諾太多，計畫要落地。' },
+  'Venus|Jupiter': { soft: '大方、寬容、享受生活，相處很開心。', conj: '{b}很疼{a}，常一起吃喝玩樂。', hard: '一起花錢、一起放縱的時候要節制。' },
+};
+const PLANET_MEANING = { Sun: '自我與目標', Moon: '情緒與安全感', Mercury: '想法與說話方式', Venus: '喜歡的方式與價值觀', Mars: '行動力與慾望', Jupiter: '信念與成長', Saturn: '責任與界線' };
+
+function aspectText(key, aspect, na, nb) {
+  const kind = aspect === '合相' ? 'conj' : aspect === '三分相' || aspect === '六分相' ? 'soft' : 'hard';
+  const [x, y] = key.split('|');
+  const tpl = PAIR_TEXT[key]?.[kind] || {
+    soft: `{a}的${SYN_NAME[x]}（${PLANET_MEANING[x]}）和{b}的${SYN_NAME[y]}（${PLANET_MEANING[y]}）互相支持，這方面相處順。`,
+    conj: `{a}的${SYN_NAME[x]}和{b}的${SYN_NAME[y]}綁在一起：${PLANET_MEANING[x]}、${PLANET_MEANING[y]}的影響都被放大。`,
+    hard: `{a}的${SYN_NAME[x]}和{b}的${SYN_NAME[y]}有拉扯：${PLANET_MEANING[x]}、${PLANET_MEANING[y]}這兩方面要多溝通。`,
+  }[kind];
+  return tpl.replaceAll('{a}', na).replaceAll('{b}', nb);
+}
+
+/** 兩張星盤之間的相位（A 的每顆行星對 B 的每顆行星），依影響大小排序 */
+export function crossAspects(a, b) {
+  const pa = synPoints(a.natal);
+  const pb = synPoints(b.natal);
+  const out = [];
+  for (const x of SYN_BODIES) {
+    for (const y of SYN_BODIES) {
+      const d = sep(pa[x].lon, pb[y].lon);
+      const margin = pa[x].margin + pb[y].margin;
+      const key = pairKey(x, y);
+      let best = null;
+      for (const asp of SYN_ASPECTS) {
+        const orb = Math.max(ORB[x], ORB[y]) * asp.k;
+        const dev = Math.abs(d - asp.angle);
+        if (dev - margin <= orb && (!best || dev < best.dev)) best = { ...asp, orb, dev, certain: dev + margin <= orb };
+      }
+      if (!best) continue;
+      const [w, theme] = PAIR[key];
+      const nature = natureOf(key, best.name);
+      // 越接近正相位影響越大（正好 1、在容許度邊緣 0.5）；沒有出生時間、可能不成立的相位只算一半
+      const factor = Math.max(0.5, 1 - (0.5 * Math.min(best.dev, best.orb)) / best.orb) * (best.certain ? 1 : 0.5);
+      // {a} 是順序在前那顆行星的主人：A 的行星在前就是 A，否則是 B
+      const first = SYN_BODIES.indexOf(x) <= SYN_BODIES.indexOf(y);
+      const na = first ? a.name : b.name;
+      const nb = first ? b.name : a.name;
+      out.push({
+        x, y, key, theme, aspect: best.name, dev: Math.round(best.dev * 10) / 10, orb: best.orb, certain: best.certain,
+        effect: w * nature * factor,
+        tone: nature >= 0.5 ? 'good' : nature <= -0.3 ? 'hard' : 'mixed',
+        title: `${a.name}的${SYN_NAME[x]} ${best.name} ${b.name}的${SYN_NAME[y]}`,
+        text: aspectText(key, best.name, na, nb),
+      });
+    }
+  }
+  return out.sort((p, q) => Math.abs(q.effect) - Math.abs(p.effect));
+}
+
+const THEME_NOTE = {
+  emotion: { strong: '情緒很合拍：彼此懂得對方需要什麼，是關係最好的地基。', weak: '情緒需要不同步：多問一句「你現在需要什麼」，先接住情緒再談事情。' },
+  attraction: { strong: '吸引力強：彼此有感覺、有火花。', weak: '火花較少：刻意安排約會和新鮮感，不要讓關係只剩生活瑣事。' },
+  talk: { strong: '溝通順：想法容易對上，討論事情有效率。', weak: '溝通容易誤會：重要的事寫下來，吵架時先複述對方的意思再回應。' },
+  bond: { strong: '長久穩定的條件好：責任感與承諾感相近。', weak: '長期關係有壓力：把責任分清楚、一起訂目標，壓力大時別把對方當出氣筒。' },
+};
+
+function aspectPair(a, b) {
+  const aspects = crossAspects(a, b);
+  const bands = THEMES.map((t) => {
+    const list = aspects.filter((x) => x.theme === t.id);
+    const sum = list.reduce((acc, x) => acc + x.effect, 0);
+    const score = Math.max(15, Math.min(98, Math.round(THEME_BASE + THEME_K * sum)));
+    return { id: t.id, label: t.label, score, max: 100, available: true, count: list.length };
+  });
+  // 總分看全部相位的加總（四項只是分類小計）：取四項平均會把好壞互相抵掉，九成的人都落在「需要磨合」
+  const total = Math.max(15, Math.min(98, Math.round(TOTAL_BASE + aspects.reduce((acc, x) => acc + x.effect, 0))));
+  const sorted = [...bands].sort((x, y) => y.score - x.score);
+  const tips = [];
+  if (sorted[3].score < 60) tips.push(THEME_NOTE[sorted[3].id].weak);
+  if (sorted[0].score >= 60) tips.push(THEME_NOTE[sorted[0].id].strong);
+  const dateOnly = [a, b].filter((p) => p.natal.mode !== 'timed').map((p) => p.name);
+  const sunA = signOptions(a.natal, 'Sun');
+  const sunB = signOptions(b.natal, 'Sun');
+  return {
+    mode: 'aspects',
+    a: a.name,
+    b: b.name,
+    total,
+    bands,
+    aspects,
+    basis: `兩張星盤之間的 ${aspects.length} 個度數相位（日月容許 8°、個人行星 6°、木土 5°）${dateOnly.length ? `；${dateOnly.join('、')}沒有出生時間，用當天中間的位置，月亮可能差到 6° 左右，不確定的相位標「可能」、只算一半` : ''}`,
+    label: labelFor(total),
+    tips,
+    story: sunA && sunB ? relationStory(sunA[0], sunB[0]) : null,
+  };
 }

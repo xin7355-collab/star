@@ -103,7 +103,7 @@ const tab = async (page, view) => { await page.locator(`.tabbar [data-view="${vi
 const oracle = async (page, label) => { await tab(page, 'oracle'); await page.locator('#view-oracle .seg label', { hasText: label }).click(); await page.waitForTimeout(300); };
 const tool = (page, id) => page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption(id);
 
-/** 有資料的各分頁：今日 → 時運 → 我的 → 命盤（綜合解讀、八字、紫微、姓名、工作方向、開運佈置、血型）→ 占卜（解惑、配對、塔羅、樂透） */
+/** 有資料的各分頁：今日 → 時運 → 我的 → 命盤（綜合解讀、八字、紫微、姓名、工作方向、開運佈置、家人、血型、生命靈數）→ 占卜（解惑、配對、塔羅、樂透） */
 async function tour(browser, width, prefix, opts) {
   const files = [];
   let { ctx, page } = await open(browser, width, { ...opts, activeIdx: 0 });
@@ -143,6 +143,9 @@ async function tour(browser, width, prefix, opts) {
   await tool(page, 'blood');
   await page.waitForSelector('#view-destiny select[aria-label="血型"]');
   files.push(await snap(page, `${prefix}blood`, width));
+  await tool(page, 'numerology');
+  await page.waitForSelector('#view-destiny .nine-wrap');
+  files.push(await snap(page, `${prefix}numerology`, width));
   await oracle(page, '解惑');
   await page.locator('#oracle-jiehuo').getByRole('button', { name: '起卦' }).click();
   await page.waitForSelector('#oracle-jiehuo .hexa');
@@ -156,6 +159,11 @@ async function tour(browser, width, prefix, opts) {
   await page.waitForSelector('#oracle-match .match-result h2');
   files.push(await snap(page, `${prefix}match`, width));
   await oracle(page, '塔羅');
+  if (opts.people.length > 2) {
+    // 長內容組：五張牌、問感情，每張牌的解讀與整副牌分析最長
+    await page.locator('#oracle-tarot .seg label', { hasText: '五張' }).click();
+    await page.locator('#oracle-tarot .seg label', { hasText: '感情' }).click();
+  }
   await page.locator('#oracle-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
   await page.waitForSelector('#oracle-tarot ol.tarot-list li');
   files.push(await snap(page, `${prefix}tarot`, width));

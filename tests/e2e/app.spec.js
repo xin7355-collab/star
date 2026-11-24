@@ -136,10 +136,23 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   const tool = dv.getByRole('combobox', { name: '選擇命理工具' });
   await tool.selectOption('bazi');
   await expect(dv.locator('table.pillars tr.big').first()).toContainText('庚甲壬癸');
+  // 格局：申月本氣庚透年干 → 偏印格；印章與成敗說明都在
+  await expect(dv.locator('.geju-head h3')).toContainText('格局：偏印格');
+  await expect(dv.locator('.seal')).toHaveText('偏印格');
   await tool.selectOption('liunian');
   await expect(dv.getByText(/犯太歲/).first()).toBeVisible();
   await tool.selectOption('ziwei');
   await expect(dv.locator('.ziwei-grid .palace')).toHaveCount(12);
+  // 一打開就示範命宮的三方四正：連線、三個被照會的宮；命宮格局列出機月同梁
+  await expect(dv.locator('.sf-lines polygon')).toHaveCount(1);
+  await expect(dv.locator('.palace.sf-on')).toHaveCount(3);
+  await expect(dv.locator('ul.reasons li', { hasText: '機月同梁' })).toBeVisible();
+  await dv.locator('.palace', { hasText: '財帛' }).click();
+  await expect(dv.locator('.palace-detail h3')).toContainText('財帛');
+  await expect(dv.locator('.palace-detail')).toContainText('同陰同宮');
+  await expect(dv.locator('.palace-detail')).toContainText('化忌在財帛');
+  // 以前 map 把索引當宮名傳進去，畫面出現「化忌在0」
+  await expect(dv.locator('.palace-detail')).not.toContainText(/在[0-9]/);
   await dv.locator('.palace', { hasText: '命宮' }).click();
   await expect(dv.locator('.palace-detail h3')).toContainText('命宮');
   await tool.selectOption('name');
@@ -150,6 +163,11 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await expect(dv.locator('.maya-cell')).toHaveCount(5);
   await tool.selectOption('numerology');
   await expect(dv.locator('.score-ring b')).toHaveText('33／6');
+  // 1990-08-15：只有事業線（1-5-9），空缺 2、3、4、6、7；另一派圈進天賦數 3、3 與生命數 6 會多出智慧線
+  await expect(dv.locator('.nine-lines line')).toHaveCount(1);
+  await expect(dv.getByRole('heading', { name: '空缺數：2、3、4、6、7' })).toBeVisible();
+  await dv.locator('summary', { hasText: '另一派' }).click();
+  await expect(dv.getByText(/多了智慧線/)).toBeVisible();
   await tool.selectOption('chenggu');
   await expect(dv.locator('blockquote.poem')).toBeVisible();
   await expect(dv.getByText(/現代看法/)).toBeVisible();
@@ -303,10 +321,20 @@ test('名單：新增農曆生日的家人（不搶走「我」）、從名單�
   await mv.locator('.seg label', { hasText: '精準' }).click();
   await mv.getByRole('button', { name: '開始配對' }).click();
   await expect(mv.locator('.match-result h2')).toHaveText('我 × 媽媽');
+  // 精準配對看兩張星盤的度數相位：四項分類、主要相位附度數差
+  await expect(mv.locator('.match-result .bar')).toHaveCount(4);
+  await expect(mv.getByRole('heading', { name: '兩張星盤的主要相位' })).toBeVisible();
+  await expect(mv.locator('.match-result ul.reasons li').first()).toContainText('°');
 
   await oracle(page, '塔羅');
-  await page.locator('#oracle-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
-  await expect(page.locator('#oracle-tarot ol.tarot-list li')).toHaveCount(3);
+  const tv = page.locator('#oracle-tarot');
+  await tv.locator('.seg label', { hasText: '工作' }).click();
+  await tv.getByRole('button', { name: '洗牌並抽牌' }).click();
+  await expect(tv.locator('ol.tarot-list li')).toHaveCount(3);
+  // 每張牌有牌面圖、依主題的解讀；三張以上有整副牌的總結
+  await expect(tv.locator('ol.tarot-list .tc')).toHaveCount(3);
+  await expect(tv.locator('.tarot-topic').first()).toHaveText(/^工作：/);
+  await expect(tv.locator('.tarot-summary')).toHaveText(/^從.+到.+，可能走向/);
 
   await tab(page, 'me');
   await expect(page.locator('#view-me summary', { hasText: '查詢紀錄（2）' })).toBeVisible();

@@ -1,4 +1,4 @@
-// 「配對」：快速（只選星座）／精準（從名單選人或另外輸入生日，可算月亮、金星、火星）；
+// 「配對」：快速（只選星座）／精準（從名單選人或另外輸入生日，看兩張星盤的實際度數相位）；
 // 最多 5 人，多人取兩兩平均。每次配對結果自動存進「我的」查詢紀錄（只在手機）。
 
 import { h, clear, segmented, scoreClass } from '../ui/dom.js';
@@ -176,21 +176,30 @@ export function mountMatch(root, ctx) {
       const rows = (people[0].natal ? ROWS : ROWS.slice(0, 1)).map(([key, label]) =>
         h('tr', {}, h('th', { scope: 'row', text: label }), h('td', { text: signText(people[0], key) }), h('td', { text: signText(people[1], key) })),
       );
+      const aspects = r.mode === 'aspects' ? r.aspects : [];
+      // 精準模式用四項裡最弱、最強的那一項給建議；太陽星座的建議只在快速模式用（兩種一起列會重複）
+      const tips = aspects.length ? r.tips : r.story ? r.story.tips : [];
       resultBox.append(
         h(
           'section',
           { class: 'card' },
           h('h2', { text: `${people[0].name} × ${people[1].name}` }),
-          h('div', { class: 'score-hero' }, h('div', { class: `score-ring ${scoreClass(r.total)}` }, h('b', { text: String(r.total) }), h('small', { text: r.label })), h('p', { class: 'summary', text: r.story ? `${r.story.summary}${r.story.flavor}` : '' })),
+          h('div', { class: 'score-hero' }, h('div', { class: `score-ring ${scoreClass(r.total)}` }, h('b', { text: String(r.total) }), h('small', { text: r.label })), h('p', { class: 'summary', text: aspects.length ? `最關鍵的連結：${aspects[0].text}` : r.story ? `${r.story.summary}${r.story.flavor}` : '' })),
           h('div', { class: 'table-wrap' }, h('table', { class: 'compare' }, h('thead', {}, h('tr', {}, h('th', { text: '' }), h('th', { text: people[0].name }), h('th', { text: people[1].name }))), h('tbody', {}, rows))),
           r.bands.filter((b) => b.available).map((b) => bandBar(b)),
+          aspects.length ? [
+            h('h3', { text: '兩張星盤的主要相位' }),
+            h('ul', { class: 'reasons' }, aspects.slice(0, 5).map(aspectLi)),
+            aspects.length > 5 ? h('details', { class: 'more' }, h('summary', { text: `其他 ${aspects.length - 5} 個相位` }), h('ul', { class: 'reasons' }, aspects.slice(5).map(aspectLi))) : null,
+          ] : null,
           h('p', { class: 'hint', text: `計分依據：${r.basis}。` }),
-          r.story ? h('div', { class: 'tips' }, h('h3', { text: '相處建議' }), h('ul', { class: 'plain' }, r.story.tips.map((t) => h('li', { text: t })))) : null,
+          r.story && aspects.length ? h('p', { class: 'muted small', text: `太陽星座：${r.story.summary}${r.story.flavor}` }) : null,
+          tips.length ? h('div', { class: 'tips' }, h('h3', { text: '相處建議' }), h('ul', { class: 'plain' }, tips.map((t) => h('li', { text: t })))) : null,
           bm ? h('div', { class: 'point' }, h('span', { class: 'sys sys-血型', text: '血型' }), h('span', { text: `${bm.pair}：${bm.text}（流行文化說法，不計分）` })) : null,
-          shareButton(`${people[0].name} × ${people[1].name}`, r.total, r.label, [r.story ? r.story.summary : '', ...(r.story ? r.story.tips : [])]),
+          shareButton(`${people[0].name} × ${people[1].name}`, r.total, r.label, aspects.length ? aspects.slice(0, 3).map((x) => `${x.title}（差 ${x.dev}°）`) : [r.story ? r.story.summary : '', ...(r.story ? r.story.tips : [])]),
         ),
       );
-      ctx.addHistory({ type: 'match', personId: null, title: `${people[0].name} × ${people[1].name}`, summary: `${r.total} 分・${r.label}${r.story ? `。${r.story.summary}` : ''}` });
+      ctx.addHistory({ type: 'match', personId: null, title: `${people[0].name} × ${people[1].name}`, summary: `${r.total} 分・${r.label}${aspects.length ? `。${aspects[0].title}` : r.story ? `。${r.story.summary}` : ''}` });
     } else {
       const g = scoreGroup(people);
       const pairs = [...g.pairs].sort((a, b) => b.total - a.total);
@@ -207,6 +216,14 @@ export function mountMatch(root, ctx) {
       ctx.addHistory({ type: 'match', personId: null, title: `${people.length} 人合盤`, summary: `${g.total} 分・${g.label}；${pairs.map((p) => `${p.a}×${p.b} ${p.total}`).join('、')}` });
     }
     resultBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // 一個相位：哪兩顆星、差幾度（越小越強）、白話；沒有出生時間而不確定的標「可能」
+  function aspectLi(x) {
+    return h('li', { class: x.tone === 'good' ? 'tone-good' : x.tone === 'hard' ? 'tone-bad' : 'tone-info' },
+      h('b', { text: x.title }),
+      h('span', { class: 'muted small', text: `（差 ${x.dev}°${x.certain ? '' : '・可能'}）` }),
+      h('div', { text: x.text }));
   }
 
   function bandBar(b) {

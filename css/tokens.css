@@ -18,6 +18,12 @@
   --mid: #f6c453;
   --low: #f59e63;
   --poor: #ff7a8a;
+  /* 紫微三方四正被照會的宮：宮格底色疊一層 12% 金色後的實色（design-qa 量不到漸層底的對比，所以用實色） */
+  --sf-bg: #272a38;
+  --sf-decadal-bg: #363d5c;
+  /* 格局印章的朱砂色（在卡片底色上對比 6:1 以上） */
+  --seal: #ff8f7a;
+  --seal-bg: rgba(255, 143, 122, 0.08);
   --on-accent: #17120a;
   --radius: 20px;
   --radius-s: 12px;

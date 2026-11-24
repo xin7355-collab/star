@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildZiwei, timeIndexOf, GRID } from '../js/core/ziwei.js';
 import { computeMaya, compareMaya } from '../js/core/maya.js';
-import { lifePath, grid } from '../js/core/numerology.js';
+import { lifePath, grid, gridWithTalent, LINES, MISSING_TEXT, MANY_TEXT } from '../js/core/numerology.js';
 import { chengGu, shichenIndex, formatWeight } from '../js/core/chenggu.js';
 import { computeFortune } from '../js/core/fortune.js';
 
@@ -55,6 +55,27 @@ test('生命靈數：1990-08-15 → 33／6；九宮格連線', () => {
   assert.deepEqual(g.missing, [3, 4]);
   const none = grid({ y: 2000, m: 1, d: 1 }); // 只有 1、2
   assert.equal(none.lines.length, 0);
+});
+
+test('生命靈數：天賦數、空缺數、重複三次以上、另一派（天賦數與生命數也圈）並列', () => {
+  // 1990-08-15：加總 33 → 天賦數 3、3；生日數字只有 1、9、8、5 → 只有事業線，空缺 2、3、4、6、7
+  const lp = lifePath({ y: 1990, m: 8, d: 15 });
+  assert.deepEqual(lp.talent, [3, 3]);
+  const g = grid({ y: 1990, m: 8, d: 15 });
+  assert.deepEqual(g.lines.map((l) => l.name), ['事業線']);
+  assert.deepEqual(g.missing, [2, 3, 4, 6, 7]);
+  // 另一派把 3、3、6 也圈進去：多出智慧線（3-6-9），空缺剩 2、4、7
+  const alt = gridWithTalent({ y: 1990, m: 8, d: 15 });
+  assert.deepEqual(alt.lines.map((l) => l.name), ['智慧線', '事業線']);
+  assert.deepEqual(alt.missing, [2, 4, 7]);
+  // 加總只有一位數就沒有天賦數；同一個數字出現三次以上要提醒「過頭」
+  assert.deepEqual(lifePath({ y: 2000, m: 1, d: 1 }).talent, []);
+  assert.deepEqual(grid({ y: 1999, m: 9, d: 19 }).many, [9]);
+  assert.equal(grid({ y: 1999, m: 9, d: 19 }).counts[9], 5);
+  // 八條連線、九個空缺數、九個「太多」都有說明
+  assert.equal(LINES.length, 8);
+  for (const l of LINES) assert.ok(l.text.length > 10, l.name);
+  for (let n = 1; n <= 9; n += 1) assert.ok(MISSING_TEXT[n] && MANY_TEXT[n], String(n));
 });
 
 test('稱骨：與 tianji 300 組比對一致；23 點與 0 點都是子時', () => {

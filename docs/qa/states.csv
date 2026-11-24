@@ -129,3 +129,18 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 格局化解,data_view,error,NA,,化解清單是 App 內建的固定資料，沒有外部呼叫；勾選紀錄讀不到時當成沒勾選
 格局化解,data_view,populated,DONE,e2e:勾選後出現「能改就改／改不了：擋／擋不了：化」三段做法，重新整理後還在,
 格局化解,data_view,long_content,DONE,npm run qa:design（long-fengshui 快照含化解卡；30 項狀況全勾後用 Playwright 在 320 寬實測：頁面沒有水平捲動）,
+紫微宮位,control,default,DONE,e2e:命盤：打開紫微先示範命宮的三方四正連線；點財帛出現雙星組合與「化忌在財帛」,
+紫微宮位,control,hover,NA,,觸控裝置為主
+紫微宮位,control,focus_visible,DONE,npm run qa:design（ziwei 快照鍵盤 Tab 實測）,
+紫微宮位,control,active,DONE,code:js/views/destiny.js 選到的宮 aria-pressed＝true、金框，三方的三個宮淡金底並畫連線,
+紫微宮位,control,disabled,NA,,十二宮都可點
+塔羅主題,control,default,DONE,e2e:名單：新增農曆生日的家人…塔羅（選「工作」後每張牌都有「工作：」解讀）,
+塔羅主題,control,hover,NA,,觸控裝置為主
+塔羅主題,control,focus_visible,DONE,npm run qa:design（tarot 快照鍵盤 Tab 實測）,
+塔羅主題,control,active,DONE,code:js/ui/dom.js segmented 單選按鈕，選到的有底色；選擇記在手機,
+塔羅主題,control,disabled,NA,,四個主題都可選
+生命靈數,data_view,loading,DONE,code:js/views/destiny.js 計算時顯示八卦載入動畫與「排盤中…」,
+生命靈數,data_view,empty,DONE,npm run qa:design（empty-destiny 快照：還沒填生日時先引導到「我的」）,
+生命靈數,data_view,error,DONE,code:js/views/destiny.js「計算失敗：…請確認網路後重新開啟 App」,
+生命靈數,data_view,populated,DONE,e2e:33／6、事業線連線、空缺數 2、3、4、6、7，另一派多出智慧線,
+生命靈數,data_view,long_content,DONE,npm run qa:design（numerology 快照：320、390 與長內容組）,

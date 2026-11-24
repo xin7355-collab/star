@@ -63,12 +63,44 @@ test('多人合盤取人對均值', () => {
   assert.throws(() => scoreGroup(people.slice(0, 1)));
 });
 
-test('精準配對：四項都有資料時用完整四項，沒時間時月亮取可能值平均', () => {
-  const a = { name: 'A', natal: buildNatal({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei' }) };
-  const b = { name: 'B', natal: buildNatal({ date: { y: 1992, m: 1, d: 5 }, time: null, tz: 'Asia/Taipei' }) };
+// 精準配對：看兩張星盤的實際度數相位。手排的星盤（只放黃經）可以精準控制相位與度數差
+const fake = (lons) => ({ mode: 'timed', positions: Object.fromEntries(Object.entries({ Sun: 0, Moon: 200, Mercury: 15, Venus: 330, Mars: 250, Jupiter: 100, Saturn: 280, ...lons }).map(([k, lon]) => [k, { lon, sign: Math.floor(lon / 30) }])) });
+
+test('精準配對：度數相位依容許度判斷，越接近正相位影響越大，兩人順序對調分數不變', () => {
+  const a = { name: '阿明', natal: fake({ Venus: 10 }) };
+  const b = { name: '小美', natal: fake({ Mars: 131, Sun: 182, Moon: 62, Saturn: 120 }) };
   const r = scorePair(a, b);
-  assert.equal(r.bands.filter((x) => x.available).length, 4);
-  assert.ok(r.total >= 0 && r.total <= 100);
+  assert.equal(r.mode, 'aspects');
+  const vm = r.aspects.find((x) => x.x === 'Venus' && x.y === 'Mars');
+  assert.deepEqual([vm.aspect, vm.dev, vm.certain, vm.tone], ['三分相', 1, true, 'good']);
+  assert.match(vm.text, /^吸引力自然：小美的主動剛好是阿明喜歡的方式/);
+  // 太陽對分（差 2°）→ 張力；日月六分（差 2°）的白話：{a} 是太陽那一方
+  assert.deepEqual(['aspect', 'tone'].map((k) => r.aspects.find((x) => x.x === 'Sun' && x.y === 'Sun')[k]), ['對分相', 'hard']);
+  const sm = r.aspects.find((x) => x.x === 'Sun' && x.y === 'Moon');
+  assert.equal(sm.aspect, '六分相');
+  assert.match(sm.text, /^阿明給方向、小美給安全感/);
+  // 土星三分太陽：小美的土星給阿明穩定（名字依行星順序放，不是依誰先誰後）
+  assert.match(r.aspects.find((x) => x.x === 'Sun' && x.y === 'Saturn').text, /^小美給阿明穩定與支持/);
+  assert.equal(scorePair(b, a).total, r.total);
+  assert.equal(r.bands.length, 4);
+  assert.ok(r.bands.every((x) => x.score >= 15 && x.score <= 98));
+  // 容許度外的不算：太陽 0° 與火星 131°、差 131°，離三分相 11° 超過 8°
+  assert.ok(!r.aspects.some((x) => x.x === 'Sun' && x.y === 'Mars'));
+});
+
+test('精準配對：沒有出生時間的人用當天中間的位置，月亮誤差內才成立的相位標「可能」、只算一半', () => {
+  const a = { name: 'A', natal: buildNatal({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: null }) };
+  const b = { name: 'B', natal: buildNatal({ date: { y: 1962, m: 11, d: 20 }, time: null, tz: 'Asia/Taipei', place: null }) };
+  const r = scorePair(a, b);
+  assert.match(r.basis, /B沒有出生時間/);
+  const maybe = r.aspects.filter((x) => !x.certain);
+  assert.ok(maybe.length >= 1);
+  assert.ok(maybe.every((x) => x.y === 'Moon' || x.x === 'Moon'));
+  assert.ok(r.total >= 15 && r.total <= 98);
+  assert.ok(['非常合拍', '合得來', '需要磨合', '挑戰較多'].includes(r.label));
+  // 兩人都有時間：每個相位都確定
+  const c = { name: 'C', natal: buildNatal({ date: { y: 1991, m: 12, d: 1 }, time: { h: 22, mi: 10 }, tz: 'Asia/Taipei', place: null }) };
+  assert.ok(scorePair(a, c).aspects.every((x) => x.certain && x.dev <= x.orb));
 });
 
 test('塔羅：78 張、名稱不重複', () => {

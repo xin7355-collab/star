@@ -12,6 +12,7 @@ import { positionsAt } from './astro.js';
 import { MEANINGS } from './numerology.js';
 import { SHISHEN_TEXT, liunian, WUXING, yongShen } from './bazi.js';
 import { natalWealth, ziweiWealth } from './windfall.js';
+import { geju } from './geju.js';
 import { BLOOD } from './blood.js';
 import { CHENGGU_PLAIN, DAYMASTER, LIFEPATH_DETAIL, MAYA_KEYWORD_TEXT, MOON_SIGN_TEXT, SHISHEN_GROUPS, SIGN_DETAIL, TAGS, WUXING_HEALTH, ZIWEI_STARS, STAR_KEYWORDS, PALACE_DOMAIN, RISING_TEXT, mutagenIn } from './reading-texts.js';
 
@@ -185,9 +186,11 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
   // ── 3. 事業
   const mc = natal && natal.angles ? Math.floor(natal.angles.MC / 30) : null;
   const curYun = bazi && bazi.yun ? bazi.yun.list.find((d) => d.current) : null;
+  const ge = bazi && bazi.ok ? geju(bazi) : null;
   add('career', '事業', `適合的方向：${top.map((t) => TAGS[t.tag].career).join('；')}。`, [
     sun !== null && { system: '占星', text: `太陽${signName(sun)}：${SIGN_DETAIL[sun].career}。` },
     mc !== null && { system: '占星', text: `天頂（社會角色）在${signName(mc)}：${SIGN_DETAIL[mc].career}。` },
+    ge && { system: '八字', text: `格局是${ge.name}${ge.use ? `（${ge.use}）` : ''}、${ge.status}：一生的主軸在「${ge.info.core}」，適合${ge.info.work}` },
     dom && { system: '八字', text: `${dom.group}較多：${SHISHEN_GROUPS[dom.group].career}` },
     curYun && { system: '八字', text: `目前大運 ${curYun.ganzhi}（${curYun.startYear}–${curYun.endYear}）是「${curYun.shishen}」運：${SHISHEN_TEXT[curYun.shishen]}` },
     zw && { system: '紫微', text: starLine(zw, '官祿', 'career') },

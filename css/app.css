@@ -252,6 +252,8 @@ tbody th { font-weight: 600; }
   mask: radial-gradient(farthest-side, transparent calc(100% - 8px), var(--mask-solid) calc(100% - 7px));
 }
 .score-ring b { position: relative; font-size: 28px; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+/* 生命靈數三段（例如 38／11／2）在 28px 會超出圓環：字縮小、不換行 */
+.score-ring b.long { font-size: 15px; white-space: nowrap; letter-spacing: -1px; }
 .score-ring small { position: relative; font-size: 12px; color: var(--muted); margin-top: 3px; }
 .score-ring.big { width: 118px; height: 118px; }
 .score-ring.big b { font-size: 36px; }
@@ -447,16 +449,32 @@ ol.pairs li span { color: var(--text); min-width: 0; }
 ol.pairs li b { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .match-result:empty { display: none; }
 
-/* ── 塔羅：翻牌 */
-ol.tarot-list { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 12px; perspective: 1000px; }
+/* ── 塔羅：每張牌從牌背翻到牌面（3D），逆位整張牌面倒過來；文字在牌的右邊 */
+ol.tarot-list { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 12px; }
 ol.tarot-list li {
+  display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: start;
   background: var(--bg2); border: 1px solid var(--hairline); border-radius: 16px; padding: 12px;
-  transform-origin: center;
-  animation: flip-in 0.7s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 220ms);
-  backface-visibility: hidden;
+  animation: rise 0.5s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 260ms);
 }
-@keyframes flip-in { 0% { transform: rotateY(90deg) translateY(10px); opacity: 0; } 60% { opacity: 1; } 100% { transform: none; opacity: 1; } }
 ol.tarot-list li.rev { border-style: dashed; }
+.tarot-body p { margin: 6px 0 0; }
+.tarot-topic { padding-left: 10px; border-left: 3px solid var(--accent2); }
+.tarot-summary { padding: 10px 12px; border-radius: var(--radius-s); background: var(--accent-soft); }
+.tc { width: 64px; height: 100px; perspective: 600px; }
+.tc-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: tc-flip 0.8s var(--ease-out) both; animation-delay: calc(0.2s + var(--i, 0) * 260ms); }
+@keyframes tc-flip { from { transform: rotateY(180deg); } to { transform: rotateY(0deg); } }
+.tc-back, .tc-front { position: absolute; inset: 0; border: 2px solid var(--gold); border-radius: 8px; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+.tc-back { display: flex; align-items: center; justify-content: center; transform: rotateY(180deg); background: var(--glyph-2) repeating-linear-gradient(45deg, var(--hairline) 0 2px, transparent 2px 9px); }
+.tc-front { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 5px 2px 4px; background: var(--card-2); }
+.tc-front.rev { transform: rotate(180deg); }
+.tc-mark { font-size: 12px; font-weight: 800; line-height: 1; color: var(--gold); }
+.tc-svg { width: 40px; height: 40px; }
+.tc-ico { fill: var(--gold); }
+.tc-ico.dim { opacity: 0.7; }
+.tc-hole { fill: var(--card-2); }
+.tc-stroke { stroke: var(--gold); stroke-width: 2.5; stroke-linecap: round; }
+.tc-ring { fill: none; stroke: var(--gold); stroke-width: 2; }
+.tc-title { font-size: 10px; line-height: 1.1; color: var(--text); white-space: nowrap; }
 .pos { font-size: 13px; color: var(--muted); }
 .tarot-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 18px; }
 .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--badge-bg); color: var(--text); }
@@ -586,7 +604,7 @@ ol.liunian li { padding: 10px 0; border-bottom: 1px solid var(--divider); }
 blockquote.poem { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var(--gold); background: var(--bg2); border-radius: 0 12px 12px 0; line-height: 1.9; }
 
 /* ── 紫微命盤（4×4，外圈 12 宮、中間 2×2 放基本資料） */
-.ziwei-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, auto); gap: 3px; margin: 8px 0; }
+.ziwei-grid { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, auto); gap: 3px; margin: 8px 0; }
 .palace {
   min-width: 0; min-height: 96px; padding: 4px; text-align: left;
   display: flex; flex-direction: column; gap: 2px;
@@ -605,6 +623,8 @@ blockquote.poem { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var
 .pal-foot { margin-top: auto; display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }
 .palace-center { grid-row: 2 / 4; grid-column: 2 / 4; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; text-align: center; font-size: 12px; padding: 6px; border: 1px dashed var(--hairline-strong); border-radius: 9px; }
 .palace-center b { font-size: 16px; }
+.palace-center { position: relative; z-index: 1; }
+.palace-center > * { text-shadow: 0 0 3px var(--card), 0 0 6px var(--card), 0 0 10px var(--card); }
 .mg { display: inline-block; font-size: 10px; line-height: 1.4; padding: 0 3px; border-radius: 4px; color: var(--on-accent); font-weight: 700; }
 .mg-lu { background: var(--good); }
 .mg-quan { background: var(--accent2); }
@@ -615,6 +635,20 @@ blockquote.poem { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var
 .legend-box.decadal { background: var(--highlight-bg); border: 1px solid var(--line); }
 .legend-box.yearly { border: 2px dashed var(--mid); }
 .palace-detail { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+.palace-detail h4 { margin: 16px 0 6px; font-size: 15px; color: var(--gold); }
+/* 三方四正：被選的宮金框、三方三宮淡金底；連線在中央資料區從本宮畫出去（減少動態效果時直接顯示） */
+.palace.sf-self { border-color: var(--gold); box-shadow: 0 0 0 2px var(--accent-ring); }
+.palace.sf-on { border-color: var(--hairline-strong); background: var(--sf-bg); }
+.palace.decadal.sf-on { background: var(--sf-decadal-bg); }
+.sf-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.sf-tri, .sf-opp { fill: none; stroke: var(--gold); stroke-width: 1.6; stroke-linejoin: round; stroke-dasharray: 1; opacity: 0.75; animation: fam-draw 0.9s var(--ease-out) both; }
+.sf-opp { opacity: 0.55; animation-delay: 0.35s; }
+.sf-dot { fill: var(--gold); animation: fade 0.4s ease-out both; animation-delay: 0.6s; }
+.sf-dot.self { fill: var(--gold-2); animation-delay: 0s; }
+.sf-list li { padding: 2px 0; }
+.sf-verdict { padding: 8px 12px; border-radius: var(--radius-s); background: var(--bg2); border-left: 3px solid var(--accent2); }
+.sf-verdict.good { border-left-color: var(--good); }
+.sf-verdict.bad { border-left-color: var(--poor); }
 /* 窄螢幕：吉時條改成兩排（7＋6），每格才有 24px 以上好點（WCAG 2.5.8） */
 @media (max-width: 379px) {
   .hours { grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 6px; }
@@ -638,8 +672,15 @@ table.compare tr.same td, table.compare tr.same th { background: var(--accent-so
 .nine-grid { display: grid; grid-template-columns: repeat(3, 64px); gap: 8px; justify-content: center; margin: 8px 0; }
 .nine-cell { width: 64px; height: 64px; border-radius: 50%; border: 1px dashed var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); }
 .nine-cell b { font-size: 22px; }
-.nine-cell.on { border: 2px solid var(--gold); color: var(--text); background: var(--accent-soft); animation: rise 0.4s var(--ease-spring) both; }
+/* 底色不透明：連線從圈圈後面穿過，只在圈與圈之間看得到，數字不會被線蓋住 */
+.nine-cell.on { border: 2px solid var(--gold); color: var(--text); background: var(--card-2); box-shadow: inset 0 0 0 999px var(--accent-soft); animation: rise 0.4s var(--ease-spring) both; }
 .nine-cell small { font-size: 11px; }
+/* 生命靈數連線：金線疊在圈圈後面、依序畫出來；出現三次以上的數字加一圈光暈 */
+.nine-wrap { position: relative; width: 208px; margin: 8px auto 4px; }
+.nine-wrap .nine-grid { position: relative; z-index: 1; margin: 0; }
+.nine-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.nine-line { stroke: var(--gold); stroke-width: 5; stroke-linecap: round; opacity: 0.7; stroke-dasharray: 1; animation: fam-draw 0.7s var(--ease-out) both; animation-delay: calc(0.45s + var(--i, 0) * 200ms); }
+.nine-cell.many { box-shadow: inset 0 0 0 999px var(--accent-soft), 0 0 0 4px var(--accent-ring); }
 
 /* ── 工作與方向、開運佈置、解惑 */
 .year-card { background: var(--bg2); border: 1px solid var(--hairline); border-radius: 14px; padding: 10px 12px; margin: 10px 0; }
@@ -798,6 +839,13 @@ table.liuyao tr.yong td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .ly-sy { color: var(--gold); font-weight: 800; }
 .num-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
 .num-row[hidden] { display: none; }
+
+/* 八字格局：朱砂印章從上方「蓋」下來（放大、旋轉、落定），雙框是篆刻印的邊 */
+.geju-head { display: flex; align-items: center; gap: 14px; margin-top: 20px; }
+.geju-head h3 { margin: 0; }
+.geju-head p { margin: 2px 0 0; }
+.seal { flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 44px; padding: 7px 0; border: 2px solid var(--seal); border-radius: 6px; background: var(--seal-bg); box-shadow: inset 0 0 0 3px var(--card), inset 0 0 0 4px var(--seal); color: var(--seal); font-family: 'Songti TC', 'Noto Serif TC', 'Noto Serif CJK TC', serif; font-size: 20px; font-weight: 900; line-height: 1.1; transform: rotate(-4deg); animation: seal-stamp 0.65s var(--ease-out) both; animation-delay: 0.15s; }
+@keyframes seal-stamp { 0% { transform: scale(1.9) rotate(-14deg); opacity: 0; } 55% { transform: scale(0.92) rotate(-3deg); opacity: 1; } 75% { transform: scale(1.04) rotate(-4deg); } 100% { transform: rotate(-4deg); opacity: 1; } }
 
 /* 系統設定「減少動態效果」：所有動畫與轉場直接跳到結果 */
 @media (prefers-reduced-motion: reduce) {

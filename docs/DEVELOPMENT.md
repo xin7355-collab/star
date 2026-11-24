@@ -56,10 +56,12 @@ js/version.js         版本號
 js/core/              計算核心（不碰畫面，可在 Node 測試）
   date.js tz.js places.js     生日解析、時區與夏令時、出生地
   astro.js natal.js zodiac.js 行星位置、上升天頂、本命資料、星座
-  fortune.js synastry.js      運勢計分、配對
-  tarot.js                    塔羅
+  fortune.js synastry.js      運勢計分、配對（快速看星座；精準看兩張星盤的度數相位）
+  tarot.js tarot-reading.js   塔羅抽牌；牌位情境、主題（感情／工作／財運）、整副牌陣分析
   calendar.js                 農曆換算、農民曆
   bazi.js ziwei.js            八字（大運流年、犯太歲）、紫微
+  geju.js                     八字月令格局（子平真詮的取格與成敗救應）
+  ziwei-pattern.js            紫微雙主星組合、三方四正、命宮格局
   maya.js numerology.js chenggu.js  瑪雅曆、生命靈數、稱骨
   name.js name-texts.js zhuyin.js kangxi-data.js  姓名學（康熙筆畫、五格三才、81 數理、注音）
   timing.js                   吉時表、擇日、近期提醒（逆行、日月食、月相、換流月）
@@ -76,7 +78,7 @@ js/core/              計算核心（不碰畫面，可在 Node 測試）
   reading.js reading-texts.js 多系統綜合解讀、多胞胎、各系統白話內容
   records.js                  名單與紀錄的驗證、備份格式
   zh.js zh-data.js            簡轉台灣繁中
-js/ui/                共用元件（生日表單、圖卡、儲存、AI 佇列、自動更新、動畫 motion.js、圖示 icons.js、命理圖 charts.js（羅盤、飛星路線、五行生剋圖、八卦載入）、
+js/ui/                共用元件（生日表單、圖卡、儲存、AI 佇列、自動更新、動畫 motion.js、圖示 icons.js、命理圖 charts.js（羅盤、飛星路線、五行生剋圖、八卦載入、塔羅牌面）、
                       吉時條／彩球／時間軸／擇日格 widgets.js）
 js/views/             today（今日）、fortune（時運）、destiny（命盤：tool-career、tool-fengshui、tool-family、tool-blood）、
                       oracle（占卜：jiehuo、tarot、lotto、match）、me（我的）；profile.js 把一個人的各系統命盤一次算好

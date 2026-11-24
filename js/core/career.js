@@ -1,6 +1,6 @@
 // 工作與未來方向：把各系統對「適合什麼工作」的看法放在一起投票，再排出未來三年與十年的方向。
 //
-// 1. 工作性質：八字（十神最多的一組）、紫微（官祿宮主星）、占星（天頂與太陽星座）、生命靈數、血型
+// 1. 工作性質：八字（月令格局；十神最多的一組只當補充說明、不投票）、紫微（官祿宮主星）、占星（天頂與太陽星座）、生命靈數、血型
 //    各投兩種「工作性質」，兩個以上系統都投的才列為最適合；每一票都標出依據。
 // 2. 適合的行業：依喜用五行（bazi.js 的 yongShen）對照傳統的五行行業分類。
 // 3. 未來方向：每一年看八字流年十神（並對照喜用忌神）、生命靈數流年數、木星與土星走到的宮位；
@@ -10,6 +10,7 @@
 import { SIGNS } from './zodiac.js';
 import { positionsAt } from './astro.js';
 import { liunian, yongShen, ganzhiTone } from './bazi.js';
+import { geju } from './geju.js';
 import { dominantShishen, personalYearNumber, PERSONAL_YEAR } from './reading.js';
 import { SHISHEN_GROUPS, ZIWEI_STARS, LIFEPATH_DETAIL, SIGN_DETAIL } from './reading-texts.js';
 import { BLOOD } from './blood.js';
@@ -29,7 +30,12 @@ export const NATURES = {
 };
 
 // 各系統投給哪兩種工作性質（依本 App 的文字整理，避免同一系統投太多票）
-const BY_SHISHEN = { 比劫: ['free', 'sales'], 食傷: ['create', 'expert'], 財: ['finance', 'sales'], 官殺: ['manage', 'stable'], 印: ['research', 'care'] };
+// 八字用月令格局投票：格局是子平法看「一生主軸、靠什麼成事」的地方，比單純數十神多寡更貼近傳統論事業的方式
+const BY_GEJU = {
+  zhengguan: ['stable', 'manage'], qisha: ['manage', 'expert'], zhengcai: ['finance', 'stable'], piancai: ['sales', 'finance'],
+  zhengyin: ['research', 'care'], pianyin: ['expert', 'research'], shishen: ['create', 'care'], shangguan: ['create', 'free'],
+  jianlu: ['free', 'expert'], yuejie: ['sales', 'free'], yangren: ['manage', 'expert'],
+};
 const BY_STAR = {
   紫微: ['manage', 'public'], 天機: ['research', 'expert'], 太陽: ['public', 'care'], 武曲: ['finance', 'expert'], 天同: ['care', 'stable'],
   廉貞: ['public', 'manage'], 天府: ['finance', 'stable'], 太陰: ['finance', 'create'], 貪狼: ['sales', 'create'], 巨門: ['public', 'research'],
@@ -116,8 +122,10 @@ export function buildCareer({ natal = null, bazi = null, ziwei = null, birth, bl
   };
 
   if (bazi && bazi.ok) {
+    const g = geju(bazi);
+    vote(BY_GEJU[g.kind], `八字：${g.name}`);
+    points.push({ system: '八字', text: `格局是${g.name}${g.use ? `（${g.use}）` : ''}、${g.status}：適合${g.info.work}` });
     const dom = dominantShishen(bazi);
-    vote(BY_SHISHEN[dom.group], `八字：${dom.group}較多`);
     points.push({ system: '八字', text: `${dom.group}較多（${SHISHEN_GROUPS[dom.group].members.join('、')}）：${SHISHEN_GROUPS[dom.group].career}` });
   }
   if (ziwei && ziwei.ok) {

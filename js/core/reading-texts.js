@@ -155,13 +155,6 @@ export function mutagenIn(mutagen, palace) {
   }[mutagen] || '';
 }
 
-export const MUTAGEN_TEXT = {
-  化祿: '化祿：順利、有收穫，這顆星代表的事容易得到。',
-  化權: '化權：掌控力與主導權，代表的事你會想抓在手上。',
-  化科: '化科：名聲、貴人與好評，代表的事容易被看見。',
-  化忌: '化忌：卡關與執著，代表的事要多花心力，也是成長的地方。',
-};
-
 // ── 生命靈數：事業與感情
 export const LIFEPATH_DETAIL = {
   1: { tags: ['lead', 'independent'], career: '適合當領頭羊、創業或獨立作業。', love: '在感情裡需要被尊重，要學會聽對方說。' },

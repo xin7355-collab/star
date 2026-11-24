@@ -2,7 +2,7 @@
 // 紫微命盤、姓名分析、血型、瑪雅密碼、生命靈數、袁天罡稱骨。各工具的函式庫用到才載入（紫微約 51KB、康熙筆畫約 85KB gzip）。
 // 結果可「存到紀錄」（只存在手機）或存成圖卡。多胞胎依「我的」裡填的出生順序套用紫微借宮。
 
-import { h, clear, segmented, fill } from '../ui/dom.js';
+import { h, s as svg, clear, segmented, fill } from '../ui/dom.js';
 import { load, save } from '../ui/storage.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
 import { cardHead } from '../ui/icons.js';
@@ -29,6 +29,9 @@ const PALACE_FIELD = { 命宮: 'ming', 官祿: 'career', 夫妻: 'love', 財帛:
 const WX_CLASS = { 木: 'wx-wood', 火: 'wx-fire', 土: 'wx-earth', 金: 'wx-metal', 水: 'wx-water' };
 const MUTAGEN_CLASS = { 化祿: 'mg-lu', 化權: 'mg-quan', 化科: 'mg-ke', 化忌: 'mg-ji' };
 // 干支喜忌的顏色：兩個都忌＝紅、有喜而沒有忌＝綠、其他＝中性
+const GEJU_BADGE = { 成格: 'good', 成中帶忌: 'alt', 破格: 'danger', 敗中有救: 'alt', 平常: '' };
+const GEJU_TONE = { good: 'tone-good', bad: 'tone-bad', rescue: 'tone-info', note: 'tone-info' };
+const PATTERN_TONE = { good: 'tone-good', bad: 'tone-bad', mixed: 'tone-info' };
 const toneCls = (t) => (!t ? 'tone-info' : t.gan === '忌' && t.zhi === '忌' ? 'tone-bad' : (t.gan === '喜' || t.zhi === '喜') && t.gan !== '忌' && t.zhi !== '忌' ? 'tone-good' : 'tone-info');
 
 export function mountDestiny(root, ctx) {
@@ -102,7 +105,7 @@ export function mountDestiny(root, ctx) {
       liunian: () => drawLiunian(p, input, opts),
       ziwei: () => drawZiwei(p, input, opts),
       maya: () => drawMaya(p, input),
-      numerology: () => drawNumerology(p, input),
+      numerology: () => drawNumerology(p, input, opts),
       chenggu: () => drawChenggu(p, input, opts),
     }[tool];
     draw()
@@ -136,8 +139,34 @@ export function mountDestiny(root, ctx) {
   }
 
   // ── 八字命盤
+  // 格局：月令定一生主軸（子平法），和喜用神（五行平衡）分開講；印章在滑到眼前時才蓋下去
+  function gejuBlock(g) {
+    if (!g) return null;
+    const name = `${g.name}${g.use ? `（${g.use}）` : ''}`;
+    const toneWord = { 喜: '格局喜歡的', 忌: '格局怕的', 平: '影響不大' };
+    return [
+      playWhenVisible(h(
+        'div',
+        { class: 'geju-head' },
+        h('div', { class: 'seal', 'aria-hidden': 'true' }, [...g.name].map((ch) => h('span', { text: ch }))),
+        h('div', {}, h('h3', {}, `格局：${name} `, h('span', { class: `badge ${GEJU_BADGE[g.status]}`, text: g.status })), h('p', { class: 'muted small', text: `主軸：${g.info.core}` })),
+      )),
+      h('p', { text: g.info.text }),
+      h('p', { class: 'muted small', text: `怎麼取的：${g.how}` }),
+      g.items.length ? h('ul', { class: 'reasons' }, g.items.map((x) => h('li', { class: GEJU_TONE[x.tone], text: x.text }))) : null,
+      h('p', {}, h('b', { text: `${g.status}：` }), g.statusText),
+      h('ul', { class: 'plain' },
+        h('li', {}, h('b', { text: '適合：' }), g.info.work),
+        h('li', {}, h('b', { text: '要小心：' }), g.info.caution),
+        h('li', {}, h('b', { text: '大運流年：' }), `喜歡遇到${g.likes.join('、')}${g.fears.length ? `，怕遇到${g.fears.join('、')}` : ''}。`),
+        g.dayun ? h('li', {}, h('b', { text: `目前大運 ${g.dayun.ganzhi}：` }), `天干${g.dayun.gan.ss}（${toneWord[g.dayun.gan.tone]}），地支本氣${g.dayun.zhi.ss}（${toneWord[g.dayun.zhi.tone]}）。`) : null),
+      g.notes.map((t) => h('p', { class: 'hint', text: t })),
+      h('p', { class: 'hint', text: '格局看月令（出生月的主氣）在盤中扮演的角色，回答「一生的主軸、靠什麼成事」，依清代《子平真詮》的取格與成敗救應整理成白話；喜用神看五行平衡。兩者角度不同，開運佈置、幸運色仍照喜用神。' }),
+    ];
+  }
+
   async function drawBazi(p, input, opts) {
-    const [{ buildBazi, WUXING, yongShen, ganzhiTone, shensha }, { dominantShishen }, { DAYMASTER, SHISHEN_GROUPS }] = await Promise.all([import('../core/bazi.js'), import('../core/reading.js'), import('../core/reading-texts.js')]);
+    const [{ buildBazi, WUXING, yongShen, ganzhiTone, shensha }, { dominantShishen }, { DAYMASTER, SHISHEN_GROUPS }, { geju }] = await Promise.all([import('../core/bazi.js'), import('../core/reading.js'), import('../core/reading-texts.js'), import('../core/geju.js')]);
     const b = buildBazi(input, opts);
     if (!b.ok) return warnCard(b.error, true);
     const dom = dominantShishen(b);
@@ -199,6 +228,7 @@ export function mountDestiny(root, ctx) {
       ys ? h('p', { class: 'muted small center', text: '外圈箭頭是相生、內圈的線是相剋；圈越大，這個五行在命盤裡的份量越重（月令加三倍）。綠底是喜用，紅底是忌神。' }) : null,
       ys ? h('ul', { class: 'reasons' }, [...ys.reasons, ys.tiaohou].filter(Boolean).map((t) => h('li', { class: 'tone-info', text: t }))) : null,
       h('p', { class: 'hint', text: '字面上缺的五行不一定要補；喜用神看的是日主強弱（扶抑法），開運佈置、幸運色、姓名搭配都用這個結果。' }),
+      gejuBlock(geju(b)),
       h('h3', { text: '命盤上的其他記號' }),
       h('ul', { class: 'plain' },
         h('li', { text: `空亡（日柱旬空）：${b.extra.kong}${b.extra.kongPillars.length ? `，落在${b.extra.kongPillars.join('、')}：這一柱代表的人事力量比較虛，常是「看得到、抓不牢」` : '，其他柱沒有落空'}。` }),
@@ -270,13 +300,14 @@ export function mountDestiny(root, ctx) {
 
   // ── 紫微命盤
   async function drawZiwei(p, input, opts) {
-    const [{ buildZiwei, STAR_TEXT }, { rotateZiwei, twinsInfo }, { PALACE_TEXT, ZIWEI_STARS, PALACE_DOMAIN, BRIGHTNESS_TEXT, mutagenIn }] = await Promise.all([import('../core/ziwei.js'), import('../core/reading.js'), import('../core/reading-texts.js')]);
+    const [{ buildZiwei, STAR_TEXT }, { rotateZiwei, twinsInfo }, { PALACE_TEXT, ZIWEI_STARS, PALACE_DOMAIN, BRIGHTNESS_TEXT, mutagenIn }, { pairText, sanFang, mingPatterns }] = await Promise.all([import('../core/ziwei.js'), import('../core/reading.js'), import('../core/reading-texts.js'), import('../core/ziwei-pattern.js')]);
     const z0 = buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today });
     if (!z0.ok) return warnCard(z0.error, true);
     const twins = p.birthOrder ? twinsInfo({ birthOrder: p.birthOrder, hasTime: true, method: ctx.getSettings().twinMethod }) : null;
     const z = twins && twins.shift ? rotateZiwei(z0, twins.shift) : z0;
-    const detail = h('div', { class: 'palace-detail' }, h('p', { class: 'hint', text: '點命盤上任一宮看詳細星曜。' }));
+    const detail = h('div', { class: 'palace-detail' });
     const hs = z.horoscope;
+    const btnOf = new Map();
     const cells = order(z.palaces.map((pal) => {
       const cls = ['palace'];
       if (pal.name === '命宮') cls.push('soul');
@@ -296,9 +327,42 @@ export function mountDestiny(root, ctx) {
         h('div', { class: 'pal-minor', text: pal.minor.map((s) => s.name + (s.mutagen ? s.mutagen.slice(1) : '')).join(' ') }),
         h('div', { class: 'pal-foot' }, h('span', { text: `${pal.stem}${pal.branch}` }), h('span', { text: `${pal.decadal[0]}–${pal.decadal[1]}` })),
       );
+      btnOf.set(pal.index, el);
       return el;
     }));
-    function showPalace(pal) {
+    // 三方四正連線：本宮與兩個三合宮連成三角形、本宮再連到對宮。線的端點取每格「朝向中間」那一邊的中點，
+    // 線幾乎都走在中央的資料區，不會壓到星曜文字；用實際像素畫（不縮放），pathLength=1 才能從頭畫到尾。
+    const lines = svg('svg', { class: 'sf-lines', 'aria-hidden': 'true' });
+    const grid = h('div', { class: 'ziwei-grid' }, cells, lines);
+    let selected = null;
+    function drawLines() {
+      if (!selected || !grid.offsetWidth) return;
+      // 用 offset* 量版面位置：宮格進場時有位移動畫，getBoundingClientRect 會量到動畫中的位置，線就歪了
+      const anchor = (i) => {
+        const pal = z.palaces.find((q) => q.index === ((i % 12) + 12) % 12);
+        const el = btnOf.get(pal.index);
+        const [row, col] = pal.grid;
+        const x = el.offsetLeft + (col === 0 ? el.offsetWidth : col === 3 ? 0 : el.offsetWidth / 2);
+        const y = el.offsetTop + (row === 0 ? el.offsetHeight : row === 3 ? 0 : el.offsetHeight / 2);
+        return [x.toFixed(1), y.toFixed(1)];
+      };
+      const [a, b, c, d] = [0, 4, 8, 6].map((k) => anchor(selected.index + k));
+      lines.setAttribute('viewBox', `0 0 ${grid.offsetWidth} ${grid.offsetHeight}`);
+      fill(lines,
+        svg('polygon', { points: [a, b, c].map((pt) => pt.join(',')).join(' '), pathLength: 1, class: 'sf-tri' }),
+        svg('line', { x1: a[0], y1: a[1], x2: d[0], y2: d[1], pathLength: 1, class: 'sf-opp' }),
+        [a, b, c, d].map((pt, i) => svg('circle', { cx: pt[0], cy: pt[1], r: i ? 3 : 4.5, class: i ? 'sf-dot' : 'sf-dot self' })));
+    }
+    if (typeof ResizeObserver === 'function') new ResizeObserver(drawLines).observe(grid);
+    function showPalace(pal, { scroll = true } = {}) {
+      selected = pal;
+      for (const [idx, el] of btnOf) {
+        const k = (((idx - pal.index) % 12) + 12) % 12;
+        el.classList.toggle('sf-self', k === 0);
+        el.classList.toggle('sf-on', k === 4 || k === 6 || k === 8);
+        el.setAttribute('aria-pressed', String(k === 0));
+      }
+      drawLines();
       // 命宮、官祿、夫妻、財帛有專屬文案；其他宮用「星的特質表現在這一宮管的事上」，不套命宮的個性
       const field = PALACE_FIELD[pal.name];
       const starText = (st) => (field && ZIWEI_STARS[st.name]?.[field]) || `${STAR_TEXT[st.name] || ''}落在${pal.name}，這些特質會表現在${PALACE_DOMAIN[pal.name] || '這一宮的事'}上。`;
@@ -309,18 +373,28 @@ export function mountDestiny(root, ctx) {
         st.brightness && BRIGHTNESS_TEXT[st.brightness] ? h('div', { class: 'muted small', text: `亮度${BRIGHTNESS_TEXT[st.brightness]}。` }) : null,
         st.mutagen ? h('div', { class: 'muted small', text: `${mutagenIn(st.mutagen, mutPalace)}${mutPalace !== pal.name ? `（四化在對宮${mutPalace}，這裡是借來看）` : ''}` }) : null);
       const opp = z.palaces.find((q) => q.index === (pal.index + 6) % 12);
+      const pair = pairText(pal.major.length ? pal.major : opp.major);
+      const sf = sanFang(z, pal);
       fill(detail,
         h('h3', { text: `${pal.name}（${pal.stem}${pal.branch}）${pal.isBody ? '・身宮' : ''}${pal.originalName ? `・原本的${pal.originalName}` : ''}` }),
         h('p', { class: 'muted', text: PALACE_TEXT[pal.name] || '' }),
         h('p', { class: 'muted small', text: `大限 ${pal.decadal[0]}–${pal.decadal[1]} 歲（虛歲）` }),
         pal.major.length
-          ? h('ul', { class: 'plain' }, pal.major.map(starLi))
+          ? h('ul', { class: 'plain' }, pal.major.map((st) => starLi(st)))
           : [h('p', { text: `空宮：沒有主星，借對宮（${opp.name}）的${opp.major.length ? opp.major.map((x) => x.name).join('、') : '星曜'}來看，這一宮的事比較受環境影響。` }), opp.major.length ? h('ul', { class: 'plain' }, opp.major.map((st) => starLi(st, opp.name))) : null],
         pal.minor.length ? h('p', { text: `輔星：${pal.minor.map((st) => st.name + (st.mutagen ? `（${st.mutagen}）` : '')).join('、')}` }) : null,
         pal.minor.filter((st) => st.mutagen).map((st) => h('p', { class: 'muted small', text: mutagenIn(st.mutagen, pal.name) })),
         pal.adjective.length ? h('p', { class: 'muted small', text: `雜曜：${pal.adjective.join('、')}` }) : null,
+        pair ? h('p', {}, h('b', { text: '雙星組合：' }), pal.name === '命宮' ? pair : `${pair}這組特質會表現在${PALACE_DOMAIN[pal.name] || '這一宮的事'}上。`) : null,
+        h('h4', { text: '三方四正（命盤上的連線）' }),
+        h('ul', { class: 'plain sf-list' }, sf.list.map((x) => h('li', {}, h('b', { text: `${x.role}・${x.palace.name}` }), `：${x.stars.length ? x.stars.map((st) => st.name).join('、') : '沒有主星'}${x.borrowed && x.stars.length ? '（空宮，借對宮）' : ''}`))),
+        h('p', {}, h('b', { text: '四化：' }), sf.mutagens.length ? sf.mutagens.map((m) => `${m.star}${m.mutagen}（${m.palace}）`).join('、') : '三方四正沒有生年四化'),
+        h('p', {}, h('b', { text: '吉星：' }), sf.lucky.length ? sf.lucky.map((x) => `${x.star}（${x.palace}）`).join('、') : '沒有'),
+        h('p', {}, h('b', { text: '煞星：' }), sf.sha.length ? sf.sha.map((x) => `${x.star}（${x.palace}）`).join('、') : '沒有'),
+        h('p', { class: `sf-verdict ${sf.tone}`, text: sf.text }),
+        h('p', { class: 'hint', text: '看一宮不能只看本宮：對宮、兩個三合宮的星曜與四化都會影響這一宮。吉凶是把吉星、煞星和四化加總的粗略判斷。' }),
       );
-      detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (scroll) detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
     const center = h(
       'div',
@@ -332,16 +406,29 @@ export function mountDestiny(root, ctx) {
       h('div', { text: `命主 ${z.soul}・身主 ${z.body}` }),
       hs ? h('div', { class: 'muted', text: `${opts.today.y} 流年 ${hs.yearlyStemBranch}` }) : null,
     );
+    // 中間資料放在連線上層，文字加底色光暈，線看起來從字後面穿過
+    grid.append(center);
+    // 一打開就先看命宮（不捲動畫面）：連線、雙星與三方四正都先示範一次
+    showPalace(z.palaces.find((q) => q.name === '命宮') || z.palaces[0], { scroll: false });
     return h(
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的紫微命盤` }),
       z.notes.map((t) => h('p', { class: 'hint', text: t })),
       twins && twins.shift ? h('p', { class: 'warn', text: `多胞胎第 ${p.birthOrder} 個出生：依「${ctx.getSettings().twinMethod === 'travel' && p.birthOrder === 2 ? '老二借遷移宮' : '弟妹借兄弟宮'}」的看法，宮名已輪轉（點宮位可看原本是哪一宮）。兩派沒有定論，可在上方「排盤設定」切換。` }) : null,
-      h('div', { class: 'ziwei-grid' }, cells, center),
+      grid,
       h('div', { class: 'legend small' }, h('span', { class: 'mg mg-lu', text: '祿' }), ' 化祿 ', h('span', { class: 'mg mg-quan', text: '權' }), ' 化權 ', h('span', { class: 'mg mg-ke', text: '科' }), ' 化科 ', h('span', { class: 'mg mg-ji', text: '忌' }), ' 化忌・', h('span', { class: 'legend-box decadal' }), ' 目前大限・', h('span', { class: 'legend-box yearly' }), ' 今年流年'),
       hs ? h('p', { class: 'small', text: `今年流年四化：${hs.yearlyMutagen.map((s, i) => `${s}化${'祿權科忌'[i]}`).join('、')}` }) : null,
+      h('p', { class: 'hint', text: '點任一宮：下方顯示星曜解說，命盤上畫出它的三方四正。' }),
       detail,
+      h('h3', { text: '命宮格局' }),
+      (() => {
+        const pats = mingPatterns(z);
+        return pats.length
+          ? h('ul', { class: 'reasons' }, pats.map((x) => h('li', { class: PATTERN_TONE[x.tone] }, h('b', { text: `${x.name}：` }), h('span', { text: x.text }))))
+          : h('p', { text: '命宮沒有符合常見的特殊格局：照主星與三方四正的吉凶看即可，一般格局反而少大起大落。' });
+      })(),
+      h('p', { class: 'hint', text: '格局取各派共通、條件明確的說法；同一張盤常同時有吉格和凶格，兩邊都要看。' }),
       h('p', { class: 'hint', text: '排盤由 iztro 計算；星曜簡介為本 App 撰寫的一般性描述，僅供參考。' }),
       actions(p, 'ziwei', '紫微命盤', `命宮${z.soulBranch}・${z.fiveElementsClass}・命主${z.soul}`),
     );
@@ -383,23 +470,47 @@ export function mountDestiny(root, ctx) {
   }
 
   // ── 生命靈數
-  async function drawNumerology(p, input) {
-    const [{ lifePath, grid }, { LIFEPATH_DETAIL }] = await Promise.all([import('../core/numerology.js'), import('../core/reading-texts.js')]);
+  async function drawNumerology(p, input, opts) {
+    const [{ lifePath, grid, gridWithTalent, MEANINGS, MISSING_TEXT, MANY_TEXT }, { LIFEPATH_DETAIL }, { personalYearNumber, PERSONAL_YEAR }] = await Promise.all([import('../core/numerology.js'), import('../core/reading-texts.js'), import('../core/reading.js')]);
     const lp = lifePath(input.date);
     const g = grid(input.date);
+    const alt = gridWithTalent(input.date);
+    const year = opts.today.y;
+    const py = personalYearNumber(input.date, year);
     const LAYOUT = [3, 6, 9, 2, 5, 8, 1, 4, 7];
+    // 連線疊在九宮格後面：格子 64px、間距 8px，第 i 格的中心在 (32 + 72×欄, 32 + 72×列)
+    const POS = Object.fromEntries(LAYOUT.map((n, i) => [n, [32 + (i % 3) * 72, 32 + Math.floor(i / 3) * 72]]));
+    const lines = svg('svg', { viewBox: '0 0 208 208', class: 'nine-lines', 'aria-hidden': 'true' },
+      g.lines.map((l, i) => svg('line', { x1: POS[l.nums[0]][0], y1: POS[l.nums[0]][1], x2: POS[l.nums[2]][0], y2: POS[l.nums[2]][1], pathLength: 1, class: 'nine-line', style: { '--i': String(i) } })));
+    const extraLines = alt.lines.filter((l) => !g.lines.includes(l));
     return h(
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的生命靈數` }),
-      h('div', { class: 'score-hero' }, ringTo(h('div', { class: 'score-ring lv-mid' }, h('b', { text: lp.label }), h('small', { text: '主命數' })), 100), h('div', {}, h('h3', { text: lp.title }), h('p', { text: lp.text }))),
-      h('ul', { class: 'reasons' }, h('li', { class: 'tone-info', text: `事業：${LIFEPATH_DETAIL[lp.number].career}` }), h('li', { class: 'tone-info', text: `感情：${LIFEPATH_DETAIL[lp.number].love}` })),
+      h('div', { class: 'score-hero' }, ringTo(h('div', { class: 'score-ring lv-mid' }, h('b', { class: lp.chain.length > 2 ? 'long' : null, text: lp.label }), h('small', { text: '主命數' })), 100), h('div', {}, h('h3', { text: lp.title }), h('p', { text: lp.text }))),
+      h('ul', { class: 'reasons' },
+        h('li', { class: 'tone-info', text: `事業：${LIFEPATH_DETAIL[lp.number].career}` }),
+        h('li', { class: 'tone-info', text: `感情：${LIFEPATH_DETAIL[lp.number].love}` }),
+        lp.talent.length ? h('li', { class: 'tone-good', text: `天賦數 ${lp.total}（${lp.talent.map((n) => `${n} ${MEANINGS[n].title}`).join('、')}）：生日加總的兩位數，代表天生帶來、比較不費力的能力。` }) : null,
+        h('li', { class: 'tone-info', text: `${year} 年的流年數是 ${py}：${PERSONAL_YEAR[py]}` })),
       h('h3', { text: '九宮格' }),
-      h('div', { class: 'nine-grid' }, LAYOUT.map((n) => h('div', { class: `nine-cell${g.counts[n] ? ' on' : ''}` }, h('b', { text: String(n) }), g.counts[n] > 1 ? h('small', { text: `×${g.counts[n]}` }) : null))),
-      h('p', { text: g.lines.length ? `連線：${g.lines.map((l) => `${l.nums.join('-')} ${l.name}`).join('、')}` : '沒有完整連線' }),
-      g.missing.length ? h('p', { class: 'muted', text: `空缺的數字：${g.missing.join('、')}` }) : null,
+      playWhenVisible(h('div', { class: 'nine-wrap' }, lines,
+        h('div', { class: 'nine-grid', role: 'img', 'aria-label': `九宮格：有 ${LAYOUT.filter((n) => g.counts[n]).join('、')}；空缺 ${g.missing.join('、') || '沒有'}` },
+          LAYOUT.map((n) => h('div', { class: `nine-cell${g.counts[n] ? ' on' : ''}${g.counts[n] >= 3 ? ' many' : ''}` }, h('b', { text: String(n) }), g.counts[n] > 1 ? h('small', { text: `×${g.counts[n]}` }) : null))))),
+      h('p', { class: 'muted small center', text: '圈起來的是生日出現的數字；金線是完整的連線（三個數字都有）。' }),
+      g.lines.length
+        ? h('ul', { class: 'reasons' }, g.lines.map((l) => h('li', { class: 'tone-good' }, h('b', { text: `${l.nums.join('-')} ${l.name}：` }), h('span', { text: l.text }))))
+        : h('p', { text: '沒有完整的連線：特質比較分散、不偏向某一種，彈性大，也比較需要自己找方向。' }),
+      g.missing.length ? [h('h3', { text: `空缺數：${g.missing.join('、')}` }), h('ul', { class: 'reasons' }, g.missing.map((n) => h('li', { class: 'tone-info' }, h('b', { text: `缺 ${n}：` }), h('span', { text: MISSING_TEXT[n] }))))] : h('p', { text: '1 到 9 都有：沒有空缺數，各方面的特質都具備。' }),
+      g.many.length ? h('ul', { class: 'reasons' }, g.many.map((n) => h('li', { class: 'tone-bad' }, h('b', { text: `${n} 出現 ${g.counts[n]} 次：` }), h('span', { text: MANY_TEXT[n] })))) : null,
+      lp.talent.length
+        ? h('details', { class: 'more' },
+          h('summary', { text: '另一派：天賦數、生命數也圈進去' }),
+          h('p', { text: `有些老師會把天賦數 ${lp.talent.join('、')} 和生命數 ${lp.number} 也圈進九宮格。這樣算的話：${extraLines.length ? `多了${extraLines.map((l) => l.name).join('、')}` : '連線沒有變多'}；空缺數${alt.missing.length ? `剩 ${alt.missing.join('、')}` : '全部補齊'}。` }),
+          h('p', { class: 'hint', text: '兩種圈法各有老師採用，沒有定論；App 以只圈生日數字為主，這裡列出來給你對照。' }))
+        : null,
       h('p', { class: 'hint', text: '以西元生日計算；連線名稱為台灣常見說法，各派略有不同。解說為本 App 撰寫，僅供參考。' }),
-      actions(p, 'numerology', '生命靈數', `${lp.label} ${lp.title}`, { title: `${p.name}的生命靈數`, big: lp.label, bigLabel: lp.title, lines: [lp.text] }),
+      actions(p, 'numerology', '生命靈數', `${lp.label} ${lp.title}`, { title: `${p.name}的生命靈數`, big: lp.label, bigLabel: lp.title, lines: [lp.text, g.lines.length ? `連線：${g.lines.map((l) => l.name).join('、')}` : '', g.missing.length ? `空缺數：${g.missing.join('、')}` : ''].filter(Boolean) }),
     );
   }
 
