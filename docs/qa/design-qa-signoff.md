@@ -62,6 +62,9 @@
   design-qa 56 張 CLEAN
 - 新增工作方向、開運佈置、血型、解惑後 CI run 45380479737：E2E 34/34（Chromium 17＋WebKit 17，沒有重試）、
   design-qa 76 張 CLEAN
+- 解惑加六爻排盤表後：320 寬時表格比卡片寬 16px，「變出」欄被切掉（Playwright 量 scrollWidth 270 > 254）→
+  字級 13px、左右留白 2px、「官鬼 辰土」允許在空格處換行，量到 254 = 254；用神那一列加金色左線（深色模式底色太淡）。
+  本機 design-qa 76 張 CLEAN、finish lint 64 個檔案 CLEAN、狀態表 23 個畫面 COMPLETE
 
 ## 4. 腳本量不到的（要人工）
 

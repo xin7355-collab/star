@@ -180,6 +180,7 @@ function buildFuture({ natal, bazi, ziwei, birth, today, ys }) {
       doList.push(sc.do);
       watchList.push(sc.watch);
       if (y.taisui.length) watchList.push(`${y.taisui.join('、')}：重大變動前多規劃`);
+      for (const t of y.triggers) watchList.push(`${t.type}：${t.text.split('：')[1].replace(/。$/, '')}`);
       const toneText = tone === 'good' ? '，是你的喜用，整體順' : tone === 'hard' ? '，是你不需要再加的五行，凡事多花一分力' : '';
       pts.push({ system: '八字', text: `${y.ganzhi}年是你的「${y.shishen}」年（天干屬${wx}${toneText}）：${y.shishenText}` });
     }

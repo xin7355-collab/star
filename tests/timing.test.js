@@ -1,7 +1,7 @@
 // 時機：吉時表、擇日、逆行、日月食、月相、換流月、近期提醒。日期以台灣時間對照公開的天文年曆。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hourGuide, hourSummary, chooseDays, personalDay, retrogradePeriods, eclipsesBetween, moonPhasesBetween, monthChangesBetween, upcoming, attentionSummary, ACTIVITIES } from '../js/core/timing.js';
+import { hourGuide, hourSummary, chooseDays, personalDay, retrogradePeriods, eclipsesBetween, moonPhasesBetween, monthChangesBetween, upcoming, attentionSummary, ACTIVITIES, badDayMarks } from '../js/core/timing.js';
 import { buildBazi } from '../js/core/bazi.js';
 import { isoDate } from '../js/core/date.js';
 
@@ -94,4 +94,35 @@ test('近期提醒：依日期排序、有白話與依據，摘要最多 5 句',
   // 水逆期間要出現提醒
   const during = upcoming({ from: { y: 2026, m: 11, d: 1 }, days: 10 });
   assert.ok(during.some((x) => x.kind === 'retro' && x.title.startsWith('水星逆行中')));
+});
+
+test('擇日：歲破、月破、四離、四絕（年以立春、月以節為界）', () => {
+  assert.deepEqual(badDayMarks({ y: 2026, m: 12, d: 4 }), ['歲破日（這天沖太歲）']); // 丙午年、壬子日
+  assert.deepEqual(badDayMarks({ y: 2027, m: 1, d: 9 }), ['歲破日（這天沖太歲）']); // 立春前仍是丙午年
+  assert.deepEqual(badDayMarks({ y: 2026, m: 2, d: 3 }), ['四絕日（立春前一天）']);
+  assert.deepEqual(badDayMarks({ y: 2026, m: 3, d: 19 }), ['四離日（春分前一天）']);
+  assert.deepEqual(badDayMarks({ y: 2026, m: 2, d: 2 }), ['月破日（這天沖月建）']); // 丑月未日
+  assert.deepEqual(badDayMarks({ y: 2026, m: 12, d: 6 }), []);
+});
+
+test('擇日：大事排除歲破等日子並說明排除了幾天；看醫生只扣分不排除', () => {
+  // 修正前：2026-12-04（歲破）搬家 70 分進前五名、2026-02-03（四絕）簽約 70 分並列最高
+  const move = chooseDays('move', { from: { y: 2026, m: 12, d: 1 }, days: 60 });
+  assert.ok(!move.best.some((d) => d.iso === '2026-12-04'));
+  assert.ok(move.excluded >= 1);
+  const dec4 = move.days.find((d) => d.iso === '2026-12-04');
+  assert.ok(dec4.score <= 20);
+  assert.match(dec4.reasons[0].text, /歲破日.*不用來辦這件事/);
+  const deal = chooseDays('deal', { from: { y: 2026, m: 2, d: 1 }, days: 5 });
+  assert.ok(!deal.best.some((d) => d.iso === '2026-02-03'));
+  const health = chooseDays('health', { from: { y: 2026, m: 12, d: 1 }, days: 60 });
+  assert.equal(health.excluded, 0);
+  assert.match(health.days.find((d) => d.iso === '2026-12-04').reasons[0].text, /能改期就改期/);
+});
+
+test('近期提醒與拜拜擇日：台灣常見的節日、神明生日', () => {
+  const items = upcoming({ from: { y: 2026, m: 8, d: 20 }, days: 14 });
+  assert.ok(items.some((x) => x.kind === 'folk' && x.title.startsWith('中元節（普渡）・8/27')));
+  const pray = chooseDays('pray', { from: { y: 2026, m: 5, d: 1 }, days: 20 });
+  assert.ok(pray.days.find((d) => d.iso === '2026-05-09').reasons.some((x) => x.text === '這天是媽祖生'));
 });

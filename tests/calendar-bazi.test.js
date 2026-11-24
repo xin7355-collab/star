@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { solarToLunar, lunarToSolar, leapMonthOf, almanac, folkZodiac } from '../js/core/calendar.js';
+import { solarToLunar, lunarToSolar, leapMonthOf, almanac, folkZodiac, folkDays } from '../js/core/calendar.js';
 import { buildBazi, shiShen, GAN, yearGanZhi, taiSui, taiSuiList, liunian, equationOfTime, branchRelations, yongShen } from '../js/core/bazi.js';
 import { LunarUtil, Solar } from '../vendor/lunar.js';
 import { tw } from '../js/core/zh.js';
@@ -192,6 +192,31 @@ test('喜用神：身強比劫多取官殺、印多取財，身弱取印比，�
   assert.equal(yongShen({ ok: false }), null);
 });
 
+test('喜用神：剛好 40% 算中和（不會因為小數誤差判成身弱），門檻附近並列另一種看法', () => {
+  // 幫身 4.2、總和 10.5：小數相加會算成 0.39999…，以前被判成身弱、畫面卻寫「占 40%」
+  const r = yongShen(fakeBazi(['乙卯', '丁亥', '丁未', '庚戌']));
+  assert.equal(r.strength, '中和');
+  assert.match(r.reasons[1], /占 40%：中和/);
+  assert.equal(r.borderline, true);
+  assert.equal(r.alt.strength, '身弱');
+  assert.match(r.reasons.join(''), /分界附近/);
+  // 比例遠離門檻的盤沒有這段
+  assert.equal(yongShen(fakeBazi(['庚申', '乙酉', '甲申', '庚午'])).borderline, false);
+});
+
+test('喜用神：可能是化氣、從格、專旺時並列另一派的喜用，主要的喜用不變', () => {
+  const hua = yongShen(fakeBazi(['壬辰', '辛亥', '丙申', '辛卯'])); // 丙辛合、亥月水當令又最旺
+  assert.deepEqual([hua.special.kind, hua.special.name, hua.special.alt.primary, hua.special.alt.secondary], ['化氣', '化水格', '水', '金']);
+  assert.equal(hua.primary, '木'); // 扶抑法的結果照常保留
+  const cong = yongShen(fakeBazi(['庚申', '乙酉', '丙申', '乙丑'])); // 丙火在地支連藏干都無根、酉月金（財）當令
+  assert.deepEqual([cong.special.kind, cong.special.name, cong.special.alt.primary], ['從格', '從財格', '金']);
+  const zhuan = yongShen(fakeBazi(['甲辰', '丙寅', '乙卯', '癸未'])); // 乙木寅月、寅卯辰成方、無金
+  assert.deepEqual([zhuan.special.kind, zhuan.special.alt.primary, zhuan.special.alt.secondary], ['專旺', '木', '火']);
+  assert.match(zhuan.reasons.join(''), /專旺格.*兩種看法都列出來/);
+  // 一般盤不標特殊格局
+  assert.equal(yongShen(fakeBazi(['甲寅', '丙寅', '甲寅', '丙寅'])).special, null); // 比劫多但沒成方局：寅寅寅寅不成寅卯辰
+});
+
 test('喜用神：真實命盤（1990-08-15 06:20 庚午 甲申 壬子 癸卯）', () => {
   const b = buildBazi({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: null, fold: null }, {});
   const r = yongShen(b);
@@ -199,4 +224,58 @@ test('喜用神：真實命盤（1990-08-15 06:20 庚午 甲申 壬子 癸卯）
   assert.equal(r.strength, '身強');
   assert.deepEqual([r.primary, r.secondary, r.avoid], ['火', '木', ['金', '水']]);
   assert.match(r.reasons.join(''), /申月.*得令.*身強.*印/);
+});
+
+test('農民曆：中元節與台灣常拜的神明生日（白名單、台灣說法），不混進「天君下降」這類日子', () => {
+  // 中元節不在 getFestivals() 裡，以前完全不會出現
+  assert.ok(almanac({ y: 2026, m: 8, d: 27 }).festivals.includes('中元節（普渡）'));
+  assert.ok(almanac({ y: 2026, m: 5, d: 9 }).festivals.includes('媽祖生'));
+  assert.ok(almanac({ y: 2027, m: 1, d: 23 }).festivals.includes('尾牙'));
+  assert.ok(almanac({ y: 2026, m: 2, d: 25 }).festivals.includes('天公生'));
+  const year = [];
+  for (let t = Date.UTC(2026, 0, 1); t < Date.UTC(2027, 0, 1); t += 86400000) {
+    const d = new Date(t);
+    year.push(...folkDays(Solar.fromYmd(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()).getLunar()));
+  }
+  assert.ok(year.length >= 15 && year.length <= 25, String(year.length));
+  assert.ok(year.every((n) => !/[下降天君]{3}|简|关|妈|观/.test(n)), year.join('、'));
+});
+
+test('農民曆：吉神凶煞、胎神（台灣寫「占」）、二十八宿、物候、數九三伏、年度項目', () => {
+  const a = almanac({ y: 2027, m: 1, d: 5 });
+  assert.ok(a.jiShen.length && a.xiongSha.length);
+  assert.match(a.tai, /^占門爐/); // tw() 會把占轉成佔，要改回台灣農民曆的寫法
+  assert.match(a.xiu, /^翼火蛇（凶）$/);
+  assert.match(a.wuhou, /小寒 初候：雁北鄉/);
+  assert.deepEqual(a.season, ['二九第6天']);
+  assert.deepEqual(almanac({ y: 2026, m: 7, d: 25 }).season, ['中伏第1天']);
+  assert.deepEqual(almanac({ y: 2026, m: 11, d: 24 }).yearItems, ['七龍治水', '四牛耕田', '五人分餅', '十日得金', '三鼠偷糧']);
+});
+
+test('八字盤面：十二長生、日柱空亡、胎元、命宮、身宮（和函式庫的 EightChar 一致）', () => {
+  // 1990-05-15 12:00：庚午 辛巳 庚辰 壬午
+  const b = buildBazi({ date: { y: 1990, m: 5, d: 15 }, time: { h: 12, mi: 0 }, tz: 'Asia/Taipei', place: null, fold: null }, {});
+  assert.deepEqual(b.pillars.map((p) => p.gan + p.zhi), ['庚午', '辛巳', '庚辰', '壬午']);
+  assert.deepEqual(b.extra.changSheng, ['沐浴', '長生', '養', '沐浴']);
+  assert.equal(b.extra.kong, '申酉');
+  assert.deepEqual(b.extra.kongPillars, []);
+  assert.deepEqual([b.extra.taiYuan, b.extra.mingGong, b.extra.shenGong], ['壬申', '壬午', '戊子']);
+  // 沒有出生時間：命宮、身宮不算
+  const noTime = buildBazi({ date: { y: 1990, m: 5, d: 15 }, time: null, tz: 'Asia/Taipei', place: null, fold: null }, {});
+  assert.equal(noTime.extra.mingGong, null);
+  assert.equal(noTime.extra.changSheng.length, 4);
+  assert.equal(noTime.extra.changSheng[3], null);
+});
+
+test('流年：伏吟、天剋地沖、歲運並臨、流年沖大運', () => {
+  // 庚午 甲申 壬子 癸卯，男：大運乙酉 1998–2007、丙戌 2008–2017、丁亥 2018–2027
+  const b = buildBazi({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: null, fold: null }, { gender: '男', today: { y: 2026, m: 11, d: 24 } });
+  const byYear = Object.fromEntries(liunian(b, [1999, 2004, 2005, 2010, 2026]).map((ln) => [ln.year, ln.triggers.map((t) => t.type)]));
+  assert.deepEqual(byYear[2004], ['伏吟']); // 甲申＝月柱
+  assert.deepEqual(byYear[2005], ['歲運並臨']); // 乙酉＝大運
+  assert.deepEqual(byYear[1999], ['沖大運']); // 卯沖大運乙酉的酉
+  assert.deepEqual(byYear[2010], ['天剋地沖']); // 庚寅對月柱甲申：甲庚沖、寅申沖
+  assert.deepEqual(byYear[2026], ['天剋地沖']); // 丙午對日柱壬子：丙壬沖、子午沖
+  const t2026 = liunian(b, [2026])[0].triggers[0];
+  assert.match(t2026.text, /日柱壬子天剋地沖/);
 });

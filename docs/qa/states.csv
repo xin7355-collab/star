@@ -114,7 +114,7 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 解惑,form,focus_visible,DONE,npm run qa:design（jiehuo 快照鍵盤 Tab 實測）,
 解惑,form,validation_error,DONE,test:tests/guidance.test.js 數字起卦不合法時回「請輸入三個 1～9999 的整數。」（畫面用提示訊息顯示）,
 解惑,form,submitting,DONE,code:js/views/jiehuo.js 按下後按鈕變「起卦中…」並鎖住,
-解惑,form,success,DONE,e2e:卦象、命盤、30 天好日子、具體做法與存紀錄,
+解惑,form,success,DONE,e2e:梅花總斷、六爻排盤（用神列、應期）、命盤、30 天好日子、具體做法與存紀錄,
 解惑,form,server_error,DONE,code:js/views/jiehuo.js「起卦失敗：…請確認網路後重新開啟 App」,沒有伺服器；會失敗的只有延後載入的模組
 工作與方向,data_view,long_content,DONE,npm run qa:design（long-career 快照：20 字英文名字、50 人名單、320／390／1440 寬）,
 開運佈置,data_view,long_content,DONE,npm run qa:design（long-fengshui 快照：九宮格與房間圖在 320 寬不溢出）,

@@ -200,9 +200,10 @@ export function mountFortune(root, ctx) {
           h('div', { class: 'field' }, h('span', { class: 'field-label', text: '想做的事' }), sel),
           h('h3', { text: '最適合的日子' }),
           h('ol', { class: 'pairs' }, r.best.map((d) => h('li', { class: scoreClass(d.score) }, h('span', { text: `${d.label}・${d.reasons.filter((x) => x.tone === 'good').map((x) => x.text).slice(0, 2).join('、') || '沒有特別加分'}` }), h('b', { text: `${d.score}` })))),
+          r.excluded ? h('p', { class: 'muted small', text: `30 天裡有 ${r.excluded} 天是歲破、月破或四離四絕日，傳統上不用來辦這件事，已排除在推薦之外（格子裡點開可以看原因）。` }) : null,
           heatGrid(r.days, pick),
           detail,
-          h('p', { class: 'hint', text: '分數＝農民曆宜忌＋這天和你八字的沖合與十神＋當天星座分數。同分時取日期較早的。傳統與占星的推算規則，重要的事仍以實際狀況為準。' }),
+          h('p', { class: 'hint', text: '分數＝農民曆宜忌＋這天和你八字的沖合與十神＋當天星座分數；歲破、月破、四離四絕日另外排除或扣分。同分時取日期較早的。傳統與占星的推算規則，重要的事仍以實際狀況為準。' }),
         );
       })
       .catch(() => {
@@ -295,13 +296,19 @@ export function mountFortune(root, ctx) {
           h(
             'details',
             { class: 'more' },
-            h('summary', { text: '更多（節氣、方位、彭祖百忌）' }),
+            h('summary', { text: '更多（吉神凶煞、胎神、星宿、節氣、方位、彭祖百忌）' }),
             h('ul', { class: 'plain' },
               h('li', { text: `干支：${a.ganzhi.year}年 ${a.ganzhi.month}月 ${a.ganzhi.day}日` }),
+              a.jiShen.length ? h('li', { text: `吉神宜趨：${a.jiShen.join('、')}` }) : null,
+              a.xiongSha.length ? h('li', { text: `凶煞宜忌：${a.xiongSha.join('、')}` }) : null,
+              h('li', { text: `胎神占方：${a.tai}（家有孕婦，這個位置不要搬動、釘釘子）` }),
+              h('li', { text: `二十八宿：${a.xiu}` }),
+              h('li', { text: `物候：${a.wuhou}${a.season.length ? `・${a.season.join('・')}` : ''}` }),
               a.nextJieQi ? h('li', { text: `下一個節氣：${a.nextJieQi.name}（${a.nextJieQi.date.m}/${a.nextJieQi.date.d}）` }) : null,
               h('li', { text: `喜神${a.positions.xi}・財神${a.positions.cai}・福神${a.positions.fu}` }),
               h('li', { text: `值星：${a.zhiXing}・值神：${a.tianShen}` }),
-              h('li', { text: `彭祖百忌：${a.pengzu.join('；')}` })),
+              h('li', { text: `彭祖百忌：${a.pengzu.join('；')}` }),
+              h('li', { text: `今年農民曆：${a.yearItems.join('・')}` })),
             h('p', { class: 'hint', text: '資料由 lunar-typescript 依傳統曆法推算，與各家農民曆可能略有出入，僅供參考。' }),
           ),
         );

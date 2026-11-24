@@ -8,7 +8,8 @@
 // ・明財位：進門的斜對角，不用羅盤也找得到。
 // ・擺設：依喜用五行（bazi.js 的 yongShen）挑顏色、材質、水晶、植物、花，決定適不適合養魚。
 
-import { Solar } from '../../vendor/lunar.js';
+import { Solar, LunarYear } from '../../vendor/lunar.js';
+import { tw } from './zh.js';
 import { yearGanZhi, yongShen } from './bazi.js';
 import { ZIWEI_STARS } from './reading-texts.js';
 
@@ -74,29 +75,53 @@ const STAR_INFO = {
   5: { name: '五黃廉貞', kind: 'bad', theme: '五黃煞，意外、破財、重病（最凶）', tip: '保持安靜、不要動土裝修；放銅葫蘆、六帝錢等金屬化解；千萬別放紅色或點燈' },
   6: { name: '六白武曲', kind: 'good', theme: '偏財、貴人、權力', tip: '保持明亮，可以擺金屬或黃色系擺件' },
   7: { name: '七赤破軍', kind: 'bad', theme: '破財、口舌、防小偷', tip: '放一杯清水或藍黑色物品化解，門窗留意安全' },
-  8: { name: '八白左輔', kind: 'good', theme: '正財、置產（傳統財星，九運之後力量減弱）', tip: '擺黃水晶、聚寶盆或陶瓷擺件，保持乾淨明亮' },
-  9: { name: '九紫右弼', kind: 'good', theme: '喜慶、名聲，也是九運的當運財星', tip: '擺紅色、紫色物品或綠色植物，燈要亮' },
+  8: { name: '八白左輔', kind: 'good', theme: '正財、置產（傳統財星）', tip: '擺黃水晶、聚寶盆或陶瓷擺件，保持乾淨明亮' },
+  9: { name: '九紫右弼', kind: 'good', theme: '喜慶、名聲', tip: '擺紅色、紫色物品或綠色植物，燈要亮' },
 };
 // 洛書飛行順序：中宮 → 西北 → 西 → 東北 → 南 → 北 → 西南 → 東 → 東南
 const FLY_ORDER = ['中', '西北', '西', '東北', '南', '北', '西南', '東', '東南'];
 const ZHI_DIR = { 子: '北', 丑: '東北', 寅: '東北', 卯: '東', 辰: '東南', 巳: '東南', 午: '南', 未: '西南', 申: '西南', 酉: '西', 戌: '西北', 亥: '西北' };
 const OPPOSITE = { 北: '南', 南: '北', 東: '西', 西: '東', 東北: '西南', 西南: '東北', 東南: '西北', 西北: '東南' };
 
-/** 某一年（以立春為界）的九宮飛星，以及太歲、歲破方位 */
-export function flyingStars(year) {
-  const center = (11 - (year % 9)) % 9 || 9;
+/** 某顆星入中宮後，依洛書順序飛到八方 */
+function flyFrom(center) {
   const at = {};
   FLY_ORDER.forEach((dir, i) => {
     at[dir] = ((center - 1 + i) % 9) + 1;
   });
+  return { center, at, stars: FLY_ORDER.map((dir) => ({ dir, star: at[dir], ...STAR_INFO[at[dir]] })) };
+}
+
+/** 三元九運：九運（2024–2043）九紫是當運財星、八白退氣；換運時這段說明會跟著換，不寫死在星的文字裡 */
+export function periodOf(year) {
+  const ly = LunarYear.fromYear(year);
+  const yun = tw(ly.getYun());
+  const note = yun === '九運'
+    ? '目前是下元九運（2024–2043 年）：九紫是當運的財星，八白是退氣的財星，兩個方位都可以擺招財物。'
+    : `目前是${tw(ly.getYuan())}${yun}。`;
+  return { yuan: tw(ly.getYuan()), yun, note };
+}
+
+/** 某一年（以立春為界）的九宮飛星，以及太歲、歲破方位 */
+export function flyingStars(year) {
   const zhi = yearGanZhi(year)[1];
   const taisui = ZHI_DIR[zhi];
+  return { year, ...flyFrom((11 - (year % 9)) % 9 || 9), taisui: { dir: taisui, zhi, breaker: OPPOSITE[taisui] }, period: periodOf(year) };
+}
+
+/**
+ * 本月的九宮飛星（月紫白，以「節」換月）。入中的星交給 lunar-typescript 的 getMonthNineStar：
+ * 它和「子午卯酉年寅月八白入中、辰戌丑未年五黃、寅申巳亥年二黑，逐月退一」的口訣逐月核對過一致。
+ */
+export function monthlyStars({ y, m, d }) {
+  const lunar = Solar.fromYmdHms(y, m, d, 12, 0, 0).getLunar();
+  const from = lunar.getPrevJie(true).getSolar();
+  const to = lunar.getNextJie(true).getSolar().next(-1);
   return {
-    year,
-    center,
-    at,
-    stars: FLY_ORDER.map((dir) => ({ dir, star: at[dir], ...STAR_INFO[at[dir]] })),
-    taisui: { dir: taisui, zhi, breaker: OPPOSITE[taisui] },
+    ...flyFrom(lunar.getMonthNineStar().getIndex() + 1),
+    monthZhi: lunar.getMonthZhiExact(),
+    from: { y: from.getYear(), m: from.getMonth(), d: from.getDay() },
+    to: { y: to.getYear(), m: to.getMonth(), d: to.getDay() },
   };
 }
 
@@ -259,6 +284,7 @@ export function buildFengshui({ bazi = null, ziwei = null, birth, gender = null,
   const personal = personalDirections(birth, gender);
   const items = ys ? { primary: ELEMENT_ITEMS[ys.primary], secondary: ELEMENT_ITEMS[ys.secondary] } : null;
   const corner = wealthCorner(door);
+  const month = monthlyStars(today);
   const goodStars = fs.stars.filter((s) => s.kind === 'good' && s.dir !== '中');
   const badStars = fs.stars.filter((s) => s.kind === 'bad');
   const sheng = personal ? personal.stars.find((s) => s.key === '生氣').dir : null;
@@ -279,12 +305,16 @@ export function buildFengshui({ bazi = null, ziwei = null, birth, gender = null,
   if (clash.length) {
     plan.push(`注意：你的有利方位${clash.map((c) => `「${c.dir}」今年剛好是${c.what.join('、')}`).join('；')}所在。今年那裡只做化解（金屬擺件、保持安靜），開運擺設改放在次要喜用「${ys.secondary}」的方位「${items.secondary.direction}」。`);
   }
+  const m5 = month.stars.find((s) => s.star === 5);
+  const m9 = month.stars.find((s) => s.star === 9);
+  plan.push(`這個月（${month.from.m}/${month.from.d}–${month.to.m}/${month.to.d}）：五黃飛到「${place(m5.dir)}」，那裡這個月也不要動工；九紫到「${place(m9.dir)}」，可以加強擺設。`);
   if (personal) plan.push(`床頭與辦公座位不要放在你的絕命方「${personal.stars.find((s) => s.key === '絕命').dir}」與五鬼方「${personal.stars.find((s) => s.key === '五鬼').dir}」。`);
 
   return {
     ys,
     year,
     flying: fs,
+    month,
     goodStars,
     badStars,
     personal,

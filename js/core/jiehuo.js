@@ -88,11 +88,16 @@ export const TOPICS = [
 
 const TONE_RANK = { good: 2, mid: 1, care: 0 };
 
-/** 把卦象（體用）和今年的整體運勢合成一句白話結論 */
+/** 把卦象（梅花總斷）和今年的整體運勢合成一句白話結論；卦凶運好、卦好運弱時講清楚是哪一邊在撐 */
 export function overall(cast, yearTone = 'mid') {
   const v = cast.verdict;
   const both = TONE_RANK[v.tone] + (yearTone === 'good' ? 2 : yearTone === 'hard' ? 0 : 1);
-  if (both >= 3) return { tone: 'good', text: `卦象${v.level}、今年的運勢也幫你：放心往前，把握接下來幾週。` };
-  if (both === 2) return { tone: 'mid', text: `卦象${v.level}：事情可以做，但要照步驟來，別期待一次到位。` };
+  if (both >= 3) {
+    return { tone: 'good', text: v.tone === 'good' ? `卦象${v.level}、今年的運勢也幫你：放心往前，把握接下來幾週。` : `卦象${v.level}、今年的運勢也幫你：前段會卡一下，撐過去就順。` };
+  }
+  if (both === 2) {
+    const lead = { care: `卦象${v.level}，好在今年的運勢撐得住`, good: `卦象${v.level}，但今年整體運勢偏弱`, mid: `卦象${v.level}` }[v.tone];
+    return { tone: 'mid', text: `${lead}：事情可以做，但要照步驟來，別期待一次到位。` };
+  }
   return { tone: 'care', text: `卦象${v.level}：現在阻力比較大，先守住、照顧好自己，等時機或換一個方法。` };
 }

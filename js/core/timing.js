@@ -15,6 +15,7 @@ import { addDays, isoDate } from './date.js';
 import { localToUtcLenient, wallFields, DEFAULT_TZ } from './tz.js';
 import { bodySpeed } from './astro.js';
 import { dayScores } from './fortune.js';
+import { folkDays } from './calendar.js';
 
 const DAY_MS = 86400000;
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -140,6 +141,27 @@ export function hourSummary(hours) {
   return lines;
 }
 
+// 傳統擇日「大事不用」的日子。為什麼要自己判斷：函式庫的每日宜忌不會標出歲破、月破、四離、四絕，
+// 照宜忌打分時，2026-12-04（丙午年歲破）搬家拿 70 分、2026-02-03（四絕）簽約也拿 70 分，都進了前五名。
+const ZHI_CHONG = { 子: '午', 午: '子', 丑: '未', 未: '丑', 寅: '申', 申: '寅', 卯: '酉', 酉: '卯', 辰: '戌', 戌: '辰', 巳: '亥', 亥: '巳' };
+const SI_LI = ['春分', '夏至', '秋分', '冬至'];
+const SI_JUE = ['立春', '立夏', '立秋', '立冬'];
+// 歲破、月破、四離四絕對這些事算「不用」（排除在推薦之外）；看醫生、考試這類日子常常不能自己選，只扣分提醒
+const MAJOR = new Set(['money', 'deal', 'wedding', 'move', 'travel', 'renovate']);
+
+/** 這一天是不是歲破、月破、四離、四絕（年以立春、月以節為界，取中午） */
+export function badDayMarks({ y, m, d }) {
+  const noon = Solar.fromYmdHms(y, m, d, 12, 0, 0).getLunar();
+  const dayZhi = noon.getDayZhi();
+  const marks = [];
+  if (ZHI_CHONG[noon.getYearZhiByLiChun()] === dayZhi) marks.push('歲破日（這天沖太歲）');
+  if (ZHI_CHONG[noon.getMonthZhiExact()] === dayZhi) marks.push('月破日（這天沖月建）');
+  const nextJq = Solar.fromYmdHms(y, m, d, 12, 0, 0).next(1).getLunar().getJieQi();
+  if (SI_LI.includes(nextJq)) marks.push(`四離日（${nextJq}前一天）`);
+  if (SI_JUE.includes(nextJq)) marks.push(`四絕日（${nextJq}前一天）`);
+  return marks;
+}
+
 /**
  * 擇日：未來 days 天裡，做某件事比較適合的日子（分數高到低）。
  * @param {string} activityId ACTIVITIES 的 id
@@ -172,9 +194,27 @@ export function chooseDays(activityId, { from, days = 30, bazi = null, signIndex
       score += Math.round((s - 50) * 0.3);
       reasons.push({ tone: s >= 60 ? 'good' : s < 45 ? 'bad' : 'info', text: `星座運勢 ${s} 分` });
     }
-    list.push({ date, iso: isoDate(date), label: dateText(date), ganzhi: p.ganzhi, score: Math.max(0, Math.min(100, score)), reasons, yi, ji });
+    if (act.id === 'pray') {
+      const folk = folkDays(lunar);
+      if (folk.length) { score += 8; reasons.push({ tone: 'good', text: `這天是${folk.join('、')}` }); }
+    }
+    const marks = badDayMarks(date);
+    const blocked = marks.length && MAJOR.has(act.id);
+    if (marks.length) {
+      if (blocked) score = Math.min(score, 20);
+      else score -= 10;
+      reasons.unshift({ tone: 'bad', text: `${marks.join('、')}：傳統擇日${blocked ? '不用來辦這件事' : '建議避開，能改期就改期'}` });
+    }
+    list.push({ date, iso: isoDate(date), label: dateText(date), ganzhi: p.ganzhi, score: Math.max(0, Math.min(100, score)), reasons, yi, ji, marks });
   }
-  return { activity: act, days: list, best: [...list].sort((a, b) => b.score - a.score || a.iso.localeCompare(b.iso)).slice(0, 5) };
+  const usable = list.filter((x) => !(x.marks.length && MAJOR.has(act.id)));
+  return {
+    activity: act,
+    days: list,
+    best: usable.sort((a, b) => b.score - a.score || a.iso.localeCompare(b.iso)).slice(0, 5),
+    // 被排除的天數，畫面要說清楚（不要默默少掉）
+    excluded: list.length - usable.length,
+  };
 }
 
 // ── 近期提醒
@@ -348,6 +388,12 @@ export function upcoming({ from, days = 45, bazi = null, birth = null, tz = DEFA
       if (p.clash.includes('生肖')) {
         items.push({ date, kind: 'clash', level: 'warn', title: `沖生肖日・${dateText(date)}`, text: p.notes[0], basis: `八字：${p.ganzhi}日的地支和你的生肖相沖。` });
       }
+    }
+  }
+  for (let i = 0; i < Math.min(days, 31); i += 1) {
+    const date = addDays(from, i);
+    for (const name of folkDays(lunarOf(date))) {
+      items.push({ date, kind: 'folk', level: 'info', title: `${name}・${dateText(date)}`, text: '傳統節日或神明生日：想拜拜祈福，可以到「擇日 → 拜拜、祈福」看當天的好時辰。', basis: '農民曆：農曆節日與神明聖誕（台灣常見的幾項）。' });
     }
   }
   if (birth) {

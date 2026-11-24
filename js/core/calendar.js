@@ -62,6 +62,25 @@ export function lunarToSolar({ year, month, day, isLeap = false }) {
   return { ok: true, value: { y: s.getYear(), m: s.getMonth(), d: s.getDay() } };
 }
 
+// 台灣常拜的節日與神明生日。為什麼要白名單：函式庫的道教、佛教、民俗節日一年有 260 多筆，
+// 很多是「某某天君下降」這類一般人不拜的日子；而且中元節不在 getFestivals() 裡（只在 getOtherFestivals()），
+// 只讀 getFestivals() 會漏掉台灣最重要的普渡。名稱改成台灣說法；同一天重複的（中元節與中元地官大帝）只留一個。
+const FOLK_DAYS = new Map([
+  ['中元节', '中元節（普渡）'], ['下元节', '下元節'], ['尾牙', '尾牙'], ['祭灶日', '送神'], ['接神日', '接神'], ['地藏节', '地藏王菩薩聖誕'],
+  ['玉皇上帝圣诞', '天公生'], ['上元天官圣诞', '上元天官大帝聖誕'], ['土地正神诞', '土地公生（頭牙）'], ['文昌梓潼帝君圣诞', '文昌帝君聖誕'],
+  ['玄天上帝圣诞', '玄天上帝聖誕'], ['财神赵公元帅圣诞', '武財神聖誕'], ['天后妈祖圣诞', '媽祖生'], ['城隍爷圣诞', '城隍爺聖誕'],
+  ['关圣帝君圣诞', '關公生（關聖帝君聖誕）'],
+  ['观音大士诞', '觀世音菩薩聖誕'], ['观世音菩萨成道', '觀世音菩薩成道日'],
+  // 函式庫把九月十九標成「觀世音菩薩誕」，台灣多稱為出家紀念日
+  ['观世音菩萨诞', '觀世音菩薩出家日'], ['释迦牟尼佛诞', '佛誕節（浴佛節）'],
+]);
+
+/** 這一天的台灣民俗節日與神明生日（白名單過濾、台灣說法） */
+export function folkDays(lunar) {
+  const names = [...lunar.getOtherFestivals(), ...lunar.getTao().getFestivals().map((f) => f.getName()), ...lunar.getFoto().getFestivals().map((f) => f.getName())];
+  return [...new Set(names.map((n) => FOLK_DAYS.get(n)).filter(Boolean))];
+}
+
 function jieQiInfo(jq) {
   if (!jq) return null;
   const s = jq.getSolar();
@@ -70,7 +89,8 @@ function jieQiInfo(jq) {
 
 /** 某一天的農民曆 */
 export function almanac({ y, m, d }) {
-  const solar = Solar.fromYmd(y, m, d);
+  // 取中午：月建、節氣當天的值以白天為準（午夜那一刻常常還沒交節）
+  const solar = Solar.fromYmdHms(y, m, d, 12, 0, 0);
   const lunar = solar.getLunar();
   const f = lunarFields(lunar);
   const todayJieQi = lunar.getJieQi();
@@ -96,7 +116,18 @@ export function almanac({ y, m, d }) {
     jieqi: todayJieQi ? tw(todayJieQi) : '',
     prevJieQi: jieQiInfo(lunar.getPrevJieQi(true)),
     nextJieQi: jieQiInfo(lunar.getNextJieQi(true)),
-    festivals: twList(lunar.getFestivals()),
+    festivals: [...twList(lunar.getFestivals()), ...folkDays(lunar)],
+    jiShen: twList(lunar.getDayJiShen()),
+    xiongSha: twList(lunar.getDayXiongSha()),
+    // 台灣農民曆寫「胎神占方」的「占」；tw() 的通用對照會把占轉成佔，這裡改回來
+    tai: tw(lunar.getDayPositionTai()).replace(/佔/g, '占'),
+    xiu: `${tw(lunar.getXiu() + lunar.getZheng() + lunar.getAnimal())}（${tw(lunar.getXiuLuck())}）`,
+    wuhou: `${tw(lunar.getHou())}：${tw(lunar.getWuHou())}`,
+    season: [lunar.getShuJiu(), lunar.getFu()].filter(Boolean).map((x) => tw(x.toFullString())),
+    yearItems: (() => {
+      const ly = LunarYear.fromYear(lunar.getYear());
+      return [ly.getZhiShui(), ly.getGengTian(), ly.getFenBing(), ly.getDeJin(), ly.getTouLiang()].map(tw);
+    })(),
   };
 }
 

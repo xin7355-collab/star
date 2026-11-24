@@ -240,6 +240,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     const [ln] = liunian(bazi, [today.y]);
     yearPoints.push({ system: '八字', text: `${today.y} 流年 ${ln.ganzhi} 是你的「${ln.shishen}」年：${ln.shishenText}` });
     if (ln.taisui.length) yearPoints.push({ system: '八字', text: `今年${ln.taisui.join('、')}：民俗上會安太歲；重點是凡事多一分謹慎，重大變動先規劃。` });
+    for (const t of ln.triggers) yearPoints.push({ system: '八字', text: t.text });
     for (const r of ln.relations.slice(0, 2)) yearPoints.push({ system: '八字', text: r.text });
   }
   if (zw && zw.horoscope) {
@@ -264,7 +265,10 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
 function wuxingBalance(bazi) {
   const c = bazi.wuxing.withHidden;
   const ys = yongShen(bazi);
-  return `五行（含藏干）：${WUXING.map((w) => `${w}${c[w]}`).join('、')}。日主${ys.strength}，喜用五行是「${ys.primary}」（${ys.roles.primary}），其次「${ys.secondary}」；生活上多接觸「${ys.primary}」相關的顏色、環境與興趣來平衡（「開運佈置」有完整做法）。`;
+  const extra = ys.special
+    ? ` 另外，這個盤可能是「${ys.special.name}」，有些派別的喜用正好相反（${ys.special.alt.primary}、${ys.special.alt.secondary}），兩種都可以參考。`
+    : ys.borderline ? ` 你的身強弱在分界附近，也有人看成「${ys.alt.strength}」（喜用${ys.alt.primary}）。` : '';
+  return `五行（含藏干）：${WUXING.map((w) => `${w}${c[w]}`).join('、')}。日主${ys.strength}，喜用五行是「${ys.primary}」（${ys.roles.primary}），其次「${ys.secondary}」；生活上多接觸「${ys.primary}」相關的顏色、環境與興趣來平衡（「開運佈置」有完整做法）。${extra}`;
 }
 
 function spouseLine(bazi, gender) {

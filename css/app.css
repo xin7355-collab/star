@@ -661,6 +661,8 @@ ol.plan li { padding: 5px 0; animation: rise 0.45s var(--ease-out) both; animati
 .ls-cell b { font-size: 17px; color: var(--gold); }
 .ls-cell.bad b { color: var(--poor); }
 .ls-cell small, .ls-cell .small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.ls-month { font-size: 12px; padding: 0 6px; border-radius: 999px; background: var(--bg); color: var(--text); }
+.ls-month.bad { color: var(--poor); }
 .hexa-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 10px 0; }
 .hexa-arrow { font-size: 22px; color: var(--gold); }
 .hexa-box { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
@@ -674,6 +676,17 @@ ol.plan li { padding: 5px 0; animation: rise 0.45s var(--ease-out) both; animati
 .verdict { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: none; width: 92px; height: 92px; border: 3px solid currentColor; border-radius: 50%; animation: rise 0.5s var(--ease-spring) both; }
 .verdict b { font-size: 26px; line-height: 1; color: var(--text); }
 .verdict small { margin-top: 4px; font-size: 12px; color: var(--muted); }
+/* 六爻排盤表：五欄在 320px 寬也要放得下，所以字小一號、爻用短線條 */
+table.liuyao { font-size: 13px; }
+/* 窄螢幕時「官鬼 辰土」在空格處換行，不要把整張表撐出卡片 */
+table.liuyao th, table.liuyao td { padding: 7px 2px; text-align: center; white-space: normal; word-break: keep-all; }
+table.liuyao tr.yong td { background: var(--accent-soft); font-weight: 700; }
+table.liuyao tr.yong td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+.ly-line { display: inline-flex; gap: 5px; width: 30px; height: 9px; vertical-align: middle; }
+.ly-line i { flex: 1; border-radius: 2px; background: var(--text); }
+.ly-line.moving i { background: var(--gold); }
+.ly-mark { margin-left: 4px; color: var(--gold); font-size: 13px; }
+.ly-sy { color: var(--gold); font-weight: 800; }
 .num-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
 .num-row[hidden] { display: none; }
 

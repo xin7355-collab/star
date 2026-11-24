@@ -158,6 +158,36 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await expect(page.locator('#view-me summary', { hasText: '查詢紀錄（1）' })).toBeVisible();
 });
 
+test('擇日排除歲破月破、農民曆吉神與胎神、八字記號、流年天剋地沖、本月飛星（固定 2026-11-24）', async ({ page }) => {
+  // 流年、月份飛星跟日期有關：把時鐘固定住，明年跑也是同一組答案
+  await page.clock.setFixedTime(new Date('2026-11-24T10:00:00+08:00'));
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'fortune');
+  const fv = page.locator('#view-fortune');
+  const choose = fv.locator('#choose-day');
+  await choose.getByRole('combobox', { name: '想做的事' }).selectOption('move');
+  await expect(choose.getByText(/30 天裡有 \d+ 天是歲破、月破或四離四絕日/)).toBeVisible();
+  await fv.locator('summary', { hasText: '吉神凶煞、胎神' }).click();
+  for (const label of ['吉神宜趨：', '凶煞宜忌：', '胎神占方：', '二十八宿：', '今年農民曆：']) {
+    await expect(fv.locator('li', { hasText: label }).first()).toBeVisible();
+  }
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  const tool = dv.getByRole('combobox', { name: '選擇命理工具' });
+  await tool.selectOption('bazi');
+  await expect(dv.locator('table.pillars th', { hasText: '十二長生' })).toBeVisible();
+  await expect(dv.getByRole('heading', { name: /^喜用神：/ })).toBeVisible();
+  // 壬子日柱的旬空是寅卯，時柱癸卯落空
+  await expect(dv.getByText(/空亡（日柱旬空）：寅卯，落在時柱/)).toBeVisible();
+  await tool.selectOption('liunian');
+  await expect(dv.locator('.ln-head').first()).toContainText('2026 丙午');
+  await expect(dv.locator('.ln-head').first().locator('.badge.danger', { hasText: '天剋地沖' })).toBeVisible();
+  await tool.selectOption('fengshui');
+  await expect(dv.locator('.luoshu .ls-month')).toHaveCount(9);
+  await expect(dv.getByText(/小字是這個月（11\/7–12\/6）的星/)).toBeVisible();
+});
+
 test('多胞胎：第 2 個出生時紫微借兄弟宮，解讀說明哪裡一樣哪裡不同', async ({ page }) => {
   await seed(page, [{ ...ME, name: '弟弟', fullName: '', birthOrder: 2, self: false }]);
   await page.goto('/');
@@ -372,6 +402,8 @@ test('離線：載入過一次後，連不上網站也能開啟並計算', async
 });
 
 test('命盤：工作與方向、開運佈置（財庫、財位、九宮飛星、擺設）、血型', async ({ page }) => {
+  // 年度飛星、流年都是 2026 年的答案：固定時鐘，跨年後才不會變成假失敗
+  await page.clock.setFixedTime(new Date('2026-11-24T10:00:00+08:00'));
   await seed(page, [{ ...ME, bloodType: 'O' }]);
   await page.goto('/');
   await tab(page, 'destiny');
@@ -386,7 +418,8 @@ test('命盤：工作與方向、開運佈置（財庫、財位、九宮飛星�
   await tool.selectOption('fengshui');
   await expect(dv.getByText('怎麼改善：開運佈置重點')).toBeVisible();
   await expect(dv.locator('.luoshu .ls-cell')).toHaveCount(9);
-  await expect(dv.locator('.ls-cell', { hasText: '五黃' })).toContainText('南');
+  // 大字是年星（小字「本月五黃」是月星，不算）
+  await expect(dv.locator('.ls-cell', { has: page.locator('b', { hasText: '五黃' }) })).toContainText('南');
   await expect(dv.getByText(/你是坎卦（東四命）/)).toBeVisible();
   await expect(dv.getByText(/「南」今年剛好是五黃、太歲所在/)).toBeVisible();
   await expect(dv.getByText('養魚：不建議養魚')).toBeVisible();
@@ -414,6 +447,15 @@ test('占卜：解惑（選困擾、起卦、命盤、好日子、具體做法�
   await expect(jv.locator('.verdict b')).toHaveText(/^(大吉|吉|小吉|小凶|凶)$/);
   await expect(jv.locator('.hexa').first().locator('.yao')).toHaveCount(6);
   await expect(jv.locator('.yao.moving')).toHaveCount(1);
+  // 梅花總斷：用卦、互卦、變卦一起看
+  await expect(jv.locator('.verdict small')).toHaveText(/^(互變俱生|互變俱剋|剋多無生|先吉後凶|先凶後吉|始終皆順|始終不利)$/);
+  // 六爻：同一卦排出六行；問健康看世爻，用神那一行有底色、標著「世」
+  await expect(jv.getByRole('heading', { name: '六爻細看：事情本身和應期' })).toBeVisible();
+  await expect(jv.locator('table.liuyao tbody tr')).toHaveCount(6);
+  await expect(jv.locator('table.liuyao tr.yong')).toHaveCount(1);
+  await expect(jv.locator('table.liuyao tr.yong .ly-sy')).toHaveText('世');
+  await expect(jv.locator('table.liuyao .ly-line.moving')).toHaveCount(1);
+  await expect(jv.getByText('應期：接下來 30 天比較可能有消息的日子')).toBeVisible();
   await expect(jv.getByText('你的命盤怎麼看這件事')).toBeVisible();
   await expect(jv.getByText('接下來 30 天適合處理這件事的日子')).toBeVisible();
   await expect(jv.getByText(/1925 安心專線/)).toBeVisible();

@@ -28,6 +28,7 @@ const LIU_CHONG = pairSet([['子', '午'], ['丑', '未'], ['寅', '申'], ['卯
 const XIANG_HAI = pairSet([['子', '未'], ['丑', '午'], ['寅', '巳'], ['卯', '辰'], ['申', '亥'], ['酉', '戌']]);
 const XIANG_XING = pairSet([['寅', '巳'], ['巳', '申'], ['寅', '申'], ['丑', '戌'], ['戌', '未'], ['丑', '未'], ['子', '卯']]);
 const ZI_XING = new Set(['辰', '午', '酉', '亥']);
+const GAN_CHONG = pairSet([['甲', '庚'], ['乙', '辛'], ['丙', '壬'], ['丁', '癸']]);
 const XIANG_PO = pairSet([['子', '酉'], ['午', '卯'], ['申', '巳'], ['寅', '亥'], ['辰', '丑'], ['戌', '未']]);
 
 const isYang = (gan) => GAN.indexOf(gan) % 2 === 0;
@@ -140,6 +141,35 @@ function pillar(label, gan, zhi, dayGan) {
 }
 
 /**
+ * 十二長生（星運）：日主在某個地支的狀態。公式同 lunar-typescript 的 EightChar.getDiShi，
+ * 但套在我們自己排的四柱上：海外出生時，函式庫 EightChar 的日柱可能和我們依當地時間排的不同。
+ */
+export function changSheng(dayGan, zhi) {
+  const gi = GAN.indexOf(dayGan);
+  const zi = ZHI.indexOf(zhi);
+  const i = (((LunarUtil.CHANG_SHENG_OFFSET[dayGan] + (gi % 2 === 0 ? zi : -zi)) % 12) + 12) % 12;
+  return tw(LunarUtil.CHANG_SHENG[i]);
+}
+
+/** 胎元、命宮、身宮（公式同 lunar-typescript 的 EightChar，改吃我們的四柱；沒有時柱就不算命宮、身宮） */
+export function palacesOf(yearGan, monthGan, monthZhi, timeZhi) {
+  const MZ = LunarUtil.MONTH_ZHI; // 以寅為 1 的地支順序
+  const G1 = LunarUtil.GAN; // 以甲為 1
+  const taiYuan = GAN[(GAN.indexOf(monthGan) + 1) % 10] + ZHI[(ZHI.indexOf(monthZhi) + 3) % 12];
+  if (!timeZhi) return { taiYuan, mingGong: null, shenGong: null };
+  const ganOf = (offset) => {
+    let gi = (GAN.indexOf(yearGan) + 1) * 2 + offset;
+    while (gi > 10) gi -= 10;
+    return G1[gi];
+  };
+  let off = MZ.indexOf(monthZhi) + MZ.indexOf(timeZhi);
+  off = (off >= 14 ? 26 : 14) - off;
+  let off2 = MZ.indexOf(monthZhi) + LunarUtil.ZHI.indexOf(timeZhi);
+  if (off2 > 12) off2 -= 12;
+  return { taiYuan, mingGong: ganOf(off) + MZ[off], shenGong: ganOf(off2) + MZ[off2] };
+}
+
+/**
  * 八字命盤。
  * @param {{date, time, tz, place, fold}} input  與 natal.js 相同的出生資料
  * @param {{gender?:'男'|'女'|null, sect?:1|2, solarTime?:'standard'|'true', today?:{y,m,d}}} options
@@ -208,6 +238,14 @@ export function buildBazi(input, { gender = null, sect = 1, solarTime = 'standar
     zodiac: folkZodiac(input.date),
     yun: null,
   };
+  // 十二長生、日柱空亡（旬空）、胎元、命宮、身宮
+  const kong = LunarUtil.getXunKong(dayGz);
+  result.extra = {
+    changSheng: pillars.map((p) => (p ? changSheng(dayGan, p.zhi) : null)),
+    kong,
+    kongPillars: pillars.filter((p) => p && p.label !== '日柱' && kong.includes(p.zhi)).map((p) => p.label),
+    ...palacesOf(yearGz[0], monthGz[0], monthGz[1], timeGz ? timeGz[1] : null),
+  };
 
   if (gender === '男' || gender === '女') {
     // 起運用出生的絕對時刻計算（與節氣距離），以分鐘數換算（sect 2，同 lilith-diviner）
@@ -243,8 +281,67 @@ const CHILD = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' };
 const WEALTH_OF = { 木: '土', 火: '金', 土: '水', 金: '木', 水: '火' };
 const OFFICER_OF = { 木: '金', 火: '水', 土: '木', 金: '火', 水: '土' };
 const ROLE_NAME = (dm, wx) => (wx === dm ? '比劫' : wx === MOTHER[dm] ? '印' : wx === CHILD[dm] ? '食傷' : wx === WEALTH_OF[dm] ? '財' : '官殺');
-const MONTH_WEIGHT = 3; // 月令（月支）最重要：同一個字在月支的影響力約是其他位置的三倍（扶抑法的通則）
-const SIDE_QI = 0.3; // 地支藏干的中氣、餘氣
+// 權重用「十分之一」的整數計：0.3 這類小數相加會有誤差（4.2÷10.5 算成 0.39999…），
+// 剛好 40% 的盤曾被判成身弱、畫面卻寫「占 40%」，自相矛盾。整數比較就沒有這個問題。
+const STEM_W = 10;
+const BRANCH_W = 10;
+const MONTH_W = 30; // 月令（月支）最重要：同一個字在月支的影響力約是其他位置的三倍（扶抑法的通則）
+const SIDE_QI_W = 3; // 地支藏干的中氣、餘氣
+const HE_HUA = { 甲: ['己', '土'], 己: ['甲', '土'], 乙: ['庚', '金'], 庚: ['乙', '金'], 丙: ['辛', '水'], 辛: ['丙', '水'], 丁: ['壬', '木'], 壬: ['丁', '木'], 戊: ['癸', '火'], 癸: ['戊', '火'] };
+
+/** 依身強弱決定喜用（扶抑法） */
+function pickByStrength(strength, dm, weight) {
+  const bi = weight[dm];
+  const yin = weight[MOTHER[dm]];
+  if (strength === '身弱') {
+    return { primary: MOTHER[dm], secondary: dm, avoid: [OFFICER_OF[dm], WEALTH_OF[dm]], reason: `身弱需要生扶：取生你的「${MOTHER[dm]}」（印）為主，同類的「${dm}」（比劫）為輔。` };
+  }
+  if (strength === '身強') {
+    return yin > bi
+      ? { primary: WEALTH_OF[dm], secondary: CHILD[dm], avoid: [MOTHER[dm], dm], reason: `身強而且主要是印（生你的${MOTHER[dm]}）多：取「${WEALTH_OF[dm]}」（財）為主，財能制印，把多的能量變成成果；「${CHILD[dm]}」（食傷）為輔，食傷生財。` }
+      : { primary: OFFICER_OF[dm], secondary: WEALTH_OF[dm], avoid: [MOTHER[dm], dm], reason: `身強而且主要是比劫（同類的${dm}）多：取「${OFFICER_OF[dm]}」（官殺）為主，用規矩與目標約束過旺的自己；「${WEALTH_OF[dm]}」（財）為輔，財生官殺。` };
+  }
+  const sorted = [...WUXING].sort((a, b) => weight[a] - weight[b]);
+  return { primary: sorted[0], secondary: sorted[1], avoid: [sorted[4]], reason: `日主力量中和：取最弱的「${sorted[0]}」補平衡，其次是「${sorted[1]}」。` };
+}
+
+// 三會方、三合局（專旺格要地支成方或成局，避免只是「比劫偏多」的一般盤被當成專旺）
+const SAN_HUI = { 木: ['寅', '卯', '辰'], 火: ['巳', '午', '未'], 金: ['申', '酉', '戌'], 水: ['亥', '子', '丑'] };
+const SAN_HE_JU = { 木: ['亥', '卯', '未'], 火: ['寅', '午', '戌'], 金: ['巳', '酉', '丑'], 水: ['申', '子', '辰'] };
+const KE_OF = { 木: '金', 火: '水', 土: '木', 金: '火', 水: '土' }; // 剋某五行的五行
+
+/**
+ * 可能的特殊格局（化氣、從格、專旺）。命理書對這類盤的喜用和扶抑法相反，App 不替使用者選邊，
+ * 只把另一派的看法並列出來。條件取各派共通、最嚴格的部分：寬鬆的條件在 4032 個樣本盤裡會標出一成四，
+ * 遠多於命理書說的「少數」，反而讓一般人誤以為自己是特殊格局。現在的條件：從格 0.4%、化氣 0.8%、專旺 0.3%。
+ */
+function specialPattern(bazi, dm, weight, ratio) {
+  const [, month, day, hour] = bazi.pillars;
+  const monthWx = ZHI_WX[month.zhi];
+  const others = bazi.pillars.filter((p) => p && p.label !== '日柱');
+  const branches = bazi.pillars.filter(Boolean).map((p) => p.zhi);
+  const strongest = [...WUXING].sort((a, b) => weight[b] - weight[a])[0];
+  // 化氣：日干和月干或時干相合、化神當令且是全盤最旺，天干也沒有剋化神的字
+  const hua = HE_HUA[day.gan];
+  if (hua && [month, hour].some((p) => p && p.gan === hua[0]) && monthWx === hua[1] && strongest === hua[1] && !others.some((p) => p.ganWx === KE_OF[hua[1]])) {
+    return { kind: '化氣', name: `化${hua[1]}格`, desc: `日主${day.gan}和旁邊的${hua[0]}相合，化出的「${hua[1]}」當令又是全盤最旺`, alt: { primary: hua[1], secondary: MOTHER[hua[1]] } };
+  }
+  // 從格：地支（連藏干都算）完全沒有比劫、印的根，天干的比劫印也就虛浮無根；幫身不到兩成，要跟從的五行又當令
+  const rooted = bazi.pillars.some((p) => p && p.hidden.some((hg) => hg.wx === dm || hg.wx === MOTHER[dm]));
+  const follow = [CHILD[dm], WEALTH_OF[dm], OFFICER_OF[dm]].sort((a, b) => weight[b] - weight[a])[0];
+  if (ratio < 0.2 && !rooted && monthWx === follow) {
+    const name = follow === WEALTH_OF[dm] ? '從財格' : follow === OFFICER_OF[dm] ? '從殺格' : '從兒格';
+    return { kind: '從格', name, desc: `日主在地支和天干都沒有幫手、幫身的力量不到兩成，「${follow}」又特別旺`, alt: { primary: follow, secondary: follow === CHILD[dm] ? WEALTH_OF[dm] : follow === WEALTH_OF[dm] ? CHILD[dm] : WEALTH_OF[dm] } };
+  }
+  // 專旺：日主當令、地支成方或成局、整盤沒有剋日主的字（土的稼穡格要辰戌丑未四庫）
+  const officer = OFFICER_OF[dm];
+  const hasOfficer = others.some((p) => p.ganWx === officer) || bazi.pillars.some((p) => p && p.zhiWx === officer);
+  const formed = dm === '土' ? ['辰', '戌', '丑', '未'].every((z) => branches.includes(z)) : [SAN_HUI[dm], SAN_HE_JU[dm]].some((g) => g.every((z) => branches.includes(z)));
+  if (ratio >= 0.6 && monthWx === dm && formed && !hasOfficer) {
+    return { kind: '專旺', name: '專旺格', desc: `日主當令、地支成「${dm}」的方或局，整盤又沒有剋它的「${officer}」`, alt: { primary: dm, secondary: CHILD[dm] } };
+  }
+  return null;
+}
 
 /**
  * 喜用神（扶抑法，簡化版）。
@@ -256,48 +353,42 @@ const SIDE_QI = 0.3; // 地支藏干的中氣、餘氣
  * 3. 身弱喜印、比劫；身強時幫身主要來自印就喜財（財制印）、食傷為輔（食傷生財），
  *    主要來自比劫就喜官殺（官殺制比劫）、財為輔（財生官殺）。輔助的五行要和主要的相生，不能互剋（例如官殺配食傷會互相抵消）；
  *    中和取最弱的五行。另外冬天出生缺火、夏天出生缺水時，附上「調候」的提醒。
+ * 4. 落在門檻 ±2% 內的盤（樣本中 14.8%）標成「分界附近」，並列另一種看法；可能是化氣、從格、專旺的盤（合計約 1.5%），
+ *    也並列另一派的喜用。主要的喜用仍取扶抑法，其他模組（開運、幸運色、姓名）不會因為「可能」而整套翻轉。
  */
 export function yongShen(bazi) {
   if (!bazi || !bazi.ok || !Array.isArray(bazi.pillars)) return null;
   const dm = bazi.dayMaster.wx;
-  const weight = Object.fromEntries(WUXING.map((w) => [w, 0]));
+  const w10 = Object.fromEntries(WUXING.map((w) => [w, 0]));
   for (const p of bazi.pillars.filter(Boolean)) {
-    if (p.label !== '日柱') weight[p.ganWx] += 1;
-    weight[p.zhiWx] += p.label === '月柱' ? MONTH_WEIGHT : 1;
-    for (const hg of p.hidden.slice(1)) weight[hg.wx] += SIDE_QI;
+    if (p.label !== '日柱') w10[p.ganWx] += STEM_W;
+    w10[p.zhiWx] += p.label === '月柱' ? MONTH_W : BRANCH_W;
+    for (const hg of p.hidden.slice(1)) w10[hg.wx] += SIDE_QI_W;
   }
-  const round = (n) => Math.round(n * 100) / 100;
-  const bi = weight[dm];
-  const yin = weight[MOTHER[dm]];
-  const self = bi + yin;
-  const total = WUXING.reduce((a, w) => a + weight[w], 0);
+  const self = w10[dm] + w10[MOTHER[dm]];
+  const total = WUXING.reduce((a, w) => a + w10[w], 0);
   const ratio = total ? self / total : 0.5;
-  const strength = ratio >= 0.5 ? '身強' : ratio < 0.4 ? '身弱' : '中和';
+  // 整數比較：self/total ≥ 1/2 身強；self/total < 2/5 身弱
+  const strength = self * 2 >= total ? '身強' : self * 5 < total * 2 ? '身弱' : '中和';
+  const near40 = Math.abs(self * 100 - total * 40) <= total * 2;
+  const near50 = Math.abs(self * 100 - total * 50) <= total * 2;
   const monthZhi = bazi.pillars[1].zhi;
   const monthWx = ZHI_WX[monthZhi];
   const deLing = monthWx === dm || monthWx === MOTHER[dm];
   const reasons = [`日主「${bazi.dayMaster.gan}${dm}」生在${monthZhi}月：月令屬${monthWx}，${deLing ? `${monthWx === dm ? '和日主同五行' : `${monthWx}生${dm}`}，算「得令」` : '不幫日主，算「失令」'}。`];
   reasons.push(`幫身的力量（比劫＋印）占 ${Math.round(ratio * 100)}%：${strength}。`);
-  let primary;
-  let secondary;
-  let avoid;
-  if (strength === '身弱') {
-    primary = MOTHER[dm];
-    secondary = dm;
-    avoid = [OFFICER_OF[dm], WEALTH_OF[dm]];
-    reasons.push(`身弱需要生扶：取生你的「${primary}」（印）為主，同類的「${secondary}」（比劫）為輔。`);
-  } else if (strength === '身強') {
-    primary = yin > bi ? WEALTH_OF[dm] : OFFICER_OF[dm];
-    secondary = yin > bi ? CHILD[dm] : WEALTH_OF[dm];
-    avoid = [MOTHER[dm], dm];
-    reasons.push(yin > bi
-      ? `身強而且主要是印（生你的${MOTHER[dm]}）多：取「${primary}」（財）為主，財能制印，把多的能量變成成果；「${secondary}」（食傷）為輔，食傷生財。`
-      : `身強而且主要是比劫（同類的${dm}）多：取「${primary}」（官殺）為主，用規矩與目標約束過旺的自己；「${secondary}」（財）為輔，財生官殺。`);
-  } else {
-    const sorted = [...WUXING].sort((a, b) => weight[a] - weight[b]);
-    [primary, secondary] = sorted;
-    avoid = [sorted[4]];
-    reasons.push(`日主力量中和：取最弱的「${primary}」補平衡，其次是「${secondary}」。`);
+  const pick = pickByStrength(strength, dm, w10);
+  reasons.push(pick.reason);
+  let alt = null;
+  if (near40 || near50) {
+    const other = near50 ? (strength === '身強' ? '中和' : '身強') : (strength === '身弱' ? '中和' : '身弱');
+    const o = pickByStrength(other, dm, w10);
+    alt = { strength: other, primary: o.primary, secondary: o.secondary };
+    reasons.push(`幫身的比例在分界附近（差不到 2%）：也有人會看成「${other}」，那樣喜用會是「${o.primary}」。兩種都可以參考。`);
+  }
+  const special = specialPattern(bazi, dm, w10, ratio);
+  if (special) {
+    reasons.push(`這個盤可能是「${special.name}」：${special.desc}。有些派別認為要順著這股勢走，喜用會變成「${special.alt.primary}、${special.alt.secondary}」，和上面相反；兩種看法都列出來，參考就好。`);
   }
   let tiaohou = null;
   const c = bazi.wuxing.withHidden;
@@ -305,14 +396,17 @@ export function yongShen(bazi) {
   if (['巳', '午', '未'].includes(monthZhi) && c.水 <= 1) tiaohou = '夏天出生、八字偏燥：民間也重視用「水」調候（冷色、親水、多喝水），可以和喜用一起參考。';
   return {
     strength,
-    ratio: round(ratio),
-    weight: Object.fromEntries(WUXING.map((w) => [w, round(weight[w])])),
-    primary,
-    secondary,
-    avoid,
-    roles: { primary: ROLE_NAME(dm, primary), secondary: ROLE_NAME(dm, secondary) },
+    ratio: Math.round(ratio * 100) / 100,
+    weight: Object.fromEntries(WUXING.map((w) => [w, w10[w] / 10])),
+    primary: pick.primary,
+    secondary: pick.secondary,
+    avoid: pick.avoid,
+    roles: { primary: ROLE_NAME(dm, pick.primary), secondary: ROLE_NAME(dm, pick.secondary) },
     reasons,
     tiaohou,
+    borderline: !!alt,
+    alt,
+    special,
   };
 }
 
@@ -390,6 +484,14 @@ export function liunian(bazi, years) {
       }
     }
     const dayun = bazi.yun ? bazi.yun.list.find((d) => year >= d.startYear && year <= d.endYear) || null : null;
+    // 台灣命理最常提醒的四種：伏吟、天剋地沖（反吟）、歲運並臨、流年沖大運
+    const triggers = [];
+    for (const p of bazi.pillars.filter(Boolean)) {
+      if (p.gan === gz[0] && p.zhi === zhi) triggers.push({ type: '伏吟', text: `流年${gz}和${p.label}一模一樣（伏吟）：${RELATION_SCOPE[p.label]}方面的事容易重複、反覆，宜靜不宜動。` });
+      else if (has(GAN_CHONG, p.gan, gz[0]) && has(LIU_CHONG, p.zhi, zhi)) triggers.push({ type: '天剋地沖', text: `流年${gz}和${p.label}${p.gan}${p.zhi}天剋地沖（反吟）：${RELATION_SCOPE[p.label]}方面變動大，重大決定多想一步。` });
+    }
+    if (dayun && dayun.ganzhi === gz) triggers.push({ type: '歲運並臨', text: `流年和大運都是${gz}（歲運並臨）：這一年大運的影響加倍，好的更好、壞的更明顯。` });
+    else if (dayun && has(LIU_CHONG, dayun.ganzhi[1], zhi)) triggers.push({ type: '沖大運', text: `流年${zhi}沖大運${dayun.ganzhi}的${dayun.ganzhi[1]}：這十年的運勢在這一年有轉折或變動。` });
     return {
       year,
       ganzhi: gz,
@@ -399,6 +501,7 @@ export function liunian(bazi, years) {
       relations,
       taisui: taiSui(personZhi, zhi),
       dayun,
+      triggers,
     };
   });
 }

@@ -61,7 +61,8 @@ export async function drawFengshui(p, input, opts, { ctx, actions, mayaTime }) {
   const fs = r.flying;
   const cells = GRID.flat().map((dir) => {
     const s = fs.stars.find((x) => x.dir === dir);
-    return h('div', { class: `ls-cell ${s.kind}` }, h('small', { text: F.place(dir) }), h('b', { text: s.name.slice(0, 2) }), h('span', { class: 'small', text: s.theme.split('，')[0].split('（')[0] }));
+    const ms = r.month.stars.find((x) => x.dir === dir);
+    return h('div', { class: `ls-cell ${s.kind}` }, h('small', { text: F.place(dir) }), h('b', { text: s.name.slice(0, 2) }), h('span', { class: 'small', text: s.theme.split('，')[0].split('（')[0] }), h('span', { class: `ls-month ${ms.kind}`, text: `本月${ms.name.slice(0, 2)}` }));
   });
   order(cells);
 
@@ -99,7 +100,8 @@ export async function drawFengshui(p, input, opts, { ctx, actions, mayaTime }) {
         : h('p', { class: 'muted', text: '個人吉方（八宅命卦）要看性別，到「我的」補上就會出現。' }),
       h('h3', { text: `${r.year} 年的財位與煞位` }),
       h('div', { class: 'luoshu', role: 'group', 'aria-label': `${r.year} 年九宮飛星，上北下南` }, cells),
-      h('p', { class: 'muted small center', text: '上北下南（和地圖一樣）' }),
+      h('p', { class: 'muted small center', text: `上北下南（和地圖一樣）。大字是 ${r.year} 年的星，小字是這個月（${r.month.from.m}/${r.month.from.d}–${r.month.to.m}/${r.month.to.d}）的星。` }),
+      h('p', { class: 'muted small', text: fs.period.note }),
       h('ul', { class: 'reasons' }, r.goodStars.map((s) => h('li', { class: 'tone-good', text: `${F.place(s.dir)}・${s.name}：${s.theme}。${s.tip}。` })), r.badStars.map((s) => h('li', { class: 'tone-bad', text: `${F.place(s.dir)}・${s.name}：${s.theme}。${s.tip}。` }))),
       h('p', { class: 'warn', text: `太歲在${fs.taisui.dir}（${fs.taisui.zhi}）、歲破在${fs.taisui.breaker}：這兩個方位今年避免動土、裝修，座位不要背對太歲。` }),
     ),

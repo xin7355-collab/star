@@ -65,7 +65,8 @@ js/core/              計算核心（不碰畫面，可在 Node 測試）
   timing.js                   吉時表、擇日、近期提醒（逆行、日月食、月相、換流月）
   career.js                   工作性質（多系統投票）、喜用行業、未來三年與十年方向
   fengshui.js                 開運佈置：財庫、八宅命卦、九宮飛星、明財位、水晶／魚／植物
-  iching.js iching-texts.js   梅花易數起卦、六十四卦白話、體用生剋
+  iching.js iching-texts.js   梅花易數起卦、六十四卦白話、體用四階段與總斷
+  liuyao.js                   六爻納甲：八宮世應、六親六神、用神旺衰、動變、伏神、應期
   jiehuo.js                   解惑的困擾類型與具體步驟
   blood.js                    血型性格與相處（流行文化）
   windfall.js                 偏財指數、樂透幸運號碼

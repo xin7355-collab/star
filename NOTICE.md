@@ -37,9 +37,13 @@ i18next 以 `overrides` 從 iztro 預設的 23.x 升到 26.7.2，修掉 npm audi
 | `js/core/synastry.js` | tianji `scripts/fortune_calc.py` | 星座相位分數表、多人合盤取「人對均值」 |
 | `js/core/bazi.js` | lilith-diviner `scripts/bazi_engine.py`；tianji `scripts/fortune_calc.py` | 23 點換日（sect 1）的選擇；地支六沖、相刑、相害、相破表；真太陽時的均時差公式 |
 | `js/core/chenggu.js` | tianji `scripts/fortune_calc.py`、`references/weight-tables.md` | 袁天罡稱骨的年、月、日、時骨重表（歌訣為古代流傳文本，轉為繁體） |
+| `js/core/iching.js` | taibu `packages/core/src/domains/meihua/calculate.ts`（taibu-core 4.1.0，commit 4b2a51a） | 梅花總斷的先後（互變俱生／俱剋、無生氣、先吉後凶）、乾坤取變卦之互、體卦旺衰與體黨用黨只論輕重；「無生氣」改成至少兩個剋體才算 |
+| `js/core/liuyao.js` | taibu `packages/core/src/domains/liuyao/calculate.ts`（同上版本） | 納甲、六神、世應表；月建日辰旺衰、月破、暗動日破、旬空真假、動變、用神多現的取捨、伏神、應期的條目；八宮卦序改用演算法推出並與其表逐卦核對（64/64 一致） |
 
 - lilith-diviner：Copyright (c) 2026 Erfan (Erfan817)，MIT，`LICENSES/lilith-diviner-MIT.txt`
 - tianji：Copyright (c) 2026，MIT，`LICENSES/tianji-MIT.txt`
+- taibu-core（[hhszzzz/taibu](https://github.com/hhszzzz/taibu) 的 `packages/core`）：Copyright (c) 2026 hhszzzz，MIT，`LICENSES/taibu-core-MIT.txt`。
+  注意 taibu repo 根目錄（`src/` 等）是 AGPL-3.0，本專案只參考 MIT 的 `packages/core`，沒有碰 AGPL 部分。
 
 ## 只參考做法、沒有複製任何程式碼或文案
 

@@ -132,10 +132,11 @@ export function mountDestiny(root, ctx) {
 
   // ── 八字命盤
   async function drawBazi(p, input, opts) {
-    const [{ buildBazi, WUXING }, { dominantShishen }, { DAYMASTER, SHISHEN_GROUPS }] = await Promise.all([import('../core/bazi.js'), import('../core/reading.js'), import('../core/reading-texts.js')]);
+    const [{ buildBazi, WUXING, yongShen }, { dominantShishen }, { DAYMASTER, SHISHEN_GROUPS }] = await Promise.all([import('../core/bazi.js'), import('../core/reading.js'), import('../core/reading-texts.js')]);
     const b = buildBazi(input, opts);
     if (!b.ok) return warnCard(b.error, true);
     const dom = dominantShishen(b);
+    const ys = yongShen(b);
     const cols = b.pillars;
     const cell = (fn) => cols.map((c) => h('td', {}, c ? fn(c) : '—'));
     const table = h(
@@ -149,6 +150,7 @@ export function mountDestiny(root, ctx) {
         h('tr', { class: 'big' }, h('th', { scope: 'row', text: '天干' }), cell((c) => h('span', { class: WX_CLASS[c.ganWx], text: c.gan }))),
         h('tr', { class: 'big' }, h('th', { scope: 'row', text: '地支' }), cell((c) => h('span', { class: WX_CLASS[c.zhiWx], text: c.zhi }))),
         h('tr', { class: 'small' }, h('th', { scope: 'row', text: '藏干' }), cell((c) => c.hidden.map((x) => h('div', { text: `${x.gan}${x.shishen}` })))),
+        h('tr', { class: 'small' }, h('th', { scope: 'row', text: '十二長生' }), cols.map((c, i) => h('td', {}, c ? b.extra.changSheng[i] : '—'))),
         h('tr', { class: 'small' }, h('th', { scope: 'row', text: '納音' }), cell((c) => c.nayin)),
       ),
     );
@@ -187,7 +189,15 @@ export function mountDestiny(root, ctx) {
       h('h3', { text: '五行（八字字面）' }),
       wxBars,
       h('p', { text: b.wuxing.missing.length ? `字面上缺：${b.wuxing.missing.join('、')}` : '五行俱全' }),
-      h('p', { class: 'hint', text: '五行數量只看字面，不等於喜用神；喜忌要看整體格局，這裡不做判斷。' }),
+      ys ? h('h3', { text: `喜用神：${ys.primary}（${ys.roles.primary}），其次${ys.secondary}` }) : null,
+      ys ? h('ul', { class: 'reasons' }, [...ys.reasons, ys.tiaohou].filter(Boolean).map((t) => h('li', { class: 'tone-info', text: t }))) : null,
+      h('p', { class: 'hint', text: '字面上缺的五行不一定要補；喜用神看的是日主強弱（扶抑法），開運佈置、幸運色、姓名搭配都用這個結果。' }),
+      h('h3', { text: '命盤上的其他記號' }),
+      h('ul', { class: 'plain' },
+        h('li', { text: `空亡（日柱旬空）：${b.extra.kong}${b.extra.kongPillars.length ? `，落在${b.extra.kongPillars.join('、')}：這一柱代表的人事力量比較虛，常是「看得到、抓不牢」` : '，其他柱沒有落空'}。` }),
+        h('li', { text: `胎元：${b.extra.taiYuan}（受孕的月份，傳統用來看先天體質與根基）` }),
+        b.extra.mingGong ? h('li', { text: `命宮：${b.extra.mingGong}（先天的格局與一生的主軸）・身宮：${b.extra.shenGong}（後天努力的方向）` }) : h('li', { class: 'muted', text: '命宮、身宮需要出生時間。' }),
+        h('li', { text: `十二長生：日主在四柱地支的狀態，長生、臨官、帝旺代表有力，衰、病、死、墓、絕代表較弱。` })),
       yunBlock,
       actions(p, 'bazi', '八字命盤', `${gz}；日主${b.dayMaster.gan}${b.dayMaster.wx}`, { title: `${p.name}的八字`, subtitle: b.clockText || '未填時間', lines: [gz, `日主 ${b.dayMaster.gan}${b.dayMaster.wx}`, b.wuxing.missing.length ? `缺 ${b.wuxing.missing.join('、')}` : '五行俱全'] }),
     );
@@ -212,13 +222,14 @@ export function mountDestiny(root, ctx) {
         years.map((ln) => h(
           'li',
           {},
-          h('div', { class: 'ln-head' }, h('b', { text: `${ln.year} ${ln.ganzhi}（${ln.animal}）年` }), h('span', { class: 'badge', text: ln.shishen }), ln.taisui.map((t) => h('span', { class: 'badge danger', text: t }))),
+          h('div', { class: 'ln-head' }, h('b', { text: `${ln.year} ${ln.ganzhi}（${ln.animal}）年` }), h('span', { class: 'badge', text: ln.shishen }), ln.taisui.map((t) => h('span', { class: 'badge danger', text: t })), ln.triggers.map((t) => h('span', { class: 'badge danger', text: t.type }))),
           h('p', { text: ln.shishenText }),
+          ln.triggers.length ? h('ul', { class: 'reasons' }, ln.triggers.map((t) => h('li', { class: 'tone-bad', text: t.text }))) : null,
           ln.relations.length ? h('ul', { class: 'plain small' }, ln.relations.map((r) => h('li', { text: r.text }))) : null,
           ln.dayun ? h('p', { class: 'muted small', text: `所在大運：${ln.dayun.ganzhi}` }) : null,
         )),
       ),
-      h('p', { class: 'hint', text: '流年以立春為界（每年約 2/4 起算）。十神看日主與流年天干的關係，地支看與四柱的沖合刑害破；皆為傳統說法，僅供參考。' }),
+      h('p', { class: 'hint', text: '流年以立春為界（每年約 2/4 起算）。十神看日主與流年天干的關係，地支看與四柱的沖合刑害破；伏吟是流年和某一柱完全相同，天剋地沖是天干相剋、地支又相沖，歲運並臨是流年和大運相同。皆為傳統說法，僅供參考。' }),
       actions(p, 'liunian', `${y0} 流年`, `${years[0].ganzhi}年：${years[0].shishen}${years[0].taisui.length ? `、${years[0].taisui.join('、')}` : ''}`),
     );
     const mine = b.zodiac.name;
