@@ -3,7 +3,7 @@
 // 這個模組只在使用者打開紫微命盤時才被載入（iztro 約 51KB gzip）。
 
 import { astro } from '../../vendor/iztro.js';
-import { baziClock } from './bazi.js';
+import { baziClock, clockEdge, clockEdgeLead } from './bazi.js';
 
 // 命盤格子位置：傳統排法，寅在左下、依逆時針排列地支；4×4 的外圈 12 格
 export const GRID = {
@@ -53,6 +53,21 @@ export function buildZiwei(input, { gender, solarTime = 'standard', at = null } 
   if (!clk.ok) return clk;
   const { y, m, d, h } = clk.clock;
   const chart = astro.bySolar(`${y}-${m}-${d}`, timeIndexOf(h), gender, true, 'zh-TW');
+  const uncertain = [...clk.warnings];
+  // 命宮看時辰：出生時間靠近換時辰的時刻，差幾分鐘命宮就移一格、主星全換。用另一邊的時間重排一次來比，
+  // 不自己推算：iztro 把 23 點後的晚子時當成隔天，0 點那條線兩邊其實是同一張盤，比過才知道要不要提醒。
+  const ce = clockEdge(clk.clock);
+  if (ce) {
+    const o = ce.other;
+    const alt = astro.bySolar(`${o.y}-${o.m}-${o.d}`, timeIndexOf(o.h), gender, true, 'zh-TW');
+    const ming = (c) => {
+      const p = c.palaces.find((q) => q.name === '命宮');
+      return `「${c.earthlyBranchOfSoulPalace}」宮（${p && p.majorStars.length ? p.majorStars.map((s) => s.name).join('、') : '沒有主星'}）`;
+    };
+    if (ming(alt) !== ming(chart)) {
+      uncertain.push(`${clockEdgeLead(clk.clock, ce)}就是${alt.time}，命宮會在${ming(alt)}，不是現在的${ming(chart)}。出生證明的時間如果是約略記的，兩張盤都參考。`);
+    }
+  }
   const palaces = chart.palaces.map((p) => ({
     index: p.index,
     name: p.name,
@@ -79,6 +94,7 @@ export function buildZiwei(input, { gender, solarTime = 'standard', at = null } 
   return {
     ok: true,
     notes: clk.notes,
+    uncertain,
     gender,
     solarDate: chart.solarDate,
     lunarDate: chart.lunarDate,

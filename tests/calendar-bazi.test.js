@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { solarToLunar, lunarToSolar, leapMonthOf, almanac, folkZodiac, folkDays } from '../js/core/calendar.js';
 import { buildBazi, shiShen, GAN, yearGanZhi, taiSui, taiSuiList, liunian, equationOfTime, branchRelations, yongShen } from '../js/core/bazi.js';
+import { geju } from '../js/core/geju.js';
 import { LunarUtil, Solar } from '../vendor/lunar.js';
 import { tw } from '../js/core/zh.js';
 import { CHAR, AMBIGUOUS } from '../js/core/zh-data.js';
@@ -118,6 +119,76 @@ test('沒有出生時間：只排三柱；交節氣當天會提醒月柱不確�
   assert.equal(b.uncertain.length, 0);
   const jie = buildBazi({ date: { y: 2024, m: 2, d: 4 }, time: null, tz: 'Asia/Taipei', place: null });
   assert.ok(jie.uncertain.length >= 1);
+});
+
+test('交界提醒：離換時辰 10 分鐘內列出另一個時柱；23 點那條線連日柱一起換', () => {
+  const at = (h, mi, sect = 1) => buildBazi({ date: { y: 1990, m: 8, d: 15 }, time: { h, mi }, tz: 'Asia/Taipei', place: null }, { sect });
+  // 壬子日：13:05 是未時（丁未），早 6 分鐘就是午時（丙午）
+  const a = at(13, 5);
+  assert.deepEqual(a.edges.hour.pillars, { 時柱: '丙午' });
+  assert.match(a.uncertain.join(''), /早 6 分鐘，時柱就是「丙午」，不是「丁未」/);
+  assert.match(at(13, 0).uncertain.join(''), /剛好是換時辰的時刻：實際只要早 1 分鐘/);
+  assert.deepEqual(at(12, 55).edges.hour.pillars, { 時柱: '丁未' });
+  // 範圍是 10 分鐘（含）：13:10 提醒、13:11 和 12:30 不提醒，也不留空的提醒
+  assert.ok(at(13, 10).edges.hour);
+  assert.equal(at(13, 11).edges.hour, null);
+  assert.deepEqual(at(12, 30).uncertain, []);
+  // 23 點換日（預設）：日柱、時柱一起換，提醒要講日主
+  assert.deepEqual(at(22, 55).edges.hour.pillars, { 日柱: '癸丑', 時柱: '壬子' });
+  assert.match(at(22, 55).uncertain.join(''), /日柱、時柱就是「癸丑」「壬子」.*日主/);
+  // 0 點換日：23 點只換時柱，午夜才換日柱；23 點換日的人午夜兩邊同一張盤，不提醒
+  assert.deepEqual(at(22, 55, 2).edges.hour.pillars, { 時柱: '壬子' });
+  assert.equal(at(23, 55).edges.hour, null);
+  const mid = at(23, 55, 2);
+  assert.deepEqual(mid.edges.hour.pillars, { 日柱: '癸丑' });
+  assert.match(mid.uncertain.join(''), /離換日的 00:00 只差 5 分鐘/);
+});
+
+test('交界提醒：離節氣交接 30 分鐘內列出另一個月柱（立春連年柱），格局不會叫已填時間的人補時間', () => {
+  const at = (date, h, mi, tz = 'Asia/Taipei') => buildBazi({ date, time: { h, mi }, tz, place: null });
+  // 2024 立春 = 北京時間 2/4 16:27:07
+  const after = at({ y: 2024, m: 2, d: 4 }, 16, 40);
+  assert.deepEqual(after.edges.month.pillars, { 年柱: '癸卯', 月柱: '乙丑' });
+  assert.match(after.uncertain.join(''), /「立春」交接之後 13 分鐘：實際只要早 13 分鐘，年柱、月柱就是「癸卯」「乙丑」/);
+  const g = geju(after).notes;
+  assert.ok(g.some((t) => /請核對出生證明/.test(t)) && !g.some((t) => /補上出生時間/.test(t)), g.join('／'));
+  // 交接時刻帶秒數：16:20 要晚到 16:28 才過立春，是 8 分鐘不是 7 分鐘
+  const before = at({ y: 2024, m: 2, d: 4 }, 16, 20);
+  assert.deepEqual([before.edges.month.minutes, before.edges.month.need], [7, 8]);
+  assert.deepEqual(before.edges.month.pillars, { 年柱: '甲辰', 月柱: '丙寅' });
+  assert.equal(at({ y: 2024, m: 2, d: 4 }, 15, 30).edges.month, null);
+  // 一般的節只換月柱：1990 驚蟄 = 3/6 04:19:18
+  assert.deepEqual(at({ y: 1990, m: 3, d: 6 }, 4, 0).edges.month.pillars, { 月柱: '己卯' });
+  // 海外出生用絕對時刻：洛杉磯 2/4 00:30 = 北京 16:30，離立春約 3 分鐘
+  assert.equal(at({ y: 2024, m: 2, d: 4 }, 0, 30, 'America/Los_Angeles').edges.month.minutes, 3);
+  // 沒填時間、出生當天交節氣：這時格局才提醒補時間
+  const noTime = buildBazi({ date: { y: 2024, m: 2, d: 4 }, time: null, tz: 'Asia/Taipei', place: null });
+  assert.equal(noTime.edges.month.byDay, true);
+  assert.ok(geju(noTime).notes.some((t) => /補上出生時間/.test(t)));
+});
+
+test('交界提醒：標準時間和真太陽時落在不同時辰，兩種設定都講另一種的結果', () => {
+  // 台北 2 月中：經度 +6 分、均時差約 −14 分 → 標準時間 13:05 是未時，真太陽時 12:56 是午時
+  const input = { date: { y: 1990, m: 2, d: 10 }, time: { h: 13, mi: 5 }, tz: 'Asia/Taipei', place: { lat: 25.04, lon: 121.5 } };
+  const std = buildBazi(input);
+  assert.equal(std.edges.solar, true);
+  assert.match(std.uncertain[0], /真太陽時（經度與均時差校正後是 12:56）排，會是午時，不是未時/);
+  assert.match(buildBazi(input, { solarTime: 'true' }).uncertain[0], /從未時（13:05）變成午時（12:56）/);
+  assert.equal(buildBazi({ ...input, time: { h: 13, mi: 30 } }).edges.solar, false);
+  assert.equal(buildBazi({ ...input, place: null }).edges.solar, false);
+});
+
+test('回歸：1984-02-04 23:30 剛過立春，兩種子時換日的時柱都是甲子；1994-07-07 12:00 女命約 10 年 4 個月起運', () => {
+  const input = { date: { y: 1984, m: 2, d: 4 }, time: { h: 23, mi: 30 }, tz: 'Asia/Taipei', place: null };
+  for (const sect of [1, 2]) {
+    const b = buildBazi(input, { sect });
+    assert.equal(b.pillars[0].gan + b.pillars[0].zhi, '甲子');
+    assert.equal(b.pillars[3].gan + b.pillars[3].zhi, '甲子');
+    assert.equal(b.edges.month.name, '立春'); // 立春 23:18 多，差 11 分鐘：要提醒
+  }
+  const f = buildBazi({ date: { y: 1994, m: 7, d: 7 }, time: { h: 12, mi: 0 }, tz: 'Asia/Taipei', place: null }, { gender: '女', today: { y: 2026, m: 11, d: 24 } });
+  assert.equal(f.yun.forward, false); // 甲戌陽年女命逆行，往回數到芒種（6/6 06:04）約 31 天
+  assert.deepEqual([f.yun.start.years, f.yun.start.months], [10, 4]);
 });
 
 test('大運：陽年女命逆行，九步大運；沒性別不排', () => {

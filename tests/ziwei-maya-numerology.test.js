@@ -6,6 +6,16 @@ import { lifePath, grid, gridWithTalent, LINES, MISSING_TEXT, MANY_TEXT } from '
 import { chengGu, shichenIndex, formatWeight } from '../js/core/chenggu.js';
 import { computeFortune } from '../js/core/fortune.js';
 
+test('紫微交界提醒：離換時辰 10 分鐘內列出另一邊的命宮；晚子時和隔天早子時是同一張盤，不提醒', () => {
+  const z = (date, h, mi) => buildZiwei({ date, time: { h, mi }, tz: 'Asia/Taipei', place: null }, { gender: '男' });
+  const d = { y: 1990, m: 8, d: 15 };
+  assert.match(z(d, 13, 5).uncertain.join(''), /早 6 分鐘，就是午時，命宮會在「丑」宮（紫微、破軍），不是現在的「子」宮（天機）/);
+  assert.match(z(d, 22, 55).uncertain.join(''), /晚 5 分鐘，就是晚子時，命宮會在「未」宮（天府）/);
+  assert.deepEqual(z(d, 23, 55).uncertain, []);
+  assert.deepEqual(z({ y: 1990, m: 8, d: 16 }, 0, 5).uncertain, []);
+  assert.deepEqual(z(d, 12, 30).uncertain, []);
+});
+
 test('紫微：14 主星位置與 tianji 交叉驗算一致（1990-08-15 06:20 男）', () => {
   const z = buildZiwei({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: null }, { gender: '男', at: { y: 2026, m: 11, d: 24 } });
   assert.equal(z.ok, true);

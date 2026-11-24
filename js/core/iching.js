@@ -137,10 +137,18 @@ export function castHexagram(upperNum, lowerNum, moving, monthZhi = '') {
       : '';
     season = { monthZhi, state, text: `${monthZhi}月起卦，${SEASON_NOTE[state]}${extra}` };
   }
+  // 卦義衝突：總斷只看體用生剋，但本卦、變卦的卦義都偏向另一邊時（384 種結果裡約 21 種），提醒使用者打折看。
+  // 《梅花易數》書中卦例遇到這種情況，常改看卦名或爻辭判斷（例如「群陰剝陽」），這裡不改總斷，只把衝突講出來。
+  const bianHex = hexagram(bianUpper.num, bianLower.num);
+  const hexTones = [base.tone, bianHex.tone];
+  let toneConflict = null;
+  if (j.tone === 'good' && hexTones.every((t) => t === 'care')) toneConflict = '提醒：體用生剋判吉，但本卦和變卦的卦義都偏向要小心。古書遇到這種情況常改看卦名、爻辭，所以這次的吉要打折看，別掉以輕心。';
+  else if (j.tone === 'care' && hexTones.every((t) => t === 'good')) toneConflict = '提醒：體用生剋判凶，但本卦和變卦的卦義都偏向順利。古書遇到這種情況常改看卦名、爻辭，凶不一定成真，照下面的做法穩穩來即可。';
   return {
+    toneConflict,
     base,
     hu: hexagram(huUpper.num, huLower.num),
-    bian: hexagram(bianUpper.num, bianLower.num),
+    bian: bianHex,
     lines,
     moving,
     ti,
@@ -158,19 +166,24 @@ export function castHexagram(upperNum, lowerNum, moving, monthZhi = '') {
   };
 }
 
-/** 時間起卦：用起卦當下的農曆年支、月、日、時支 */
+/**
+ * 時間起卦：用起卦當下的農曆年支、月、日、時支。
+ * 23 點起算隔天（晚子時）：和八字的預設、六爻的日辰同一套。以前梅花用當天的農曆日、六爻已換到隔天，
+ * 同一個子時 23:30 和 00:30 會起出兩個不同的卦，同一次解惑裡兩種卦也各用各的「日」。
+ */
 export function castByTime({ y, m, d, h, mi = 0 }) {
   const lunar = Solar.fromYmdHms(y, m, d, h, mi, 0).getLunar();
-  const yearNum = ZHI.indexOf(lunar.getYearZhi()) + 1;
-  const monthNum = Math.abs(lunar.getMonth());
-  const dayNum = lunar.getDay();
+  const dayLunar = h === 23 ? Solar.fromYmd(y, m, d).next(1).getLunar() : lunar;
+  const yearNum = ZHI.indexOf(dayLunar.getYearZhi()) + 1;
+  const monthNum = Math.abs(dayLunar.getMonth());
+  const dayNum = dayLunar.getDay();
   const hourNum = ZHI.indexOf(lunar.getTimeZhi()) + 1;
   const upper = yearNum + monthNum + dayNum;
   const lower = upper + hourNum;
   return {
     ok: true,
     method: 'time',
-    basis: `農曆${lunar.getYearZhi()}年（${yearNum}）${monthNum}月${dayNum}日${lunar.getTimeZhi()}時（${hourNum}）`,
+    basis: `農曆${dayLunar.getYearZhi()}年（${yearNum}）${monthNum}月${dayNum}日${lunar.getTimeZhi()}時（${hourNum}）${h === 23 ? '，23 點後的子時算隔天' : ''}`,
     ...castHexagram(mod(upper, 8), mod(lower, 8), mod(lower, 6), lunar.getMonthZhiExact()),
   };
 }

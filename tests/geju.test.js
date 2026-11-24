@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LunarUtil } from '../vendor/lunar.js';
-import { buildBazi, shiShen } from '../js/core/bazi.js';
+import { buildBazi, shiShen, ganzhiTone } from '../js/core/bazi.js';
 import { geju, gejuTone, GEJU_INFO, STATUS_TEXT } from '../js/core/geju.js';
 
 const GW = { 甲: '木', 乙: '木', 丙: '火', 丁: '火', 戊: '土', 己: '土', 庚: '金', 辛: '金', 壬: '水', 癸: '水' };
@@ -182,6 +182,31 @@ test('審查修正：成敗救應', () => {
   const ren = G('甲午 丁卯 甲寅 戊辰');
   assert.deepEqual([ren.name, ren.use], ['羊刃格', '']);
   assert.equal(gejuTone(ren, '食神'), '忌');
+});
+
+test('取運依身強弱：身輕先求身旺之地，和喜用神的說法大多一致；剩下的兩派差異會標出來', () => {
+  // 審查抓到的例子：正官格、身弱，目前大運庚午。以前格局說偏財「喜」、喜用神說「忌」；身輕取運後兩邊一致
+  const b = buildBazi({ date: { y: 1974, m: 1, d: 25 }, time: { h: 0, mi: 24 }, tz: 'Asia/Taipei', place: null }, { gender: '女', today: { y: 2026, m: 11, d: 24 } });
+  const g = geju(b);
+  assert.deepEqual([g.name, g.strength], ['正官格', '身弱']);
+  assert.match(g.luckBasis, /^身輕，先求身旺之地/);
+  assert.deepEqual([g.dayun.ganzhi, g.dayun.gan.ss, g.dayun.gan.tone, g.dayun.zhi.tone, g.dayun.conflict], ['庚午', '偏財', '忌', '喜', false]);
+  // 抽樣：格局和喜用神對目前大運天干一喜一忌的比例要壓在 6% 以下（修正前約 15%）
+  let n = 0;
+  let contra = 0;
+  for (let y = 1960; y <= 2004; y += 2) {
+    for (const m of [1, 4, 7, 10]) {
+      for (const h of [2, 10, 18]) {
+        const bz = buildBazi({ date: { y, m, d: 12 }, time: { h, mi: 10 }, tz: 'Asia/Taipei', place: null }, { gender: (y + m) % 2 ? '男' : '女', today: { y: 2026, m: 11, d: 24 } });
+        const gg = geju(bz);
+        if (!gg.dayun) continue;
+        n += 1;
+        const fuyi = ganzhiTone(bz, gg.dayun.ganzhi).gan;
+        if ((gg.dayun.gan.tone === '喜' && fuyi === '忌') || (gg.dayun.gan.tone === '忌' && fuyi === '喜')) contra += 1;
+      }
+    }
+  }
+  assert.ok(n > 200 && contra / n < 0.06, `${contra}/${n}`);
 });
 
 test('接上真實命盤：有大運就評目前這步運；沒有出生時間要提醒時柱沒算', () => {

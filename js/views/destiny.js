@@ -158,8 +158,9 @@ export function mountDestiny(root, ctx) {
       h('ul', { class: 'plain' },
         h('li', {}, h('b', { text: '適合：' }), g.info.work),
         h('li', {}, h('b', { text: '要小心：' }), g.info.caution),
-        h('li', {}, h('b', { text: '大運流年：' }), `喜歡遇到${g.likes.join('、')}${g.fears.length ? `，怕遇到${g.fears.join('、')}` : ''}。`),
-        g.dayun ? h('li', {}, h('b', { text: `目前大運 ${g.dayun.ganzhi}：` }), `天干${g.dayun.gan.ss}（${toneWord[g.dayun.gan.tone]}），地支本氣${g.dayun.zhi.ss}（${toneWord[g.dayun.zhi.tone]}）。`) : null),
+        h('li', {}, h('b', { text: '大運流年：' }), `${g.luckBasis}：喜歡遇到${g.likes.join('、')}${g.fears.length ? `，怕遇到${g.fears.join('、')}` : ''}。`),
+        g.dayun ? h('li', {}, h('b', { text: `目前大運 ${g.dayun.ganzhi}：` }), `天干${g.dayun.gan.ss}（${toneWord[g.dayun.gan.tone]}），地支本氣${g.dayun.zhi.ss}（${toneWord[g.dayun.zhi.tone]}）。`,
+          g.dayun.conflict ? h('div', { class: 'muted small', text: '這步運格局和下面大運列表的喜忌（喜用神）說法相反：格局派看月令的用神、扶抑派看五行平衡，是兩派本來的差異，兩種都列出來參考。' }) : null) : null),
       g.notes.map((t) => h('p', { class: 'hint', text: t })),
       h('p', { class: 'hint', text: '格局看月令（出生月的主氣）在盤中扮演的角色，回答「一生的主軸、靠什麼成事」，依清代《子平真詮》的取格與成敗救應整理成白話；喜用神看五行平衡。兩者角度不同，開運佈置、幸運色仍照喜用神。' }),
     ];
@@ -212,7 +213,9 @@ export function mountDestiny(root, ctx) {
       { class: 'card' },
       h('h2', { text: `${p.name}的八字命盤` }),
       b.clockText ? h('p', { class: 'muted small', text: `排盤時間：${b.clockText}${opts.solarTime === 'true' ? '（真太陽時）' : '（標準時間）'}` }) : null,
-      [...b.uncertain, ...b.notes].map((t) => h('p', { class: 'hint', text: t })),
+      // 會讓柱子不同的提醒（交界、交節氣）用醒目的樣式放在盤面上方；一般說明維持小字
+      b.uncertain.map((t) => h('p', { class: 'warn', text: t })),
+      b.notes.map((t) => h('p', { class: 'hint', text: t })),
       h('div', { class: 'table-wrap' }, table),
       h('h3', { text: `日主：${b.dayMaster.gan}${b.dayMaster.wx}（${b.dayMaster.yinYang}）` }),
       h('p', { text: DAYMASTER[b.dayMaster.gan].text }),
@@ -414,6 +417,7 @@ export function mountDestiny(root, ctx) {
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的紫微命盤` }),
+      z.uncertain.map((t) => h('p', { class: 'warn', text: t })),
       z.notes.map((t) => h('p', { class: 'hint', text: t })),
       twins && twins.shift ? h('p', { class: 'warn', text: `多胞胎第 ${p.birthOrder} 個出生：依「${ctx.getSettings().twinMethod === 'travel' && p.birthOrder === 2 ? '老二借遷移宮' : '弟妹借兄弟宮'}」的看法，宮名已輪轉（點宮位可看原本是哪一宮）。兩派沒有定論，可在上方「排盤設定」切換。` }) : null,
       grid,
@@ -547,7 +551,7 @@ export function mountDestiny(root, ctx) {
   async function drawReading(p, input, opts) {
     const prof = await loadProfile(ctx, p, input, opts, { mayaTime: mayaTwinTime(p, input) });
     const r = prof.reading;
-    const { missing } = prof;
+    const { missing, edgeNote } = prof;
     const traitList = h('div', { class: 'traits' }, r.traits.map((t) => h(
       'div',
       { class: 'trait' },
@@ -567,6 +571,7 @@ export function mountDestiny(root, ctx) {
         'section',
         { class: 'card feature' },
         cardHead(h, 'book', `${p.name}的綜合解讀`, '星座・八字・紫微・生命靈數・瑪雅・姓名・稱骨・血型'),
+        edgeNote ? h('p', { class: 'warn', text: edgeNote }) : null,
         h('h3', { text: '各系統的共同點' }),
         r.traits.length ? traitList : h('p', { class: 'muted', text: '資料還不夠多，補上出生時間與性別會更準。' }),
         h('p', { class: 'hint', text: '同一個特質被兩個以上的系統提到，代表比較可信；只出現一次的看法列在各面向裡當參考。' }),

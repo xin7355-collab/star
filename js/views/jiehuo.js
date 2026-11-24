@@ -161,6 +161,7 @@ export function mountJiehuo(root, ctx) {
         h('li', { class: 'tone-info', text: `中段（互卦${cast.hu.name}）：${cast.hu.now}` }),
         h('li', { class: cast.stages[3].good ? 'tone-good' : 'tone-bad', text: `後段（變卦${cast.bian.name}）：${cast.bian.now}${cast.outcome}` }),
         h('li', { class: cast.verdict.tone === 'care' ? 'tone-bad' : 'tone-good', text: `${cast.verdict.title}：${cast.verdict.text}` }),
+        cast.toneConflict ? h('li', { class: 'tone-info', text: cast.toneConflict }) : null,
         cast.season ? h('li', { class: 'tone-info', text: cast.season.text }) : null,
         cast.party ? h('li', { class: 'tone-info', text: cast.party }) : null),
       h('details', { class: 'more' }, h('summary', { text: `體用四個階段（${cast.flow.replace('走勢：', '')}）` }),

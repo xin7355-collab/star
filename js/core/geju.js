@@ -13,7 +13,7 @@
 // 兩套角度不同，畫面分開講；開運、幸運色、姓名搭配仍照喜用神，不會因為格局整套翻轉。
 
 import { LunarUtil } from '../../vendor/lunar.js';
-import { shiShen, branchRelations, ganRelation, yongShen, LU, YANGREN } from './bazi.js';
+import { shiShen, branchRelations, ganRelation, yongShen, ganzhiTone, LU, YANGREN } from './bazi.js';
 
 const GROUPS = {
   官: ['正官'],
@@ -364,6 +364,22 @@ function statusOf(items) {
   return goods ? '成格' : '平常';
 }
 
+// 取運：《子平真詮》各格的「取運」篇共同原則是先看身強弱——身輕先求身旺之地（印、比劫），身重才喜格局的用神。
+// 以前每格只有一組喜忌，身弱的正官格遇財運，格局說「喜」、喜用神說「忌」，同一畫面約一成五的盤自相矛盾。
+// 這裡依強弱分兩組（中和用各格原本那組）；取運篇的細節（例如「煞重食輕則助食」）是程度問題，這裡不細分。
+const LUCK = {
+  zhengguan: { weak: [['正印', '偏印', '比肩', '劫財'], ['傷官', '食神', '正財', '偏財', '七殺']], strong: [['正財', '偏財', '正官'], ['傷官', '七殺', '比肩', '劫財']] },
+  qisha: { weak: [['正印', '偏印', '比肩', '劫財'], ['正財', '偏財', '正官', '七殺']], strong: [['食神', '傷官'], ['正官', '正財', '偏財']] },
+  zhengcai: { weak: [['正印', '偏印', '比肩', '劫財'], ['正財', '偏財', '正官', '七殺', '食神', '傷官']], strong: [['正官', '食神', '傷官', '正財', '偏財'], ['比肩', '劫財', '正印', '偏印']] },
+  zhengyin: { weak: [['正官', '七殺', '正印', '偏印', '比肩', '劫財'], ['正財', '偏財', '食神', '傷官']] },
+  shishen: { weak: [['比肩', '劫財'], ['偏印', '七殺', '正官']], strong: [['正財', '偏財', '食神'], ['偏印', '正印']] },
+  shangguan: { weak: [['正印', '偏印', '比肩', '劫財'], ['正財', '偏財', '正官']], strong: [['正財', '偏財', '食神', '傷官'], ['正官', '正印', '偏印']] },
+  jianlu: { weak: [['正印', '偏印', '比肩', '劫財'], ['正官', '七殺', '正財', '偏財']] },
+};
+LUCK.piancai = LUCK.zhengcai;
+LUCK.pianyin = LUCK.zhengyin;
+LUCK.yuejie = LUCK.jianlu;
+
 /** 某個十神對這個格局是幫忙、干擾還是影響不大（大運、流年用） */
 export function gejuTone(g, ss) {
   if (!g || !ss) return '';
@@ -382,15 +398,19 @@ export function geju(bazi) {
   const f = factsOf(bazi);
   const { kind, how, notes, fromJu = false } = pickGe(f);
   if (!bazi.pillars[3]) notes.push('沒有出生時間：時干、時支沒有算進來，成敗的判斷可能不同。');
-  if (bazi.uncertain.some((t) => t.includes('月柱'))) notes.push('出生當天交節氣，月柱還不確定，格局也可能不同；補上出生時間才準。');
+  // 看結構化的交界資料，不比對提醒文字：填了時間但離節氣很近時，「補上出生時間」這種建議是錯的
+  const monthEdge = bazi.edges && bazi.edges.month;
+  if (monthEdge) notes.push(monthEdge.byDay ? '出生當天交節氣，月柱還不確定，格局也可能不同；補上出生時間才準。' : '出生時刻離節氣交接很近，差幾分鐘月柱就不同，格局也會跟著變；請核對出生證明的時間。');
   if (f.ys.special) notes.push(`這張盤可能是「${f.ys.special.name}」（外格）：外格不照一般的成敗看，下面的判斷僅供參考。`);
   const info = GEJU_INFO[kind];
   const use = ['jianlu', 'yuejie', 'yangren'].includes(kind) ? luUse(f, kind) : null;
   const items = judge(kind, f, fromJu);
   if (['jianlu', 'yuejie'].includes(kind) && !use) items.push({ tone: 'note', text: '盤上沒有透出財、官、食傷可以用，自己的力量需要出口，要看大運帶來什麼。' });
-  // 印、傷官的喜忌會隨輕重改變：印太重反而喜財、食傷，忌再來七殺與印
+  // 大運喜忌：依身強弱取運（見 LUCK）；印太重（身不弱時）反而喜財、食傷，忌再來七殺與印
   let { likes, fears } = info;
-  if ((kind === 'zhengyin' || kind === 'pianyin') && (fromJu || f.share('印') >= 1 / 3)) {
+  const luck = LUCK[kind] && (f.strength === '身弱' ? LUCK[kind].weak : f.strength === '身強' ? LUCK[kind].strong : null);
+  if (luck) [likes, fears] = luck;
+  if ((kind === 'zhengyin' || kind === 'pianyin') && f.strength !== '身弱' && (fromJu || f.share('印') >= 1 / 3)) {
     likes = ['食神', '傷官', '正財', '偏財'];
     fears = ['七殺', '正印', '偏印'];
   }
@@ -399,12 +419,18 @@ export function geju(bazi) {
     fears = [];
   }
   const status = statusOf(items);
-  const g = { kind, name: info.name, use: use ? use.name : '', how, notes, status, statusText: STATUS_TEXT[status], items, info, likes, fears };
+  const luckBasis = f.strength === '身弱' ? '身輕，先求身旺之地（印、比劫）' : f.strength === '身強' && LUCK[kind]?.strong ? '身重，喜格局的用神' : '中和，照格局本身的喜忌';
+  const g = { kind, name: info.name, use: use ? use.name : '', how, notes, status, statusText: STATUS_TEXT[status], items, info, likes, fears, strength: f.strength, luckBasis };
   // 目前的大運對格局：天干看十神，地支看本氣十神
   const cur = bazi.yun ? bazi.yun.list.find((d) => d.current) : null;
   if (cur) {
     const zhiSs = shiShen(f.dm, LunarUtil.ZHI_HIDE_GAN[cur.ganzhi[1]][0]);
     g.dayun = { ganzhi: cur.ganzhi, gan: { ss: cur.shishen, tone: gejuTone(g, cur.shishen) }, zhi: { ss: zhiSs, tone: gejuTone(g, zhiSs) } };
+    // 依強弱取運後，仍有少數盤格局和喜用神（扶抑）對同一步運說法相反（例如身弱的食神格：格局怕偏印奪食、扶抑喜印），
+    // 那是兩派本來的差異，標出來讓畫面講清楚，不替使用者選邊
+    const fuyi = ganzhiTone(bazi, cur.ganzhi);
+    const opposite = (a, b) => (a === '喜' && b === '忌') || (a === '忌' && b === '喜');
+    g.dayun.conflict = !!fuyi && (opposite(g.dayun.gan.tone, fuyi.gan) || opposite(g.dayun.zhi.tone, fuyi.zhi));
   }
   return g;
 }

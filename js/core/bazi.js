@@ -82,6 +82,65 @@ function eightChar({ y, m, d, h, mi }, sect) {
   return ec;
 }
 
+// 交界提醒的範圍：出生證明的時間常是約略值（四捨五入到 5～10 分鐘），醫院的鐘也可能差幾分鐘。
+// 落在範圍內時，差幾分鐘就是另一個時柱（或月柱），整張盤的解讀都會變，不提醒的話使用者無從得知。
+const HOUR_EDGE_MIN = 10;
+// 節氣交接的時刻各家曆書會差幾分鐘，再加上出生時間本身的誤差，範圍抓寬一點
+const JIE_EDGE_MIN = 30;
+const fieldsMs = (f) => Date.UTC(f.y, f.m - 1, f.d, f.h, f.mi);
+export const hhmm = (f) => `${String(f.h).padStart(2, '0')}:${String(f.mi).padStart(2, '0')}`;
+const zhiOfHour = (h) => ZHI[Math.floor((h + 1) / 2) % 12];
+
+/**
+ * 出生時間離換時辰的整點（奇數點；0 點換日的流派午夜換日柱，所以 0 點也算）在 10 分鐘內時，
+ * 回傳交界、差幾分鐘（gap，正數是在交界之後）、實際要早或晚幾分鐘（need）才會落到另一邊，以及另一邊的時間。
+ * 只回傳位置，不判斷哪一柱會變：八字、紫微各自用另一邊的時間重排來比。
+ */
+export function clockEdge(clock) {
+  const ms = fieldsMs(clock);
+  const edgeMs = Math.round(ms / 3600000) * 3600000;
+  const gap = Math.round((ms - edgeMs) / 60000);
+  const edge = fieldsOf(edgeMs);
+  if (Math.abs(gap) > HOUR_EDGE_MIN || (edge.h % 2 === 0 && edge.h !== 0)) return null;
+  return { edge: hhmm(edge), midnight: edge.h === 0, gap, earlier: gap >= 0, need: gap >= 0 ? gap + 1 : -gap, other: fieldsOf(gap >= 0 ? edgeMs - 60000 : edgeMs) };
+}
+
+/** 交界提醒的開頭：「出生時間 13:05 離換時辰的 13:00 只差 5 分鐘：實際只要早 6 分鐘，」 */
+export function clockEdgeLead(clock, ce) {
+  const where = ce.gap === 0 ? `剛好是${ce.midnight ? '換日' : '換時辰'}的時刻` : `離${ce.midnight ? '換日' : '換時辰'}的 ${ce.edge} 只差 ${Math.abs(ce.gap)} 分鐘`;
+  return `出生時間 ${hhmm(clock)} ${where}：實際只要${ce.earlier ? '早' : '晚'} ${ce.need} 分鐘，`;
+}
+
+/**
+ * 出生時刻（北京時間的欄位，函式庫的節氣時刻用北京時間）離「節」（換月的節氣）在 30 分鐘內時，
+ * 回傳節氣名、差幾分鐘、實際要早或晚幾分鐘才會落到另一邊，以及另一邊的時間。
+ */
+export function jieEdge(instant) {
+  const lunar = Solar.fromYmdHms(instant.y, instant.m, instant.d, instant.h, instant.mi, 0).getLunar();
+  const ms = fieldsMs(instant);
+  const msOf = (jq) => {
+    const s = jq.getSolar();
+    return Date.UTC(s.getYear(), s.getMonth() - 1, s.getDay(), s.getHour(), s.getMinute(), s.getSecond());
+  };
+  const prev = lunar.getPrevJie(false);
+  const next = lunar.getNextJie(false);
+  const after = ms - msOf(prev) <= msOf(next) - ms;
+  const jqMs = msOf(after ? prev : next);
+  if (Math.abs(ms - jqMs) > JIE_EDGE_MIN * 60000) return null;
+  return {
+    name: tw((after ? prev : next).getName()),
+    minutes: Math.round(Math.abs(ms - jqMs) / 60000),
+    earlier: after,
+    // 節氣時刻帶秒數：要落到另一邊，早要早到交接前那一分鐘、晚要晚到交接後那一分鐘
+    need: after ? Math.floor((ms - jqMs) / 60000) + 1 : Math.ceil((jqMs - ms) / 60000),
+    other: fieldsOf(Math.floor((jqMs + (after ? -60000 : 60000)) / 60000) * 60000),
+  };
+}
+
+/** 兩邊不同的柱：[[柱名, 另一邊, 這一邊], …] */
+const pillarDiff = (pairs) => pairs.filter(([, here, there]) => here !== there).map(([name, here, there]) => [name, there, here]);
+const diffText = (diff) => `${diff.map((x) => x[0]).join('、')}就是「${diff.map((x) => x[1]).join('」「')}」，不是「${diff.map((x) => x[2]).join('」「')}」`;
+
 /** 均時差（分鐘）：真太陽時 − 平太陽時。公式同 tianji calc_true_solar_time（MIT） */
 export function equationOfTime(utcMs) {
   const n = utcMs / 86400000 + 2440587.5 - 2451545.0;
@@ -99,7 +158,8 @@ export function equationOfTime(utcMs) {
 
 /**
  * 排盤用的時間。
- * @returns {{ok:true, instantUtc:number, clock:{y,m,d,h,mi}, notes:string[]} | {ok:false, error:string, needFold?:boolean}}
+ * @returns {{ok:true, instantUtc:number, clock:{y,m,d,h,mi}, notes:string[], warnings:string[]} | {ok:false, error:string, needFold?:boolean}}
+ * warnings：會讓時柱、命宮不同的情況（標準時間與真太陽時落在不同時辰），畫面要顯眼提醒
  */
 export function baziClock({ date, time, tz, place, fold }, { solarTime = 'standard' } = {}) {
   const conv = localToUtc({ ...date, h: time.h, mi: time.mi }, tz, fold);
@@ -112,18 +172,27 @@ export function baziClock({ date, time, tz, place, fold }, { solarTime = 'standa
   if (off > std) {
     notes.push(`出生時是日光節約時間（${formatOffset(off)}），已換回標準時間（${formatOffset(std)}）排盤，也就是減 ${(off - std) / 60} 小時。`);
   }
-  let clockMs = utc + std * 60000;
-  if (solarTime === 'true') {
-    if (place) {
-      const lonMin = place.lon * 4;
-      const eot = equationOfTime(utc);
-      clockMs = utc + (lonMin + eot) * 60000;
+  const stdMs = utc + std * 60000;
+  let clockMs = stdMs;
+  const warnings = [];
+  if (place) {
+    const lonMin = place.lon * 4;
+    const eot = equationOfTime(utc);
+    const trueMs = utc + (lonMin + eot) * 60000;
+    // 標準時間和真太陽時落在不同時辰時，兩派排出來的時柱、命宮就不同：用哪一種都要讓使用者知道另一種的結果
+    const [stdF, trueF] = [fieldsOf(stdMs), fieldsOf(trueMs)];
+    const [stdZhi, trueZhi] = [zhiOfHour(stdF.h), zhiOfHour(trueF.h)];
+    if (solarTime === 'true') {
+      clockMs = trueMs;
       notes.push(`使用真太陽時：經度修正 ${Math.round(lonMin - std)} 分、均時差 ${Math.round(eot)} 分。`);
-    } else {
-      notes.push('沒有出生地，無法換算真太陽時，改用標準時間。');
+      if (stdZhi !== trueZhi) warnings.push(`校正後從${stdZhi}時（${hhmm(stdF)}）變成${trueZhi}時（${hhmm(trueF)}），時柱、命宮都跟著換；用標準時間排的命盤（多數 App 的預設）會和這裡不同。`);
+    } else if (stdZhi !== trueZhi) {
+      warnings.push(`如果用出生地的真太陽時（經度與均時差校正後是 ${hhmm(trueF)}）排，會是${trueZhi}時，不是${stdZhi}時；有些老師用真太陽時排盤，上方「排盤設定」可以切換比較。`);
     }
+  } else if (solarTime === 'true') {
+    notes.push('沒有出生地，無法換算真太陽時，改用標準時間。');
   }
-  return { ok: true, instantUtc: utc, clock: fieldsOf(clockMs), notes };
+  return { ok: true, instantUtc: utc, clock: fieldsOf(clockMs), notes, warnings };
 }
 
 function pillar(label, gan, zhi, dayGan) {
@@ -182,14 +251,38 @@ export function buildBazi(input, { gender = null, sect = 1, solarTime = 'standar
   let instantFields;
   let dayFields;
 
+  // 交界：hour＝離換時辰的時刻很近；month＝離換月的節氣很近（byDay：沒填時間、出生當天交節氣）；
+  // solar＝標準時間和真太陽時落在不同時辰
+  const edges = { hour: null, month: null, solar: false };
   if (input.time) {
     const clk = baziClock(input, { solarTime });
     if (!clk.ok) return clk;
     notes.push(...clk.notes);
+    uncertain.push(...clk.warnings);
+    edges.solar = clk.warnings.length > 0;
     instantFields = fieldsOf(clk.instantUtc + 8 * 3600000);
     dayFields = clk.clock;
     yearMonthEc = eightChar(instantFields, sect);
     dayTimeEc = eightChar(dayFields, sect);
+    const ce = clockEdge(dayFields);
+    if (ce) {
+      const there = eightChar(ce.other, sect);
+      const diff = pillarDiff([['日柱', dayTimeEc.getDay(), there.getDay()], ['時柱', dayTimeEc.getTime(), there.getTime()]]);
+      if (diff.length) {
+        edges.hour = { ...ce, pillars: Object.fromEntries(diff.map((x) => [x[0], x[1]])) };
+        const why = diff[0][0] === '日柱' ? '日柱代表你自己（日主），整張盤的解讀都會不同' : '時柱關係到子女、晚年和命宮';
+        uncertain.push(`${clockEdgeLead(dayFields, ce)}${diffText(diff)}。${why}；出生證明的時間如果是約略記的，兩種都參考。`);
+      }
+    }
+    const je = jieEdge(instantFields);
+    if (je) {
+      const there = eightChar(je.other, sect);
+      const diff = pillarDiff([['年柱', yearMonthEc.getYear(), there.getYear()], ['月柱', yearMonthEc.getMonth(), there.getMonth()]]);
+      if (diff.length) {
+        edges.month = { byDay: false, ...je, pillars: Object.fromEntries(diff.map((x) => [x[0], x[1]])) };
+        uncertain.push(`出生時刻在節氣「${je.name}」交接${je.earlier ? '之後' : '之前'} ${je.minutes} 分鐘：實際只要${je.earlier ? '早' : '晚'} ${je.need} 分鐘，${diffText(diff)}。月柱是月令，格局、身強弱和整排大運都跟著它走，請核對出生證明的時間。`);
+      }
+    }
   } else {
     // 沒有時間：用當天中午排三柱；若當天交節氣，列出另一個可能的月柱／年柱
     dayFields = { ...input.date, h: 12, mi: 0 };
@@ -197,7 +290,10 @@ export function buildBazi(input, { gender = null, sect = 1, solarTime = 'standar
     yearMonthEc = eightChar(dayFields, sect);
     const early = eightChar({ ...input.date, h: 0, mi: 0 }, sect);
     const late = eightChar({ ...input.date, h: 23, mi: 59 }, 2);
-    if (early.getMonth() !== late.getMonth()) uncertain.push(`出生當天交節氣，月柱可能是 ${early.getMonth()} 或 ${late.getMonth()}，補上出生時間才能確定。`);
+    if (early.getMonth() !== late.getMonth()) {
+      edges.month = { byDay: true, pillars: { 月柱: [early.getMonth(), late.getMonth()] } };
+      uncertain.push(`出生當天交節氣，月柱可能是 ${early.getMonth()} 或 ${late.getMonth()}，補上出生時間才能確定。`);
+    }
     if (early.getYear() !== late.getYear()) uncertain.push(`出生當天是立春，年柱可能是 ${early.getYear()} 或 ${late.getYear()}。`);
     notes.push('沒有出生時間：只排年、月、日三柱，時柱與起運歲數無法確定。');
   }
@@ -232,6 +328,7 @@ export function buildBazi(input, { gender = null, sect = 1, solarTime = 'standar
     clockText: input.time ? `${dayFields.y}-${String(dayFields.m).padStart(2, '0')}-${String(dayFields.d).padStart(2, '0')} ${String(dayFields.h).padStart(2, '0')}:${String(dayFields.mi).padStart(2, '0')}` : null,
     notes,
     uncertain,
+    edges,
     pillars,
     dayMaster: { gan: dayGan, wx: GAN_WX[dayGan], yinYang: isYang(dayGan) ? '陽' : '陰', text: WX_TEXT[GAN_WX[dayGan]] },
     wuxing: { counts, withHidden, missing: WUXING.filter((w) => counts[w] === 0) },

@@ -40,10 +40,17 @@ export async function loadProfile(ctx, p, input, opts, { mayaTime = null, withNa
   });
   // 多胞胎借宮後的紫微盤（綜合解讀內部也用這張）
   const ziwei = zw && zw.ok ? (reading.twins && reading.twins.shift ? R.rotateZiwei(zw, reading.twins.shift) : zw) : null;
+  // 綜合解讀用到月柱、時柱和紫微命宮：出生時間靠近交界時先講一句，細節在八字、紫微命盤上方
+  const edgeParts = [];
+  if (bazi && bazi.edges.month && !bazi.edges.month.byDay) edgeParts.push(bazi.edges.month.pillars.年柱 ? '年柱、月柱' : '月柱');
+  if (bazi && bazi.edges.hour && bazi.edges.hour.pillars.日柱) edgeParts.push('日柱');
+  if (bazi && ((bazi.edges.hour && bazi.edges.hour.pillars.時柱) || bazi.edges.solar)) edgeParts.push('時柱');
+  if (zw && zw.ok && zw.uncertain.length) edgeParts.push('紫微命宮');
+  const edgeNote = edgeParts.length ? `出生時間靠近交界：${edgeParts.join('、')}可能不同，下面的解讀也會跟著變；細節看八字、紫微命盤上方的提醒。` : null;
   const missing = [];
   if (!input.time) missing.push('出生時間（上升星座、紫微、稱骨）');
   if (!p.gender) missing.push('性別（紫微、大運、個人吉方）');
   if (!p.fullName) missing.push('本名（姓名學）');
   if (!p.bloodType) missing.push('血型（選填）');
-  return { natal, bazi, ziwei, ziweiError: zw && !zw.ok ? zw.error : null, maya, name, chenggu, reading, lifePathNumber: reading.lifePathNumber, missing };
+  return { natal, bazi, ziwei, ziweiError: zw && !zw.ok ? zw.error : null, maya, name, chenggu, reading, lifePathNumber: reading.lifePathNumber, missing, edgeNote };
 }

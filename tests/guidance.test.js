@@ -154,6 +154,31 @@ test('觀梅占：辰年十二月十七日申時 → 澤火革初爻動，互天
   assert.equal(t.season.state, '相');
 });
 
+test('《梅花易數》書中卦例：老人（凶）、少年（吉）、牛鳴（凶）、西林寺添勾（吉）都和書上一致', () => {
+  // [上卦先天數, 下卦先天數, 動爻, 書上結論對應的總斷]
+  assert.deepEqual([castHexagram(1, 5, 4).judgement, castHexagram(1, 5, 4).verdict.level], ['lifeless', '凶']); // 老人有憂色：天風姤四爻
+  assert.deepEqual([castHexagram(7, 3, 5).judgement, castHexagram(7, 3, 5).verdict.level], ['huBianSheng', '吉']); // 少年有喜色：山火賁五爻
+  assert.deepEqual([castHexagram(8, 6, 3).judgement, castHexagram(8, 6, 3).verdict.level], ['huBianKe', '凶']); // 牛哀鳴：地水師三爻
+  assert.equal(castHexagram(7, 2, 5).verdict.tone, 'good'); // 西林寺添勾：山澤損五爻
+});
+
+test('子時換日：23:30 和隔天 00:30 是同一個子時，梅花起出同一卦（和六爻、八字一樣 23 點換日）', () => {
+  const late = castByTime({ y: 2026, m: 11, d: 24, h: 23, mi: 30 });
+  const early = castByTime({ y: 2026, m: 11, d: 25, h: 0, mi: 30 });
+  assert.deepEqual([late.base.name, late.moving], [early.base.name, early.moving]);
+  assert.match(late.basis, /23 點後的子時算隔天/);
+});
+
+test('卦義衝突：總斷吉但本卦、變卦都偏凶時要提醒打折看（天地否三爻動變天山遯）', () => {
+  const c = castHexagram(1, 8, 3);
+  assert.deepEqual([c.base.name, c.bian.name, c.verdict.tone], ['天地否', '天山遯', 'good']);
+  assert.match(c.toneConflict, /吉要打折看/);
+  assert.equal(castHexagram(1, 5, 5).toneConflict, null); // 牡丹占：總斷和卦義同方向，不提醒
+  let n = 0;
+  for (let u = 1; u <= 8; u += 1) for (let l = 1; l <= 8; l += 1) for (let mv = 1; mv <= 6; mv += 1) if (castHexagram(u, l, mv).toneConflict) n += 1;
+  assert.ok(n > 10 && n < 50, String(n)); // 384 種裡少數
+});
+
 test('牡丹占：天風姤五爻動，互乾為天、變火風鼎；乾金三次剋體巽木、卦中無生氣 → 凶', () => {
   const r = castHexagram(1, 5, 5);
   assert.deepEqual([r.base.name, r.hu.name, r.bian.name, r.ti.name, r.yong.name], ['天風姤', '乾為天', '火風鼎', '巽', '乾']);
