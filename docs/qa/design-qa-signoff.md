@@ -12,7 +12,7 @@
 
 - 判定：`design-qa finish lint: CLEAN  (37 files; 0 blocker, 0 high, 0 warn; template traits 0 -> generic risk LOW)`
 - 已修：顏色散落 → 全部改用 `css/tokens.css` 的變數與 `js/ui/palette.js`（TOKEN_DRIFT）
-- 抑制（各附理由）：`index.html` 五個分頁按鈕與「關閉」按鈕標 `design-qa: allow BUTTON_NO_ACTION`——
+- 抑制（各附理由）：`index.html` 五個分頁按鈕與「關閉」按鈕標 `design-qa: allow BUTTON_NO_ACTION`。
   點擊事件在 `js/app.js` 統一綁定（第 52、125 行），工具只看同一行所以誤判
 - 樣板感：generic risk LOW
 
@@ -36,7 +36,7 @@
 | long-*（同上六頁） | 320／390 | 長內容：50 人、300 筆紀錄、20 字無空格英文名字、宜 30 項、AI 200 字含長網址 | CLEAN | 0 | 2（me） |
 | wide-*（同上六頁） | 1440 | 長內容 | CLEAN | 0 | 2（me） |
 
-- 豁免（`docs/qa/design-qa-waivers.csv`）：「選擇備份檔」隱藏的檔案輸入框 TARGET_TOO_SMALL、FOCUS_UNVERIFIED——
+- 豁免（`docs/qa/design-qa-waivers.csv`）：「選擇備份檔」隱藏的檔案輸入框 TARGET_TOO_SMALL、FOCUS_UNVERIFIED。
   實際操作的是旁邊看得見的按鈕（WCAG 2.5.8 Equivalent 例外），輸入框設 `tabindex=-1`、有 `aria-label`
 - 焦點資料來自真的鍵盤 Tab 走一遍：是
 - CONTRAST_UNVERIFIED：0（裝飾漸層移到 `body::before`，內容底下都是實心底色，對比可實際量測）
@@ -46,11 +46,11 @@
 
 ## 4. 腳本量不到的（要人工）
 
-- [ ] 螢幕閱讀器（iPhone 旁白 VoiceOver）走一次主要流程——**沒驗到**
+- [ ] 螢幕閱讀器（iPhone 旁白 VoiceOver）走一次主要流程：**沒驗到**
 - [x] 文案：16 張一般快照裡實際顯示的 449 段文字跑 zh-tw-humanizer 的 `check.py`：機械檢查通過
   （只量得到每段前 80 字；錯誤訊息、提示框等沒出現在快照裡的文字靠程式碼審閱）
 - [x] 真實極端資料：最長名字、最多名單與紀錄（上表 long-*）；慢速網路見 `docs/qa/performance.md`
-- [ ] 真的 iPhone Safari——**沒驗到**（雲端只有 Chromium；CI 會用 WebKit 跑 E2E，最接近但不等於實機）
+- [ ] 真的 iPhone Safari：**沒驗到**（雲端只有 Chromium；CI 會用 WebKit 跑 E2E，最接近但不等於實機）
 
 ## 決定
 
