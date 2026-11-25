@@ -909,8 +909,46 @@ path.palm-line.pl-life, path.palm-line.pl-head, path.palm-line.pl-heart, path.pa
 .palm-item { padding: 12px 0 4px; border-top: 1px solid var(--divider); }
 .palm-item h3 { margin: 0 0 6px; }
 .palm-instr { display: flex; align-items: baseline; gap: 6px; margin: 8px 0; }
-.palm-canvas-wrap { display: flex; justify-content: center; margin: 8px 0; }
+/* iPhone 長按會跳出選取、放大鏡或「儲存影像」選單，描線時很干擾：畫布這一塊整個關掉 */
+.palm-canvas-wrap { position: relative; display: flex; justify-content: center; margin: 8px 0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .palm-canvas { display: block; border-radius: 12px; touch-action: none; background: var(--bg2); border: 1px solid var(--line); }
+/* 放大鏡：手指按著時出現在對角，看得到手指底下的紋路 */
+.palm-loupe { position: absolute; width: 112px; height: 112px; border-radius: 50%; border: 2px solid var(--gold); box-shadow: 0 8px 22px var(--shadow); pointer-events: none; z-index: 2; }
+/* 描線：示範圖＋說明並排、工具列、提醒 */
+.palm-howrow { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 6px; }
+.palm-guide { flex: 0 0 104px; width: 104px; height: auto; display: block; }
+.palm-instr .badge { flex: 0 0 auto; white-space: nowrap; }
+.palm-how { flex: 1 1 auto; min-width: 0; }
+.palm-how p { margin: 0 0 4px; }
+.palm-how .palm-instr { margin: 2px 0 4px; }
+.palm-crease { fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; opacity: 0.55; }
+.guide-dot { stroke-width: 1.5; }
+.guide-dot.todo { fill: var(--bg2); stroke: var(--muted); }
+.guide-dot.done { fill: var(--muted); stroke: var(--muted); }
+.guide-dot.cur { fill: var(--gold); stroke: var(--gold-2); }
+.guide-num { font: 700 11px system-ui, sans-serif; fill: var(--muted); }
+.guide-num.done, .guide-num.cur { fill: var(--on-accent); }
+.guide-ring { fill: none; stroke: var(--gold); stroke-width: 2.5; transform-box: fill-box; transform-origin: center; animation: guide-pulse 1.4s var(--ease-out) infinite; }
+@keyframes guide-pulse { from { transform: scale(0.75); opacity: 1; } to { transform: scale(1.45); opacity: 0; } }
+.guide-start { stroke: none; }
+.guide-arrow { stroke: none; opacity: 0; transform-box: fill-box; transform-origin: center; animation: palm-end 0.5s var(--ease-spring) both; animation-delay: calc(1.05s + var(--i, 0) * 420ms); }
+.palm-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 0 4px; }
+.palm-tools .btn { display: inline-flex; align-items: center; gap: 4px; }
+.palm-tools .btn svg { width: 18px; height: 18px; flex: 0 0 auto; }
+.palm-tools .btn[aria-pressed="true"] { border-color: var(--gold); background: var(--selected-bg); color: var(--text); }
+.palm-note { margin: 4px 0; color: var(--gold-2); }
+.palm-note:empty { display: none; }
+.palm-side { margin: 6px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg2); }
+.palm-side .warn { margin: 0 0 6px; }
+/* 拍照範例：好的、太遠、手腕沒拍到 */
+.palm-shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 6px; }
+.palm-shot { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.palm-shot svg { width: 100%; max-width: 112px; height: auto; display: block; }
+.palm-shot figcaption { color: var(--muted); line-height: 1.35; }
+.shot-frame { fill: var(--bg2); stroke: var(--line); stroke-width: 1.5; }
+.shot-ok { fill: var(--good); }
+.shot-bad { fill: var(--poor); }
+.shot-mark { fill: none; stroke: var(--bg); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 /* 兩端刻度：不顯示分數，只看偏哪一邊 */
 .trait-scale { margin: 6px 0 10px; }
 .ts-track { position: relative; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--accent2), var(--track) 50%, var(--gold)); }

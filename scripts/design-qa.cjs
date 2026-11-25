@@ -105,6 +105,32 @@ const tab = async (page, view) => { await page.locator(`.tabbar [data-view="${vi
 const oracle = async (page, label) => { await tab(page, 'oracle'); await page.locator('#view-oracle .seg label', { hasText: label }).click(); await page.waitForTimeout(300); };
 const tool = (page, id) => page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption(id);
 
+/** 在範例手掌上點三個校正點、描一條生命線（位置由 App 給，和畫範例手掌用同一套座標） */
+async function practiceTrace(page) {
+  const cv = page.locator('#view-destiny canvas.palm-canvas');
+  const hand = await page.locator('#view-destiny input[name="palm-hand"]:checked').getAttribute('value');
+  const pts = await page.evaluate(async (hd) => (await import('/js/ui/palm-chart.js')).practicePoints(hd), hand);
+  const toScreen = async ([x, y]) => {
+    await cv.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    const b = await cv.boundingBox();
+    return [b.x + (x / 714) * b.width, b.y + (y / 884) * b.height];
+  };
+  for (const k of ['index', 'pinky', 'wrist']) await page.mouse.click(...(await toScreen(pts[k])));
+  const mid = [(pts.index[0] + pts.pinky[0]) / 2, (pts.index[1] + pts.pinky[1]) / 2];
+  const uv = ([u, v]) => [pts.pinky[0] + u * (pts.index[0] - pts.pinky[0]) + v * (pts.wrist[0] - mid[0]), pts.pinky[1] + u * (pts.index[1] - pts.pinky[1]) + v * (pts.wrist[1] - mid[1])];
+  const line = [[1.04, 0.34], [0.86, 0.5], [0.78, 0.7], [0.82, 0.88], [0.9, 1.0]];
+  const first = await toScreen(uv(line[0]));
+  await page.mouse.move(...first);
+  await page.mouse.down();
+  for (const q of line.slice(1)) {
+    const b = await cv.boundingBox();
+    const [x, y] = uv(q);
+    await page.mouse.move(b.x + (x / 714) * b.width, b.y + (y / 884) * b.height, { steps: 6 });
+  }
+  await page.mouse.up();
+  await page.waitForSelector('#view-destiny .palm-tools');
+}
+
 /** 有資料的各分頁：今日 → 時運 → 我的 → 命盤（綜合解讀、八字、紫微、姓名、工作方向、開運佈置、家人、血型、生命靈數）→ 占卜（解惑、配對、塔羅、樂透） */
 async function tour(browser, width, prefix, opts) {
   const files = [];
@@ -152,6 +178,11 @@ async function tour(browser, width, prefix, opts) {
   await tool(page, 'palm');
   await page.waitForSelector('#view-destiny .palm-options');
   files.push(await snap(page, `${prefix}palm`, width));
+  // 掌紋描線：用範例手掌練習，點好三個位置、描一條生命線（工具列、描線按鈕、示範圖、對答案、下一條都會出現）
+  await page.locator('#view-destiny').getByRole('button', { name: '用範例手掌練習' }).click();
+  await page.waitForSelector('#view-destiny canvas.palm-canvas');
+  await practiceTrace(page);
+  files.push(await snap(page, `${prefix}palm-trace`, width));
   await oracle(page, '解惑');
   await page.locator('#oracle-jiehuo').getByRole('button', { name: '起卦' }).click();
   await page.waitForSelector('#oracle-jiehuo .hexa');

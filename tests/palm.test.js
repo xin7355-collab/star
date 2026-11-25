@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   palmFrame, TEMPLATES, HEAD_APART_START, PALM_FIELDS, activeFields, sanitizePicks, sanitizePalm,
   simplifyStroke, classifyStrokes, suggestPicks, polylineGap, photoAdvice, compareHands, handRole, mainHand, HAND_SCHOOLS,
+  mergeSuggestions, enhanceLines, TRACE_LINES,
 } from '../js/core/palm.js';
 import { PALM_TEXT, SCALES, palmReading, handDiffText, roleText } from '../js/core/palm-texts.js';
 import { sanitizePerson, HISTORY_TYPES } from '../js/core/records.js';
@@ -23,6 +24,23 @@ test('掌心框：三個校正點換算來回一致；左手（食指在左）�
   assert.equal(palmFrame({ index: [300, 200], pinky: [100, 200], wrist: [400, 205] }), null); // 幾乎一直線
   assert.equal(palmFrame({ index: [100, 200], pinky: [100, 200], wrist: [100, 500] }), null); // 兩指點在同一處
   assert.equal(palmFrame({ index: [300, 200], pinky: [100, 200], wrist: [200, 230] }), null); // 手腕太近
+});
+
+test('照片是哪隻手：掌心朝鏡頭時右手食指在右；照片轉 90 度、倒過來都一樣；左右翻過的照片會相反', () => {
+  const rot = ([x, y], deg) => {
+    const r = (deg * Math.PI) / 180;
+    return [x * Math.cos(r) - y * Math.sin(r), x * Math.sin(r) + y * Math.cos(r)];
+  };
+  const right = { index: [300, 200], pinky: [100, 220], wrist: [190, 520] };
+  const left = { index: [100, 200], pinky: [300, 220], wrist: [210, 520] };
+  for (const deg of [0, 90, 180, 270, 33]) {
+    const turn = (c) => Object.fromEntries(Object.entries(c).map(([k, q]) => [k, rot(q, deg)]));
+    assert.equal(palmFrame(turn(right)).side, 'right', `轉 ${deg} 度`);
+    assert.equal(palmFrame(turn(left)).side, 'left', `轉 ${deg} 度`);
+  }
+  // 左右翻過（例如前鏡頭鏡像）：右手看起來像左手，所以畫面上只提醒、讓使用者決定
+  const flip = Object.fromEntries(Object.entries(right).map(([k, q]) => [k, [-q[0], q[1]]]));
+  assert.equal(palmFrame(flip).side, 'left');
 });
 
 test('描線判定：每個範本線形都判回自己（左右鏡像、整體縮放也一樣）', () => {
@@ -52,6 +70,80 @@ test('整隻手的建議：一般、半斷掌（兩線靠在一起）、真斷�
   assert.ok(!('head' in full) && !('heart' in full) && !('start' in full));
   assert.equal(suggestPicks({ ...base, head: [[HEAD_APART_START, [0.7, 0.33], [0.35, 0.36], [0.04, 0.4]]] }).start, 'apart');
   assert.ok(polylineGap(TEMPLATES.heart.mid[0], TEMPLATES.head.straight[0]) > 0.1);
+});
+
+test('描線建議併進選項：描別條線不會蓋掉自己改過的（重現過的 bug）', () => {
+  // 描生命線 → 自動填「長、弧度大」；自己改成「短」；再描感情線，生命線要保留「短」
+  let traces = { life: TEMPLATES.life['long-wide'] };
+  let st = mergeSuggestions({}, {}, suggestPicks(traces), ['life']);
+  assert.equal(st.picks.life, 'long-wide');
+  const mine = { ...st.picks, life: 'short' };
+  traces = { ...traces, heart: TEMPLATES.heart['long-curve'] };
+  st = mergeSuggestions(mine, st.applied, suggestPicks(traces), ['heart']);
+  assert.equal(st.picks.life, 'short');
+  assert.equal(st.picks.heart, 'long-curve');
+  // 同一條線重描（或復原、清掉這條線的筆畫）：用新的判斷
+  st = mergeSuggestions(st.picks, st.applied, suggestPicks({ ...traces, life: TEMPLATES.life['long-narrow'] }), ['life']);
+  assert.equal(st.picks.life, 'long-narrow');
+});
+
+test('描線建議併進選項：合看兩條線的斷掌、起點自己選過就保留；判斷消失時只拿掉自動填的', () => {
+  // 先手選半斷掌，再描智慧線、感情線（判斷是沒有斷掌）：保留自己選的半斷掌
+  const traces = { head: TEMPLATES.head.straight, heart: TEMPLATES.heart.mid };
+  let st = mergeSuggestions({ simian: 'half' }, {}, suggestPicks(traces), ['head', 'heart']);
+  assert.deepEqual(st.picks, { simian: 'half', head: 'straight', heart: 'mid' });
+  assert.equal(st.applied.simian, 'none'); // 記得判斷是什麼，畫面可以說「你選的和描線不同」
+  // 沒手選過的：跟著判斷
+  st = mergeSuggestions({}, {}, suggestPicks(traces), ['head', 'heart']);
+  assert.equal(st.picks.simian, 'none');
+  // 線清掉了：自動填的拿掉，自己改過的事業線留著
+  const cur = { life: 'long-wide', fate: 'mid' };
+  st = mergeSuggestions(cur, { life: 'long-wide', fate: 'wrist' }, {}, ['life', 'fate']);
+  assert.deepEqual(st.picks, { fate: 'mid' });
+  assert.deepEqual(st.applied, {});
+  // 描了斷掌線：真斷掌，感情線、智慧線、起點一起拿掉（白名單也會擋）
+  st = mergeSuggestions({ head: 'straight', heart: 'mid', start: 'joined', life: 'short' }, { head: 'straight', heart: 'mid', start: 'joined' },
+    suggestPicks({ simian: TEMPLATES.simian.full }), ['simian']);
+  assert.deepEqual(st.picks, { simian: 'full', life: 'short' });
+  // 沒有變動的線：一個欄位都不碰；不認得的線名稱忽略
+  st = mergeSuggestions({ life: 'short' }, { life: 'long-wide' }, { life: 'long-wide' }, ['nope']);
+  assert.deepEqual(st.picks, { life: 'short' });
+  assert.deepEqual(TRACE_LINES, ['life', 'head', 'heart', 'fate', 'simian']);
+});
+
+test('加強掌紋：細暗線的對比變大、大片明暗變平；整張全白（最大總和）也不會溢位', () => {
+  const w = 120;
+  const h = 120;
+  const img = new Uint8ClampedArray(w * h * 4);
+  // 左暗右亮的漸層（光線不均）＋第 60、61 列一條比旁邊暗 25 的細線（掌紋）
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const v = 140 + (80 * x) / (w - 1) - (y === 60 || y === 61 ? 25 : 0);
+      const o = (y * w + x) * 4;
+      img[o] = v;
+      img[o + 1] = v;
+      img[o + 2] = v;
+      img[o + 3] = 255;
+    }
+  }
+  const out = enhanceLines(img, w, h);
+  assert.equal(out.length, img.length);
+  const at = (a, x, y) => a[(y * w + x) * 4];
+  const lineContrast = (a) => {
+    let s = 0;
+    for (let x = 20; x < 100; x += 1) s += (at(a, x, 54) + at(a, x, 67)) / 2 - (at(a, x, 60) + at(a, x, 61)) / 2;
+    return s / 80;
+  };
+  assert.ok(lineContrast(out) >= lineContrast(img) * 1.8, `線的對比 ${lineContrast(img)} → ${lineContrast(out)}`);
+  const sideGap = (a) => Math.abs(at(a, 100, 20) - at(a, 20, 20));
+  assert.ok(sideGap(out) < sideGap(img) * 0.7, `左右明暗差 ${sideGap(img)} → ${sideGap(out)}`);
+  for (let i = 3; i < out.length; i += 4) assert.equal(out[i], 255);
+  // 1280×1280 全白：積分圖總和最大，算出來每一點都一樣（溢位的話右下角會亂掉）
+  const big = 1280;
+  const white = new Uint8ClampedArray(big * big * 4).fill(255);
+  const res = enhanceLines(white, big, big);
+  assert.equal(res[0], res[res.length - 4]);
+  assert.equal(res[((big / 2) * big + big / 2) * 4], res[0]);
 });
 
 test('描線簡化：太密的點只留間隔夠的、太短當成誤觸', () => {

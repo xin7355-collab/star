@@ -155,6 +155,16 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 掌紋拍照描線,form,submitting,DONE,code:js/views/tool-palm.js 讀取照片時顯示「讀取照片中…（只在這支手機處理）」,
 掌紋拍照描線,form,success,DONE,e2e:描感情線、生命線後自動判斷並填進選項,
 掌紋拍照描線,form,server_error,DONE,e2e:讀不進的照片顯示「這張照片打不開…請改用拍照直接拍一張」,
+掌紋描線工具列,control,default,DONE,e2e:掌紋描線：範例手掌練習（示範圖、對答案、不填選項）、照片左右手提醒與搬移、清除照片可以復原、加強掌紋,
+掌紋描線工具列,control,hover,NA,,觸控裝置為主
+掌紋描線工具列,control,focus_visible,DONE,npm run qa:design（palm-trace 快照：練習手掌點好位置、描一條線後鍵盤 Tab 實測復原、加強掌紋、描線按鈕）,
+掌紋描線工具列,control,active,DONE,code:js/views/tool-palm.js 正在描的線 aria-pressed＝true、金框；「加強掌紋」開著 aria-pressed＝true,
+掌紋描線工具列,control,disabled,DONE,code:js/views/tool-palm.js 沒有可以復原／重做時停用；這條線還沒描時「清除」停用,
+掌紋描線練習,data_view,loading,NA,,範例手掌在手機上直接畫，不用下載
+掌紋描線練習,data_view,empty,DONE,e2e:練習剛開始：示範圖標出第 1 個點；還沒描的線列在「還沒描」,
+掌紋描線練習,data_view,error,DONE,e2e:描得和範例不一樣時說差在哪（例如「試著描到手腕附近」）；code:js/views/tool-palm.js PRACTICE_TIP,
+掌紋描線練習,data_view,populated,DONE,e2e:生命線：判斷成「長、弧度大」，和範例一樣,
+掌紋描線練習,data_view,long_content,DONE,npm run qa:design（long-palm-trace 快照：20 字英文名字，320／390／1440）,
 掌紋解讀,data_view,loading,NA,,純計算，選了立刻畫
 掌紋解讀,data_view,empty,DONE,npm run qa:design（palm 快照：還沒選線形時的提示）,
 掌紋解讀,data_view,error,NA,,沒有外部呼叫；名單裡的選項經過白名單

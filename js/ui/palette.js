@@ -37,4 +37,18 @@ export const PALM_CANVAS = {
   marker: 'rgba(0,0,0,0.6)',
   markerLine: '#f6dc9b',
   fallbackLine: '#e9c46a',
+  // 放大鏡：照片外面的底色、十字準星
+  loupeBg: '#151a33',
+  crosshair: '#ffffff',
+};
+
+// 練習用的範例手掌（畫在 Canvas 上、當成照片描）：背景、膚色、陰影、紋路。
+// 刻意用接近真實照片的膚色，而不是主題色，練習時看到的才會跟拍自己的手一樣
+export const PALM_PRACTICE = {
+  bgTop: '#4b4f63',
+  bgBottom: '#2f3242',
+  skin: '#eec2a6',
+  skinShade: '#d39b7f',
+  crease: '#a86f5c',
+  line: '#8d5443',
 };

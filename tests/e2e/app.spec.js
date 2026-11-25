@@ -22,6 +22,8 @@ async function seed(page, people = [ME], settings = {}) {
 }
 
 const tab = (page, view) => page.locator(`.tabbar [data-view="${view}"]`).click();
+/** 掌紋分頁裡某一張卡（用標題精確比對：標題卡的副標也寫了「拍照描線」） */
+const palmCard = (page, title) => page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
 /** 「占卜」分頁裡切到某個面板 */
 async function oracle(page, label) {
   await tab(page, 'oracle');
@@ -690,6 +692,8 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
   const dv = page.locator('#view-destiny');
   await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('palm');
   const opts = dv.locator('.palm-options');
+  const picker = palmCard(page, '看圖選線形');
+  const photo = palmCard(page, '拍照描線（選用）');
   // 預設傳統「男左女右」：「我」是男生，一打開就看左手
   await expect(dv.getByRole('combobox', { name: '看哪隻手的看法' })).toHaveValue('gender');
   await expect(dv.locator('input[name="palm-hand"]:checked')).toHaveValue('left');
@@ -743,13 +747,25 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
   const IDX = [390, 300];
   const PNK = [190, 330];
   const WRS = [300, 720];
+  await expect(photo.getByRole('img', { name: '示範：第 1 個點在食指根部的中間' })).toBeVisible();
   await center();
   await page.mouse.click(...at(IDX));
   await expect(dv.getByText('點照片上的「小指根部的中間」')).toBeVisible();
+  // 復原：第 1 個點拿掉，再點一次
+  await photo.getByRole('button', { name: '復原：點第 1 個位置（食指根部）' }).click();
+  await expect(dv.getByText('點照片上的「食指根部的中間」')).toBeVisible();
+  await center();
+  await page.mouse.click(...at(IDX));
+  await center();
   await page.mouse.click(...at(PNK));
   await expect(dv.getByText('點照片上的「手腕橫紋的中間」')).toBeVisible();
+  await center();
   await page.mouse.click(...at(WRS));
-  await expect(dv.getByText(/用手指沿著選好的那條線描一次/)).toBeVisible();
+  // 合成的照片是右手的方向（食指在小指右邊），現在看的是左手：提醒，確認沒拍錯就繼續
+  await expect(photo.getByText(/從你點的三個位置看，這張像是右手；現在選的是左手/)).toBeVisible();
+  await photo.getByRole('button', { name: '沒錯，是左手' }).click();
+  await expect(photo.locator('.palm-side')).toHaveCount(0);
+  await expect(photo.locator('.palm-instr')).toHaveText('描生命線');
   // 掌心框座標 → 照片座標（和 App 用同一個定義：小指根部＝0、食指根部＝1、手腕＝v 1）
   const mid = [(IDX[0] + PNK[0]) / 2, (IDX[1] + PNK[1]) / 2];
   const uv = ([u, v]) => [PNK[0] + u * (IDX[0] - PNK[0]) + v * (WRS[0] - mid[0]), PNK[1] + u * (IDX[1] - PNK[1]) + v * (WRS[1] - mid[1])];
@@ -760,33 +776,64 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
     for (const q of pts.slice(1)) await page.mouse.move(...q, { steps: 6 });
     await page.mouse.up();
   }
-  await dv.locator('.seg label', { hasText: '感情線' }).click();
+  await photo.locator('.palm-step', { hasText: '感情線' }).click();
+  await expect(photo.getByRole('img', { name: /示範：感情線的位置/ })).toBeVisible();
   await center();
   await trace([[-0.12, 0.22], [0.2, 0.2], [0.5, 0.18], [0.78, 0.11], [0.95, 0.02]]);
   await expect(dv.getByText(/依你描的線推測：感情線「長、尾端上揚」/)).toBeVisible();
-  await dv.locator('.seg label', { hasText: '生命線' }).click();
+  await expect(photo.locator('.palm-step', { hasText: '感情線' })).toContainText('已描 1 筆');
+  await photo.locator('.palm-step', { hasText: '生命線' }).click();
   await center();
   await trace([[1.04, 0.34], [0.86, 0.5], [0.78, 0.7], [0.82, 0.88], [0.9, 1.0]]);
-  // 描的線覆蓋掉剛才手選的「短」，選項列也跟著更新
-  await expect(dv.locator('.palm-step', { hasText: '生命線' }).first()).toContainText('長、弧度大');
+  // 描的是生命線本身：覆蓋掉剛才手選的「短」，選項列也跟著更新
+  await expect(picker.locator('.palm-step', { hasText: '生命線' })).toContainText('長、弧度大');
   await expect(dv.locator('.palm-diagram .palm-line.traced')).toHaveCount(2);
+  // 自己把生命線改回「短」，再描事業線：生命線要保留自己選的（以前會被描線的判斷蓋回去）
+  await picker.locator('.palm-step', { hasText: '生命線' }).click();
+  await opts.getByRole('button', { name: '短（到掌中）', exact: true }).click();
+  await photo.getByRole('button', { name: '下一條：智慧線' }).click();
+  await photo.locator('.palm-step', { hasText: '事業線' }).click();
+  await center();
+  await trace([[0.55, 1.0], [0.56, 0.72], [0.58, 0.45], [0.6, 0.2]]);
+  await expect(picker.locator('.palm-step', { hasText: '事業線' })).toContainText('從手腕直上');
+  await expect(picker.locator('.palm-step', { hasText: '生命線' })).toContainText('短（到掌中）');
+  await expect(photo.getByText(/生命線「長、弧度大」（你選了「短（到掌中）」，保留你的）/)).toBeVisible();
+  // 復原、重做：事業線那一筆拿掉又放回來，選項跟著變；手選的生命線不受影響
+  await photo.getByRole('button', { name: '復原：描事業線' }).click();
+  await expect(photo.locator('.palm-note')).toHaveText('已復原：描事業線');
+  await expect(photo.locator('.palm-step', { hasText: '事業線' })).toContainText('未描');
+  await expect(picker.locator('.palm-step', { hasText: '事業線' })).toContainText('未選');
+  await photo.getByRole('button', { name: '重做：描事業線' }).click();
+  await expect(photo.locator('.palm-step', { hasText: '事業線' })).toContainText('已描 1 筆');
+  await expect(picker.locator('.palm-step', { hasText: '事業線' })).toContainText('從手腕直上');
+  await expect(picker.locator('.palm-step', { hasText: '生命線' })).toContainText('短（到掌中）');
+  // 放大鏡：手指按著時出現、放開就收起來；太短的一筆不算，而且說清楚為什麼
+  await center();
+  const q0 = at(uv([0.4, 0.55]));
+  await page.mouse.move(...q0);
+  await page.mouse.down();
+  await page.mouse.move(q0[0] + 3, q0[1] + 2, { steps: 2 });
+  await expect(photo.locator('.palm-loupe')).toBeVisible();
+  await page.mouse.up();
+  await expect(photo.locator('.palm-loupe')).toBeHidden();
+  await expect(photo.locator('.palm-note')).toHaveText(/這一筆太短/);
 
   // 存進名單：重開 App 還在；名單裡只有選項代碼，沒有照片
   await dv.getByRole('button', { name: '存到我的資料' }).click();
   await expect(page.locator('#toast')).toContainText('照片沒有儲存');
   const saved = await page.evaluate(() => localStorage.getItem('star.v1.people'));
   expect(saved).not.toContain('data:image');
-  expect(JSON.parse(saved)[0].palm).toMatchObject({ school: 'gender', left: { simian: 'half', life: 'long-wide', heart: 'long-curve' } });
+  expect(JSON.parse(saved)[0].palm).toMatchObject({ school: 'gender', left: { simian: 'half', life: 'short', heart: 'long-curve', fate: 'wrist' } });
   await page.reload();
   await tab(page, 'destiny');
-  await expect(dv.locator('.palm-step', { hasText: '感情線' })).toContainText('長、尾端上揚');
+  await expect(picker.locator('.palm-step', { hasText: '感情線' })).toContainText('長、尾端上揚');
   await expect(dv.locator('canvas.palm-canvas')).toHaveCount(0); // 照片重開就沒了
 
   // 右手（參考手）選真斷掌：感情線、智慧線的題目拿掉；比較時以男左女右的左手為準
   await dv.locator('.seg label', { hasText: '右手' }).click();
   await expect(dv.getByText('這隻手當參考：傳統「男左女右」以左手為主。').first()).toBeVisible();
   await opts.getByRole('button', { name: '真斷掌', exact: true }).click();
-  await expect(dv.locator('.palm-step')).toHaveCount(5);
+  await expect(picker.locator('.palm-step')).toHaveCount(5);
   await expect(dv.getByRole('heading', { name: '左右手比較' })).toBeVisible();
   await expect(dv.getByText(/斷掌：主要看的左手是「半斷掌：兩線有一段接在一起」，右手是「真斷掌：一條橫線貫穿手掌」。照男左女右以左手為準，右手當參考/)).toBeVisible();
   // 換成「看慣用手」：才出現慣用手的選單；選了右手就講天生（左手）和後天（右手）
@@ -798,6 +845,88 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
   // 隱私：照片和選項都沒有送出去
   expect(requests.filter((r) => !r.url.startsWith(baseURL) && !/^(blob|data):/.test(r.url))).toEqual([]);
   expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
+});
+
+test('掌紋描線：範例手掌練習（示範圖、對答案、不填選項）、照片左右手提醒與搬移、清除照片可以復原、加強掌紋', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('palm');
+  const picker = palmCard(page, '看圖選線形');
+  const photo = palmCard(page, '拍照描線（選用）');
+  // 還沒拍照：拍照範例三張（好的、太遠、手腕沒拍到）
+  await expect(photo.locator('.palm-shot')).toHaveCount(3);
+  await expect(photo.getByRole('img', { name: '可以：整隻手和手腕都入鏡、手指併攏' })).toBeVisible();
+  await expect(photo.getByRole('img', { name: '不行：手腕沒拍到：第 3 個點沒地方點' })).toBeVisible();
+
+  const cv = photo.locator('canvas.palm-canvas');
+  let box;
+  const center = async () => {
+    await cv.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    box = await cv.boundingBox();
+  };
+  // 範例手掌是 714×884 的畫布；三個校正點的位置由 App 自己給（和畫的時候同一套座標）
+  const at = ([x, y]) => [box.x + (x / 714) * box.width, box.y + (y / 884) * box.height];
+  const points = (hand) => page.evaluate(async (hd) => (await import('/js/ui/palm-chart.js')).practicePoints(hd), hand);
+  async function calibrate(pts) {
+    for (const k of ['index', 'pinky', 'wrist']) {
+      await center();
+      await page.mouse.click(...at(pts[k]));
+    }
+  }
+  async function trace(pts, list) {
+    const mid = [(pts.index[0] + pts.pinky[0]) / 2, (pts.index[1] + pts.pinky[1]) / 2];
+    const uv = ([u, v]) => [pts.pinky[0] + u * (pts.index[0] - pts.pinky[0]) + v * (pts.wrist[0] - mid[0]), pts.pinky[1] + u * (pts.index[1] - pts.pinky[1]) + v * (pts.wrist[1] - mid[1])];
+    await center();
+    const q = list.map(uv).map(at);
+    await page.mouse.move(...q[0]);
+    await page.mouse.down();
+    for (const r of q.slice(1)) await page.mouse.move(...r, { steps: 6 });
+    await page.mouse.up();
+  }
+  const LIFE = [[1.04, 0.34], [0.86, 0.5], [0.78, 0.7], [0.82, 0.88], [0.9, 1.0]];
+
+  // 練習：畫出來的範例手掌（「我」是男生，男左女右先看左手，範例也是左手）
+  await photo.getByRole('button', { name: '用範例手掌練習' }).click();
+  await expect(photo.getByText(/練習模式：這是畫出來的範例手掌，描的線不會填進你的選項/)).toBeVisible();
+  await expect(photo.getByRole('img', { name: '示範：第 1 個點在食指根部的中間' })).toBeVisible();
+  const left = await points('left');
+  await calibrate(left);
+  await expect(photo.getByRole('img', { name: '示範：生命線的位置，從圓點描到箭頭' })).toBeVisible();
+  await expect(photo.locator('.palm-side')).toHaveCount(0); // 範例就是左手，不會提醒
+  await trace(left, LIFE);
+  await expect(photo.getByText('生命線：判斷成「長、弧度大」，和範例一樣。')).toBeVisible();
+  await expect(photo.getByText('還沒描：智慧線、感情線、事業線。')).toBeVisible();
+  await expect(picker.locator('.palm-step', { hasText: '生命線' })).toContainText('未選'); // 練習不填選項
+  await photo.getByRole('button', { name: '下一條：智慧線' }).click();
+  await expect(photo.locator('.palm-step.on')).toContainText('智慧線');
+  // 加強掌紋：開關有狀態
+  await photo.getByRole('button', { name: '加強掌紋' }).click();
+  await expect(photo.getByRole('button', { name: '加強掌紋' })).toHaveAttribute('aria-pressed', 'true');
+  await photo.getByRole('button', { name: '結束練習' }).click();
+  await expect(cv).toHaveCount(0);
+  await expect(photo.locator('.palm-shot')).toHaveCount(3);
+
+  // 右手的範例手掌當成照片，但現在看的是左手：提醒，一鍵移到右手
+  const png = await page.evaluate(async () => (await import('/js/ui/palm-chart.js')).practicePalm('right').canvas.toDataURL('image/png').split(',')[1]);
+  await photo.locator('input[type="file"]').setInputFiles({ name: 'right.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  const right = await points('right');
+  await calibrate(right);
+  await expect(photo.getByText(/從你點的三個位置看，這張像是右手；現在選的是左手/)).toBeVisible();
+  await photo.getByRole('button', { name: '移到右手' }).click();
+  await expect(dv.locator('input[name="palm-hand"]:checked')).toHaveValue('right');
+  await expect(photo.locator('.palm-note')).toHaveText('照片已經移到右手。');
+  await trace(right, LIFE);
+  await expect(picker.locator('.palm-step', { hasText: '生命線' })).toContainText('長、弧度大');
+  // 清除照片按錯了：可以復原，描過的線還在
+  await photo.getByRole('button', { name: '清除照片' }).click();
+  await expect(cv).toHaveCount(0);
+  await photo.getByRole('button', { name: '復原：清除照片' }).click();
+  await expect(cv).toHaveCount(1);
+  await expect(photo.locator('.palm-step', { hasText: '生命線' })).toContainText('已描 1 筆');
+  // 加強掌紋換照片也維持開著（這次開在練習時）
+  await expect(photo.getByRole('button', { name: '加強掌紋' })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('塔羅：今日一張固定、牌陣推薦、凱爾特十字排成十字、點牌放大、逆位三讀法、二選一的選項名稱', async ({ page }) => {

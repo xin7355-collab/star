@@ -19,6 +19,9 @@ export function palmFrame({ index, pinky, wrist }) {
   if (width < 1e-6 || length < 1e-6 || Math.abs(det) / (width * length) < 0.5 || length / width < 0.6 || length / width > 3.5) return null;
   return {
     width,
+    // 照片看起來是哪隻手：掌心朝鏡頭時，右手的食指在小指的右側（照片怎麼轉都一樣，只有左右翻過的照片會相反）。
+    // 用來提醒「選左手卻拍了右手」：男左女右之下描錯手，解讀就整個看錯手
+    side: det > 0 ? 'right' : 'left',
     toUV([x, y]) {
       // P = 小指根部 + u·ex + v·ey，用克拉瑪公式解 2×2 方程式
       const rx = x - pinky[0];
@@ -246,6 +249,87 @@ export function suggestPicks(traces) {
     const headStart = t.head[0].reduce((a, p) => (p[0] > a[0] ? p : a));
     const lifeTop = t.life[0].reduce((a, p) => (p[1] < a[1] ? p : a));
     out.start = dist(headStart, lifeTop) < 0.09 ? 'joined' : 'apart';
+  }
+  return out;
+}
+
+// 每條描線會影響哪些選項：斷掌要合看感情線、智慧線；智慧線起點要合看智慧線、生命線
+const AFFECTS = {
+  life: ['life', 'start'],
+  head: ['head', 'simian', 'start'],
+  heart: ['heart', 'simian'],
+  fate: ['fate'],
+  simian: ['simian', 'head', 'heart', 'start'],
+};
+export const TRACE_LINES = Object.keys(AFFECTS);
+
+/**
+ * 把描線建議併進目前的選項（修掉「描感情線時，自己改過的生命線被蓋回去」）。
+ * - 只動這次有變動的線影響到的欄位。
+ * - 自己改過的欄位（和上次自動填的不一樣）：只有那條線本身重描、清掉或復原時才換成新的判斷；
+ *   斷掌、智慧線起點這種要合看兩條線的，自己選過就保留。
+ * - 判斷消失（線清掉、復原到沒描）：自動填的拿掉，自己選的留著。
+ * @param {object} cur 目前的選項
+ * @param {object} applied 上次自動填進去的值
+ * @param {object} sug suggestPicks 的結果
+ * @param {string[]} changed 這次有變動的線（校正點變了就傳所有描過的線）
+ * @returns {{picks:object, applied:object}}
+ */
+export function mergeSuggestions(cur, applied, sug, changed) {
+  const picks = { ...cur };
+  const next = { ...applied };
+  const lines = (changed || []).filter((l) => AFFECTS[l]);
+  for (const k of new Set(lines.flatMap((l) => AFFECTS[l]))) {
+    const own = lines.includes(k);
+    const auto = picks[k] === undefined || picks[k] === applied[k];
+    if (sug[k] !== undefined) {
+      if (auto || own) picks[k] = sug[k];
+      next[k] = sug[k];
+    } else {
+      if (auto) delete picks[k];
+      delete next[k];
+    }
+  }
+  return { picks: sanitizePicks(picks), applied: next };
+}
+
+/**
+ * 「加強掌紋」的顯示用影像：轉灰階後減掉周圍的平均亮度（局部對比），細細的暗線變深、大片明暗變平，
+ * 再和原本的灰階混一點，手的輪廓才認得出來。只拿來顯示，判定一律用描線，不受影響。
+ * 用積分圖算方框平均，整張圖只掃兩次；1280px 的照片在手機上不到一秒。
+ * @param {Uint8ClampedArray|Uint8Array} rgba 原圖（RGBA）
+ * @returns {Uint8ClampedArray} 同尺寸的 RGBA
+ */
+export function enhanceLines(rgba, w, h, { radius = Math.max(3, Math.round(Math.min(w, h) / 48)), gain = 3.5, mix = 0.4 } = {}) {
+  const n = w * h;
+  const gray = new Uint8Array(n);
+  for (let i = 0, j = 0; i < n; i += 1, j += 4) gray[i] = (rgba[j] * 77 + rgba[j + 1] * 150 + rgba[j + 2] * 29) >> 8;
+  const W1 = w + 1;
+  // 總和最大 255 × 1280 × 1280 ≈ 4.2 億，Uint32 放得下（照片讀進來時已經縮到 1280px 以內）
+  const sat = new Uint32Array(W1 * (h + 1));
+  for (let y = 1; y <= h; y += 1) {
+    let row = 0;
+    for (let x = 1; x <= w; x += 1) {
+      row += gray[(y - 1) * w + x - 1];
+      sat[y * W1 + x] = sat[(y - 1) * W1 + x] + row;
+    }
+  }
+  const out = new Uint8ClampedArray(n * 4);
+  for (let y = 0; y < h; y += 1) {
+    const y0 = Math.max(0, y - radius);
+    const y1 = Math.min(h, y + radius + 1);
+    for (let x = 0; x < w; x += 1) {
+      const x0 = Math.max(0, x - radius);
+      const x1 = Math.min(w, x + radius + 1);
+      const mean = (sat[y1 * W1 + x1] - sat[y0 * W1 + x1] - sat[y1 * W1 + x0] + sat[y0 * W1 + x0]) / ((x1 - x0) * (y1 - y0));
+      const g = gray[y * w + x];
+      const v = mix * g + (1 - mix) * (150 + (g - mean) * gain);
+      const o = (y * w + x) * 4;
+      out[o] = v;
+      out[o + 1] = v;
+      out[o + 2] = v;
+      out[o + 3] = 255;
+    }
   }
   return out;
 }

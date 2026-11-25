@@ -3,7 +3,7 @@
 // 發佈新版時 VERSION 要跟 js/version.js 的 APP_VER、version.json 一致（tests/pwa.test.js 會檢查），
 // 舊快取會在新版啟用時清除。
 
-const VERSION = '2026.11.25-3';
+const VERSION = '2026.11.25-4';
 
 const ASSETS = [
   './',
@@ -46,6 +46,7 @@ const ASSETS = [
   './js/core/ziwei-pattern.js',
   './js/core/tarot-reading.js',
   './js/core/palm.js',
+  './js/core/undo.js',
   './js/core/palm-texts.js',
   './js/core/tarot-deck.js',
   './js/core/zip.js',
@@ -69,6 +70,7 @@ const ASSETS = [
   './js/ui/dom.js',
   './js/ui/charts.js',
   './js/ui/palm-chart.js',
+  './js/ui/palm-photo.js',
   './js/ui/tarot-art.js',
   './js/ui/tarot-ritual.js',
   './js/ui/deck-store.js',
