@@ -200,6 +200,24 @@ test('切換查看的人：頁首同一個選單，在命盤換人，今日、�
   await expect(page.getByRole('combobox', { name: '目前查看的人' })).toHaveValue(ME.id);
 });
 
+test('瑪雅合盤：選一個人看彼此落在對方五大神諭的位置；瑪雅密碼的合盤跟著選同一個人、有說明', async ({ page }) => {
+  await seed(page, [ME, MOM]);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('maya');
+  const card = dv.locator('section.card', { hasText: '銀河印記合盤' });
+  await expect(card).toContainText('選一個人');
+  await card.getByRole('combobox', { name: '和誰合盤（銀河印記）' }).selectOption(MOM.id);
+  // 1990/8/15＝KIN 109 超頻紅月、1962/11/20＝KIN 126 太陽白世界橋：彼此都不在對方的五大神諭裡
+  await expect(card.getByRole('img', { name: '媽媽：KIN 126 太陽白世界橋' })).toBeVisible();
+  await expect(card).toContainText('你們兩個：彼此都不在對方的五大神諭裡');
+  await dv.locator('details.maya-code > summary').click();
+  await expect(dv.getByRole('combobox', { name: '和誰合盤', exact: true })).toHaveValue(MOM.id);
+  await expect(dv.getByText(/合盤是把兩個人的 A～E 並排/)).toBeVisible();
+  await expect(dv.locator('details.maya-code table.compare')).toBeVisible();
+});
+
 test('姓名：藝名和本名並排比較（存在手機、可移除）；匿名試算不儲存、可比多個名字', async ({ page }) => {
   await seed(page);
   await page.goto('/');

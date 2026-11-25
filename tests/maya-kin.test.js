@@ -2,8 +2,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { kinOf, kinInfo, kinFrom, oracleOf, mayaKin, validDate, toneBarsDots, sealOf, toneOf, yearKin, dayRelation, nextKinDate, SEALS, TONES } from '../js/core/maya-kin.js';
-import { DAY_RELATION_TEXT } from '../js/core/maya-texts.js';
+import { kinOf, kinInfo, kinFrom, oracleOf, mayaKin, validDate, toneBarsDots, sealOf, toneOf, yearKin, dayRelation, nextKinDate, pairRelation, SEALS, TONES } from '../js/core/maya-kin.js';
+import { DAY_RELATION_TEXT, PAIR_RELATION_TEXT } from '../js/core/maya-texts.js';
 
 test('查證過的日期：年名、yokai.jp 的 KIN 34、2012 冬至', () => {
   const name = (date) => kinInfo(kinOf(date)).title;
@@ -118,6 +118,21 @@ test('下次銀河生日：今天就是回傳 0 天；260 天一輪，中間遇�
     for (const kin of [1, 109, 260]) {
       const r = nextKinDate(from, kin);
       assert.ok(r && r.days >= 0 && r.days <= 261 && kinOf(r.date) === kin, `${JSON.stringify(from)} → ${kin}`);
+    }
+  }
+});
+
+test('合盤：支持、挑戰、隱藏推動、同圖騰、沒有連結都是雙向一樣；引導只算單向；同調性、同波符', () => {
+  // KIN 70 白狗（調性 5）和 KIN 109 超頻紅月互為支持；KIN 57 紅地球是紅月的引導，反過來只是同色
+  assert.deepEqual(pairRelation(70, 109), { otherInMine: 'analog', mineInOther: 'analog', sameTone: true, sameWavespell: false });
+  assert.deepEqual(pairRelation(57, 109), { otherInMine: 'guide', mineInOther: 'color', sameTone: true, sameWavespell: false });
+  assert.deepEqual(pairRelation(126, 109), { otherInMine: 'none', mineInOther: 'none', sameTone: false, sameWavespell: false });
+  assert.equal(pairRelation(105, 109).sameWavespell, true); // 紅蛇波符：KIN 105～117
+  for (let a = 1; a <= 260; a += 1) {
+    for (let b = 1; b <= 260; b += 1) {
+      const r = pairRelation(a, b);
+      if (['return', 'seal', 'analog', 'antipode', 'occult', 'none'].includes(r.otherInMine)) assert.equal(r.mineInOther, r.otherInMine, `${a}/${b}`);
+      assert.ok(PAIR_RELATION_TEXT[r.otherInMine] && PAIR_RELATION_TEXT[r.mineInOther], `${a}/${b}`);
     }
   }
 });

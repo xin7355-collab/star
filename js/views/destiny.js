@@ -462,7 +462,9 @@ export function mountDestiny(root, ctx) {
           table = h('table', { class: 'compare' }, h('thead', {}, h('tr', {}, h('th', { text: '' }), h('th', { text: p.name }), h('th', { text: other.name }))), h('tbody', {}, rows.map((x) => h('tr', { class: x.same ? 'same' : '' }, h('th', { scope: 'row', text: x.label }), h('td', { text: x.a ?? '—' }), h('td', { text: x.b ?? '—' })))));
         }
       }
-      compareBlock = h('div', { class: 'field' }, h('span', { class: 'field-label', text: '合盤' }), sel, table ? h('div', { class: 'table-wrap' }, table, h('p', { class: 'hint', text: '底色標示兩人相同的數字。' })) : null);
+      compareBlock = h('div', { class: 'field' }, h('span', { class: 'field-label', text: '合盤' }), sel,
+        h('p', { class: 'hint', text: '合盤是把兩個人的 A～E 並排：數字一樣的位置（有底色），代表你們在那個面向有相同的課題，比較容易懂彼此；不一樣的地方是可以互相學習的部分。' }),
+        table ? h('div', { class: 'table-wrap' }, table) : null);
     }
     // 瑪雅密碼是使用者提供的 V1 規則，和上面的 KIN 是不同算法：預設收起來，兩套數字才不會混在一起看。
     // 多胞胎預設打開：只有它能把出生時分加進去、把手足分開。
@@ -527,6 +529,45 @@ export function mountDestiny(root, ctx) {
         MG.mayaGlyph(x.seal, { tone: x.tone, label: `${MT.ORACLE_TEXT[key].label}：KIN ${x.kin} ${name(x.kin)}` }),
         h('figcaption', {}, h('b', { text: MT.ORACLE_TEXT[key].label }), h('span', { text: name(x.kin) })));
     })));
+    // 銀河印記合盤：和瑪雅密碼的合盤共用「和誰合盤」（compareId），換一個人兩邊一起換
+    const others = ctx.getPeople().filter((x) => x.id !== p.id);
+    let pairCard = null;
+    if (others.length) {
+      const sel = h('select', { 'aria-label': '和誰合盤（銀河印記）', onchange: (e) => { compareId = e.target.value || null; render(); } }, h('option', { value: '', text: '和誰合盤？' }), others.map((x) => h('option', { value: x.id, text: x.name })));
+      sel.value = compareId && others.some((x) => x.id === compareId) ? compareId : '';
+      const other = others.find((x) => x.id === sel.value);
+      const oi = other ? ctx.inputOf(other) : null;
+      const theirs = oi ? MK.mayaKin(oi.date) : null;
+      let body = h('p', { class: 'muted small', text: '選一個人：看你們的圖騰落在彼此五大神諭的哪個位置，也就是對方常在你生活裡扮演什麼角色。' });
+      if (theirs) {
+        const r = MK.pairRelation(theirs.kin, kin);
+        const ROLES = ['analog', 'antipode', 'occult', 'guide'];
+        const say = (type, who) => (type === 'color' ? `同屬${MT.COLOR_TEXT[who.seal.color].name}家族：${MT.PAIR_RELATION_TEXT.color}` : MT.PAIR_RELATION_TEXT[type]);
+        const figure = (x, label) => h('figure', { class: 'pair-kin' }, MG.mayaGlyph(x.seal.n, { tone: x.tone.n, label: `${label}：KIN ${x.kin} ${x.title}` }), h('figcaption', {}, h('b', { text: label }), h('span', { text: `KIN ${x.kin} ${x.title}` })));
+        body = [
+          h('div', { class: 'pair-row' }, figure(mine, p.name), figure(theirs, other.name)),
+          h('ul', { class: 'reasons' },
+            // 位置類（支持、挑戰、隱藏推動、引導）說「誰落在誰的哪個位置」；同 KIN、同圖騰、同色、沒有連結是兩個人一起的狀態
+            r.otherInMine === r.mineInOther
+              ? h('li', { class: 'tone-good' }, h('b', { text: ROLES.includes(r.otherInMine) ? '你們互相落在對方的' : '你們兩個：' }), h('span', { text: say(r.otherInMine, mine) }))
+              : [
+                ROLES.includes(r.otherInMine) ? h('li', { class: 'tone-good' }, h('b', { text: `${other.name}落在你的` }), h('span', { text: say(r.otherInMine, mine) })) : null,
+                ROLES.includes(r.mineInOther) ? h('li', { class: 'tone-good' }, h('b', { text: `你落在${other.name}的` }), h('span', { text: say(r.mineInOther, theirs) })) : null,
+                r.otherInMine === 'color' || r.mineInOther === 'color' ? h('li', { class: 'tone-good' }, h('b', { text: '你們兩個：' }), h('span', { text: say('color', mine) })) : null,
+              ],
+            r.sameTone ? h('li', { class: 'tone-info', text: `同調性「${tone.name}」：做事的節奏相近，${MT.TONE_TEXT[tone.n].key}是你們共同的功課。` }) : null,
+            r.sameWavespell ? h('li', { class: 'tone-info', text: `出生在同一個波符（${mine.wavespell.seal.name}波符）：人生大方向的主題相似。` }) : null),
+          h('p', { class: 'hint', text: MT.PAIR_NOTE }),
+        ];
+      } else if (other) {
+        body = h('p', { class: 'warn', text: `${other.name}的生日資料不完整，算不出瑪雅曆；請到「我的」編輯重新儲存。` });
+      }
+      pairCard = h('section', { class: 'card' },
+        cardHead(h, 'heart', '銀河印記合盤', '你們落在彼此五大神諭的哪個位置'),
+        h('div', { class: 'field' }, h('span', { class: 'field-label', text: '和誰合盤' }), sel),
+        body);
+    }
+
     const oracleCard = h('section', { class: 'card' },
       cardHead(h, 'compass', '五大神諭', '中間是你，上引導、右支持、左挑戰、下隱藏推動'),
       cross,
@@ -590,7 +631,7 @@ export function mountDestiny(root, ctx) {
       h('details', { class: 'more' }, h('summary', { text: '四種顏色' }),
         h('ul', { class: 'plain' }, Object.values(MT.COLOR_TEXT).map((c) => h('li', {}, h('b', { text: `${c.name}（${c.key}）：` }), h('span', { text: c.text }))))),
       h('p', { class: 'hint', text: MT.MAYA_NOTE }));
-    return [hero, oracleCard, gridCard, allCard];
+    return [hero, oracleCard, pairCard, gridCard, allCard].filter(Boolean);
   }
 
   // ── 生命靈數

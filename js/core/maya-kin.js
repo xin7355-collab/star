@@ -164,6 +164,21 @@ export function dayRelation(dayKin, myKin) {
   return 'none';
 }
 
+/**
+ * 兩個人的銀河印記合盤：用五大神諭的規則看彼此的圖騰落在對方的哪個位置。
+ * 支持、挑戰、隱藏推動是雙向一樣的（圖騰相加 19、差 10、相加 21），引導只算單向。
+ * 「兩個 KIN 相加當關係印記」的算法找不到可靠出處，沒有做。
+ * @returns {{otherInMine:string, mineInOther:string, sameTone:boolean, sameWavespell:boolean}}
+ */
+export function pairRelation(otherKin, myKin) {
+  return {
+    otherInMine: dayRelation(otherKin, myKin),
+    mineInOther: dayRelation(myKin, otherKin),
+    sameTone: toneOf(otherKin) === toneOf(myKin),
+    sameWavespell: kinInfo(otherKin).wavespell.kin === kinInfo(myKin).wavespell.kin,
+  };
+}
+
 /** 下一次（含今天）KIN 等於 kin 的日子：銀河生日 260 天一次，中間遇到 2/29 會晚一天 */
 export function nextKinDate(from, kin) {
   if (!validDate(from)) return null;
