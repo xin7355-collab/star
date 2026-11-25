@@ -1,7 +1,21 @@
 // 動畫小工具。原則：只動 transform／opacity；使用者在系統設定「減少動態效果」時直接顯示結果（CSS 檔尾也會全關）。
 
+/** App 裡選的動畫強度（html 的 data-motion）：full、lite、off */
+export function motionLevel() {
+  const m = typeof document !== 'undefined' ? document.documentElement.dataset.motion : '';
+  return m === 'lite' || m === 'off' ? m : 'full';
+}
+
+/** 系統開了「減少動態效果」，或在 App 裡把動畫關掉 */
 export function reducedMotion() {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return motionLevel() === 'off' || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
+/** 把設定套到 html 上（CSS 依 data-motion 縮短或關閉動畫） */
+export function applyMotion(level) {
+  if (typeof document === 'undefined') return;
+  if (level === 'lite' || level === 'off') document.documentElement.dataset.motion = level;
+  else delete document.documentElement.dataset.motion;
 }
 
 /** 卡片依序浮上來：加上 .rv 並設定順序（CSS 用 --i 算延遲） */

@@ -161,8 +161,8 @@ async function tour(browser, width, prefix, opts) {
   await oracle(page, '塔羅');
   if (opts.people.length > 2) {
     // 長內容組：五張牌、問感情，每張牌的解讀與整副牌分析最長
-    await page.locator('#oracle-tarot .seg label', { hasText: '五張' }).click();
     await page.locator('#oracle-tarot .seg label', { hasText: '感情' }).click();
+    await page.locator('#oracle-tarot').getByRole('combobox', { name: '牌陣' }).selectOption('five');
   }
   await page.locator('#oracle-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
   await page.waitForSelector('#oracle-tarot ol.tarot-list li');

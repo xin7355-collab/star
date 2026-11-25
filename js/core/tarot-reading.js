@@ -4,7 +4,12 @@
 // 2. 主題：感情、工作、財運各有一句；大牌逐張寫，小牌用「花色管的領域 × 數字代表的階段」組合。
 // 3. 整副牌陣：大牌比例、主導花色、重複的數字、宮廷牌（具體的人）、逆位比例、相鄰牌的元素互動
 //    （火風相助、水土相助、火水與風土相剋，黃金黎明會的元素尊貴規則，19 世紀的公有知識）。
+// 4. 逆位三種讀法（受阻、過度、轉向內在）；宮廷牌可讀成一個人，也可讀成該培養的特質。
 // 文字為本 App 撰寫，僅供參考。
+
+import { DECK } from './tarot.js';
+
+const UPRIGHT = Object.fromEntries(DECK.map((d) => [d.id, d.upright]));
 
 export const TOPICS = [
   { id: 'general', label: '綜合' },
@@ -66,7 +71,12 @@ const COURT_PERSON = { 10: '年輕人、學生或帶來消息的人', 11: '行�
 const SUIT_PERSONA = { 權杖: '熱情直爽、行動派', 聖杯: '溫柔感性、重感覺', 寶劍: '理性犀利、講話直', 錢幣: '務實穩重、重現實' };
 
 // 牌位種類與讀法：L 順勢、N 中性、S 挑戰
-const POSITION_TYPE = { 今日指引: 'daily', 過去: 'past', 現在: 'present', 可能走向: 'future', 核心: 'core', 根源: 'root', 阻力: 'obstacle', 潛力: 'potential', 建議: 'advice' };
+const POSITION_TYPE = {
+  今日指引: 'daily', 過去: 'past', 現在: 'present', 現況: 'present', 可能走向: 'future', 近未來: 'future', 未來發展: 'future',
+  核心: 'core', 根源: 'root', 阻力: 'obstacle', 阻礙: 'obstacle', 挑戰: 'obstacle', 潛力: 'potential', 建議: 'advice',
+  '選擇 A': 'option', '選擇 B': 'option', 你的狀態: 'self', 自己: 'self', 對方的狀態: 'other', 關係現況: 'bond',
+  目標: 'aim', 環境: 'environment', 希望與擔心: 'hope', 結果: 'outcome',
+};
 const FRAME = {
   daily: { L: '今天的主題是「{k}」，順著這股能量去做。', N: '今天提醒你「{k}」：放慢一點、多觀察。', S: '今天要留意「{k}」：提早準備，就不會被它拖住。' },
   past: { L: '過去打下的好底子：{k}，現在可以拿來用。', N: '過去的經驗：{k}，是你現在處境的背景。', S: '過去的影響還在：{k}，這是需要放下或修補的部分。' },
@@ -77,6 +87,14 @@ const FRAME = {
   obstacle: { L: '阻力不是壞事本身，而是「{k}」用過頭，或讓你太安逸、看不到問題。', N: '阻力在於：{k}，不處理就會一直卡著。', S: '最大的阻力很明確：{k}。' },
   potential: { L: '你有這個潛力：{k}，值得往這邊投入。', N: '潛在的發展：{k}，需要時間經營。', S: '潛在的風險：{k}，提前防範就能避開。' },
   advice: { L: '建議你主動去做：{k}。', N: '建議你用這種態度面對：{k}。', S: '建議你正視「{k}」：不是逃避，而是接受它、從中學到東西。' },
+  option: { L: '走這條路的發展：{k}，看起來是順的。', N: '走這條路會遇到：{k}；好壞取決於你怎麼經營。', S: '走這條路要先面對：{k}，想清楚代價再決定。' },
+  self: { L: '你現在的狀態：{k}，這是你的本錢。', N: '你現在的狀態：{k}。', S: '你現在的心結：{k}，先照顧好自己。' },
+  other: { L: '對方的狀態：{k}，對你是友善的。', N: '對方的狀態：{k}，他也在觀望。', S: '對方正在面對：{k}，他的反應不一定是針對你。' },
+  bond: { L: '這段關係現在：{k}，有好的基礎。', N: '這段關係現在：{k}，還在磨合。', S: '這段關係卡在：{k}，需要兩個人一起處理。' },
+  aim: { L: '你在意、想追求的是：{k}，方向是對的。', N: '你心裡的目標：{k}。', S: '你給自己的壓力：{k}，目標可以調整得更實際。' },
+  environment: { L: '周遭的環境：{k}，外在條件幫得上忙。', N: '周遭的環境：{k}。', S: '外在的壓力：{k}；有些事不在你掌控內，先顧好能做的部分。' },
+  hope: { L: '你心裡期待的是：{k}。', N: '你心裡既期待又擔心：{k}。', S: '你心裡擔心的是：{k}；說出來，擔心就會變小。' },
+  outcome: { L: '照目前的方向，比較可能的結果：{k}。', N: '可能的結果：{k}；還有調整的空間。', S: '照目前的方向，可能的結果：{k}。現在調整還來得及，這不是定局。' },
 };
 
 /** 一張牌的屬性：大牌序號或花色與數字、元素、正逆位的性質 */
@@ -103,8 +121,15 @@ export function readCard(c, topic = 'general') {
     if (meta.major) topicText = `${t.label}：${MAJOR_TOPIC[meta.index][{ love: 0, work: 2, money: 4 }[t.id] + (reversed ? 1 : 0)]}。`;
     else topicText = `${t.label}：${SUIT_LENS[meta.suit][t.id]}正處在「${RANK_STAGE[meta.rank]}」的階段。`;
   }
-  const person = meta.court ? `也可能代表一個人：${COURT_PERSON[meta.rank]}，個性${SUIT_PERSONA[meta.suit]}。` : '';
-  return { ...c, ...meta, type, frame, topicText, person };
+  const person = meta.court ? `也可能代表一個人：${COURT_PERSON[meta.rank]}，個性${SUIT_PERSONA[meta.suit]}；或是提醒你培養「${SUIT_PERSONA[meta.suit]}」這種特質。` : '';
+  // 逆位不只一種讀法：同一張牌的正位能量卡住了、用過頭了，或是要先在心裡處理
+  const u = (UPRIGHT[c.id] || '').split('、')[0];
+  const revWays = reversed && u ? [
+    { name: '受阻', text: `「${u}」的力量卡住了、還沒發揮出來。` },
+    { name: '過度', text: `「${u}」用過頭了，反而變成問題。` },
+    { name: '轉向內在', text: `「${u}」這件事要先在自己心裡處理，再往外推。` },
+  ] : [];
+  return { ...c, ...meta, type, frame, topicText, person, revWays };
 }
 
 // 元素互動（黃金黎明會的元素尊貴規則）
@@ -173,6 +198,24 @@ function summaryOf(cards, spreadId) {
   if (spreadId === 'five' && cards.length === 5) {
     const [core, , block, , advice] = cards;
     return `核心是${name(core)}，卡住你的是${name(block)}，建議是${name(advice)}：先處理「${first(block)}」，再朝「${first(advice)}」去做。`;
+  }
+  if (spreadId === 'pob' && cards.length === 3) {
+    const [now, block, advice] = cards;
+    return `現況是${name(now)}，阻礙是${name(block)}，建議是${name(advice)}：先處理「${first(block)}」，再朝「${first(advice)}」去做。`;
+  }
+  if (spreadId === 'choice' && cards.length === 4) {
+    const [, a, b, advice] = cards;
+    const rank = { light: 2, neutral: 1, shadow: 0 };
+    const lean = rank[a.tone] === rank[b.tone] ? '兩條路的牌差不多，各有要面對的課題' : `${rank[a.tone] > rank[b.tone] ? '選擇 A' : '選擇 B'} 的牌比較順`;
+    return `選擇 A 是${name(a)}、選擇 B 是${name(b)}：${lean}。不管選哪條，建議牌${name(advice)}提醒你「${first(advice)}」。`;
+  }
+  if (spreadId === 'relation' && cards.length === 5) {
+    const [me, other, bond, block, next] = cards;
+    return `你是${name(me)}、對方是${name(other)}，關係現在是${name(bond)}；卡在「${first(block)}」，未來可能${name(next)}：${TRAJECTORY[next.tone]}。`;
+  }
+  if (spreadId === 'celtic' && cards.length === 10) {
+    const [now, cross, , , , soon, , , hope, end] = cards;
+    return `現況${name(now)}，橫在面前的挑戰是${name(cross)}；近期會遇到${name(soon)}，心裡的期待與擔心是${name(hope)}，最後的結果牌${name(end)}：${TRAJECTORY[end.tone]}。`;
   }
   const c = cards[0];
   return `${name(c)}：${c.frame}`;

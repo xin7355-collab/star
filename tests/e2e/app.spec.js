@@ -293,6 +293,47 @@ test.describe('動畫開啟時', () => {
     await tab(page, 'destiny');
     await expect(page.locator('#view-destiny .trait').first()).toBeVisible();
   });
+
+  test('塔羅儀式：洗牌、扇形、點牌與停留抽牌、翻牌；關掉＝不抽；動畫強度「輕量」不進儀式', async ({ page }) => {
+    await seed(page);
+    await page.goto('/');
+    await oracle(page, '塔羅');
+    const tv = page.locator('#oracle-tarot');
+    await tv.getByRole('button', { name: '洗牌並抽牌' }).click();
+    const rt = page.getByRole('dialog', { name: /抽牌儀式/ });
+    await expect(rt).toBeVisible();
+    // 關掉＝不抽：沒有結果
+    await rt.getByRole('button', { name: '關閉，不抽牌' }).click();
+    await expect(page.locator('.rt')).toHaveCount(0);
+    await expect(tv.locator('ol.tarot-list')).toHaveCount(0);
+    // 點一張、手指停在一張上 0.6 秒（金邊畫滿）抽一張、剩下的「幫我隨機挑」
+    await tv.getByRole('button', { name: '洗牌並抽牌' }).click();
+    await expect(page.locator('.rt-fan:not(.shuffling)')).toHaveCount(1, { timeout: 5000 });
+    const fanCards = page.locator('.rt-card:not(.taken)');
+    let b = await fanCards.nth(20).boundingBox();
+    await page.mouse.click(b.x + b.width / 2, b.y + 10);
+    await expect(page.locator('.rt-count')).toHaveText('已選 1／3');
+    b = await fanCards.nth(50).boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + 10);
+    await page.mouse.down();
+    await expect(page.locator('.rt-count')).toHaveText('已選 2／3', { timeout: 3000 });
+    await page.mouse.up();
+    await expect(page.locator('.rt-count')).toHaveText('已選 2／3'); // 放開不會多抽一張
+    await page.getByRole('button', { name: '幫我隨機挑' }).click();
+    await expect(page.locator('.rt-slot .tc')).toHaveCount(3);
+    await page.getByRole('button', { name: '看完整解讀' }).click();
+    await expect(page.locator('.rt')).toHaveCount(0);
+    await expect(tv.locator('ol.tarot-list > li')).toHaveCount(3);
+    // 輕量：不進儀式、直接出結果
+    await tab(page, 'me');
+    await page.locator('#view-me summary', { hasText: '顯示與動畫' }).click();
+    await page.locator('#view-me .seg label', { hasText: '輕量' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-motion', 'lite');
+    await oracle(page, '塔羅');
+    await tv.getByRole('button', { name: '洗牌並抽牌' }).click();
+    await expect(tv.locator('ol.tarot-list > li')).toHaveCount(3);
+    await expect(page.locator('.rt')).toHaveCount(0);
+  });
 });
 
 test('名單：新增農曆生日的家人（不搶走「我」）、從名單配對、塔羅，都記到本機紀錄', async ({ page }) => {
@@ -330,7 +371,7 @@ test('名單：新增農曆生日的家人（不搶走「我」）、從名單�
   const tv = page.locator('#oracle-tarot');
   await tv.locator('.seg label', { hasText: '工作' }).click();
   await tv.getByRole('button', { name: '洗牌並抽牌' }).click();
-  await expect(tv.locator('ol.tarot-list li')).toHaveCount(3);
+  await expect(tv.locator('ol.tarot-list > li')).toHaveCount(3);
   // 每張牌有牌面圖、依主題的解讀；三張以上有整副牌的總結
   await expect(tv.locator('ol.tarot-list .tc')).toHaveCount(3);
   await expect(tv.locator('.tarot-topic').first()).toHaveText(/^工作：/);
@@ -734,6 +775,103 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
   await expect(dv.getByText(/斷掌：天生（左手）是「真斷掌：一條橫線貫穿手掌」，後天（右手）是「半斷掌：兩線有一段接在一起」/)).toBeVisible();
 
   // 隱私：照片和選項都沒有送出去
+  expect(requests.filter((r) => !r.url.startsWith(baseURL) && !/^(blob|data):/.test(r.url))).toEqual([]);
+  expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
+});
+
+test('塔羅：今日一張固定、牌陣推薦、凱爾特十字排成十字、點牌放大、逆位三讀法、二選一的選項名稱', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-25T10:00:00+08:00'));
+  await seed(page);
+  await page.goto('/');
+  await oracle(page, '塔羅');
+  const tv = page.locator('#oracle-tarot');
+  const daily = tv.locator('.daily-tarot');
+  // 同一個人同一天固定同一張（日期＋人算出來，Chromium 和 WebKit 一樣）
+  await expect(daily.getByRole('heading', { name: '今日一張・我' })).toBeVisible();
+  await expect(daily.locator('.tarot-name b')).toHaveText('權杖三');
+  await daily.getByRole('textbox', { name: '今日一張的心得' }).fill('今天很順');
+  await daily.getByRole('button', { name: '存心得' }).click();
+  await expect(page.locator('#toast')).toContainText('心得已存在這支手機');
+  await page.reload();
+  await oracle(page, '塔羅');
+  await expect(daily.locator('.tarot-name b')).toHaveText('權杖三');
+  await expect(daily.getByRole('textbox', { name: '今日一張的心得' })).toHaveValue('今天很順');
+  // 換主題不會自動換牌陣，但會標推薦、可一鍵改用
+  const spreadSel = tv.getByRole('combobox', { name: '牌陣' });
+  await tv.locator('.seg label', { hasText: '感情' }).click();
+  await expect(spreadSel).toHaveValue('three');
+  await expect(tv.getByText(/問感情推薦用「關係五張」/)).toBeVisible();
+  await tv.getByRole('button', { name: '改用推薦' }).click();
+  await expect(spreadSel).toHaveValue('relation');
+  // 凱爾特十字：中間十字（第 2 張橫壓在第 1 張上）＋右邊一柱由下往上
+  await spreadSel.selectOption('celtic');
+  await tv.getByRole('button', { name: '洗牌並抽牌' }).click();
+  await expect(tv.locator('.celtic .celtic-card')).toHaveCount(10);
+  await expect(tv.locator('ol.tarot-list > li')).toHaveCount(10);
+  await expect(tv.locator('.tarot-summary')).toContainText('最後的結果牌');
+  const box = (i) => tv.locator(`.celtic .c${i}`).boundingBox();
+  const [b1, b2, b7, b10] = [await box(1), await box(2), await box(7), await box(10)];
+  expect(Math.abs(b1.x + b1.width / 2 - (b2.x + b2.width / 2))).toBeLessThan(2);
+  expect(b2.width).toBeGreaterThan(b2.height);
+  expect(b7.y).toBeGreaterThan(b10.y);
+  expect(b7.x).toBeGreaterThan(b1.x + 100);
+  // 逆位牌都有三種讀法
+  const revCount = await tv.locator('ol.tarot-list > li.rev').count();
+  await expect(tv.locator('ol.tarot-list .rev-ways')).toHaveCount(revCount);
+  // 點牌放大，關掉後回到原本的牌
+  await tv.locator('ol.tarot-list .tc-btn').first().click();
+  const zoomDlg = page.locator('.tz[role="dialog"]');
+  await expect(zoomDlg).toBeVisible();
+  await expect(zoomDlg.locator('.tz-card svg')).toHaveCount(1);
+  await zoomDlg.getByRole('button', { name: '關閉' }).click();
+  await expect(page.locator('.tz')).toHaveCount(0);
+  // 二選一：選項名稱寫進牌位（只在畫面上）
+  await spreadSel.selectOption('choice');
+  await tv.getByRole('textbox', { name: '選擇 A 是什麼' }).fill('留在台北');
+  await tv.getByRole('textbox', { name: '選擇 B 是什麼' }).fill('去台中');
+  await tv.getByRole('button', { name: '洗牌並抽牌' }).click();
+  await expect(tv.locator('ol.tarot-list .pos').nth(1)).toHaveText('選擇 A（留在台北）');
+  await expect(tv.locator('.tarot-summary')).toContainText('選擇 A 是');
+});
+
+test('塔羅：自訂牌組（檔名認牌、對不到的列出來、缺的用內建牌面、移除）；圖只存在手機', async ({ page, baseURL }) => {
+  await page.clock.setFixedTime(new Date('2026-11-25T10:00:00+08:00'));
+  await seed(page);
+  const requests = [];
+  page.on('request', (r) => requests.push({ url: r.url(), method: r.method() }));
+  await page.goto('/');
+  await oracle(page, '塔羅');
+  const tv = page.locator('#oracle-tarot');
+  await tv.locator('summary', { hasText: '牌組：' }).click();
+  // 用程式畫牌圖（不用網路上的圖）：今日一張是權杖三，匯入它就能看到換成自訂圖
+  const png = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 300;
+    c.height = 500;
+    const g = c.getContext('2d');
+    g.fillStyle = '#d94f8a';
+    g.fillRect(0, 0, 300, 500);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  const buffer = Buffer.from(png, 'base64');
+  await tv.locator('input[type="file"][multiple]').setInputFiles([
+    { name: '權杖三.png', mimeType: 'image/png', buffer },
+    { name: 'ace-of-cups.png', mimeType: 'image/png', buffer },
+    { name: 'IMG_0001.png', mimeType: 'image/png', buffer },
+  ]);
+  await expect(tv.getByText(/已匯入 2 張；1 個檔名對不到牌：IMG_0001\.png/)).toBeVisible();
+  await expect(tv.getByText('目前用自訂牌組：已匯入 2／78 張，缺的牌用內建牌面。')).toBeVisible();
+  await expect(tv.locator('.daily-tarot .ta-face.custom')).toHaveCount(1);
+  // 存在 IndexedDB：重開還在
+  await page.reload();
+  await oracle(page, '塔羅');
+  await expect(tv.locator('.daily-tarot .ta-face.custom')).toHaveCount(1);
+  await tv.locator('summary', { hasText: '牌組：' }).click();
+  page.once('dialog', (d) => d.accept());
+  await tv.getByRole('button', { name: '移除自訂牌組' }).click();
+  await expect(tv.getByText(/目前用內建牌面/)).toBeVisible();
+  await expect(tv.locator('.daily-tarot .ta-face.custom')).toHaveCount(0);
+  // 圖片只在手機裡處理：沒有對外請求、沒有送出資料
   expect(requests.filter((r) => !r.url.startsWith(baseURL) && !/^(blob|data):/.test(r.url))).toEqual([]);
   expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
 });

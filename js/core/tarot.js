@@ -103,11 +103,18 @@ export const DECK = [
   ),
 ];
 
+// label 給下拉選單、short 給標題；牌位名稱決定讀法（tarot-reading.js 的 POSITION_TYPE）
 export const SPREADS = [
-  { id: 'single', label: '單張', positions: ['今日指引'] },
-  { id: 'three', label: '三張', positions: ['過去', '現在', '可能走向'] },
-  { id: 'five', label: '五張', positions: ['核心', '根源', '阻力', '潛力', '建議'] },
+  { id: 'single', label: '單張：一個提醒', short: '單張', positions: ['今日指引'] },
+  { id: 'three', label: '三張：過去、現在、可能走向', short: '三張', positions: ['過去', '現在', '可能走向'] },
+  { id: 'pob', label: '三張：現況、阻礙、建議', short: '現況阻礙建議', positions: ['現況', '阻礙', '建議'] },
+  { id: 'choice', label: '二選一（四張）', short: '二選一', positions: ['現況', '選擇 A', '選擇 B', '建議'] },
+  { id: 'five', label: '五張：核心、根源、阻力、潛力、建議', short: '五張', positions: ['核心', '根源', '阻力', '潛力', '建議'] },
+  { id: 'relation', label: '關係五張', short: '關係五張', positions: ['你的狀態', '對方的狀態', '關係現況', '阻礙', '未來發展'] },
+  { id: 'celtic', label: '凱爾特十字（十張）', short: '凱爾特十字', positions: ['現況', '挑戰', '根源', '過去', '目標', '近未來', '自己', '環境', '希望與擔心', '結果'] },
 ];
+// 依主題推薦的牌陣
+export const TOPIC_SPREAD = { general: 'three', love: 'relation', work: 'pob', money: 'choice' };
 
 /** 加密亂數：回傳 [0, n) 的整數，以拒絕取樣避免取餘數偏差 */
 export function secureRandomInt(n) {
@@ -138,6 +145,66 @@ const secureRng = {
   float: () => secureRandomInt(0x100000000) / 0x100000000,
 };
 
+const cardOf = (deckIndex, reversed, position) => {
+  const card = DECK[deckIndex];
+  return {
+    position,
+    card: card.name,
+    id: card.id,
+    major: card.major,
+    orientation: reversed ? '逆位' : '正位',
+    keywords: reversed ? card.reversed : card.upright,
+  };
+};
+
+/**
+ * 洗整副牌（抽牌儀式用）：加密亂數做完整的 Fisher–Yates，每個位置也先配好正逆位（各半）。
+ * 整副先洗勻，之後使用者從攤開的牌挑哪個位置都一樣公平，挑牌只是儀式感，不會改變機率。
+ */
+export function shuffleDeck({ rng = secureRng, reversedProbability = 0.5 } = {}) {
+  const order = DECK.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i -= 1) {
+    const j = rng.int(i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return { order, flips: order.map(() => rng.float() < reversedProbability) };
+}
+
+/** 使用者挑的位置（攤開的第幾張，0–77、不重複）→ 牌陣結果 */
+export function fromPicks(spreadId, deck, picks) {
+  const spread = SPREADS.find((x) => x.id === spreadId);
+  if (!spread) throw new Error(`未知的牌陣：${spreadId}`);
+  if (!Array.isArray(picks) || picks.length !== spread.positions.length) throw new Error('挑的張數和牌陣不符');
+  if (new Set(picks).size !== picks.length || picks.some((i) => !Number.isInteger(i) || i < 0 || i >= deck.order.length)) throw new Error('挑的位置不正確');
+  return {
+    spread: spread.id,
+    label: spread.short,
+    algorithm: '整副洗勻後挑選（Fisher–Yates）',
+    cards: spread.positions.map((position, i) => cardOf(deck.order[picks[i]], deck.flips[picks[i]], position)),
+  };
+}
+
+/** FNV-1a 雜湊：把「日期＋人」變成種子 */
+function hash32(str) {
+  let x = 0x811c9dc5;
+  for (const ch of str) {
+    x ^= ch.codePointAt(0);
+    x = Math.imul(x, 0x01000193) >>> 0;
+  }
+  return x >>> 0;
+}
+
+/**
+ * 今日一張：同一個人同一天固定同一張（日期＋人的代號當種子），重新整理也不會變。
+ * 這是「每天配一張牌當提醒」，不是隨機抽牌，畫面上要講清楚。
+ * @param {string} dateKey 例如 2026-11-25
+ * @param {string} personKey 名單裡的人的代號（沒有就空字串）
+ */
+export function dailyCard(dateKey, personKey = '') {
+  const rng = seededRandom(hash32(`${dateKey}|${personKey}|daily`));
+  return cardOf(rng.int(DECK.length), rng.float() < 0.5, '今日指引');
+}
+
 /**
  * 抽牌：Fisher–Yates 部分洗牌（不放回、每張機率相同）
  * @param {string} spreadId
@@ -155,19 +222,8 @@ export function drawSpread(spreadId, { rng = secureRng, reversedProbability = 0.
   }
   return {
     spread: spread.id,
-    label: spread.label,
+    label: spread.short,
     algorithm: '均勻不放回（Fisher–Yates）',
-    cards: spread.positions.map((position, i) => {
-      const card = DECK[idx[i]];
-      const reversed = rng.float() < reversedProbability;
-      return {
-        position,
-        card: card.name,
-        id: card.id,
-        major: card.major,
-        orientation: reversed ? '逆位' : '正位',
-        keywords: reversed ? card.reversed : card.upright,
-      };
-    }),
+    cards: spread.positions.map((position, i) => cardOf(idx[i], rng.float() < reversedProbability, position)),
   };
 }

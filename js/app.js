@@ -10,7 +10,7 @@ import * as store from './ui/records-store.js';
 import { mountMe } from './views/me.js';
 import { mountToday } from './views/today.js';
 import { startUpdateWatcher } from './ui/update.js';
-import { enterView } from './ui/motion.js';
+import { enterView, applyMotion } from './ui/motion.js';
 
 const VIEWS = ['today', 'fortune', 'destiny', 'oracle', 'me'];
 const TITLES = { today: '今日', fortune: '時運', destiny: '命盤', oracle: '占卜', me: '我的' };
@@ -23,6 +23,7 @@ const LAZY = {
 const viewApis = {};
 
 let state = store.loadAll();
+applyMotion(state.settings.motion);
 const natalCache = new Map();
 const profileListeners = [];
 const historyListeners = [];
@@ -157,6 +158,7 @@ const ctx = {
   getSettings: () => state.settings,
   saveSettings(patch) {
     state = { ...state, settings: { ...state.settings, ...patch } };
+    applyMotion(state.settings.motion);
     commit('profile');
   },
   savePerson(person, { activate = false } = {}) {
@@ -205,6 +207,8 @@ const ctx = {
   },
   wipeAll() {
     state = store.wipeAll();
+    // 自訂牌組的圖在 IndexedDB，也要一起清掉（「清除這支手機上的全部資料」不能漏）
+    import('./ui/deck-store.js').then((m) => m.clearDeck()).catch(() => {});
     commit('all');
     go('me');
   },

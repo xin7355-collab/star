@@ -1,4 +1,4 @@
-// 命理圖：羅盤、九宮飛星路線、五行生剋圖、八卦載入、塔羅牌面。全部是 SVG，文字走 textContent。
+// 命理圖：羅盤、九宮飛星路線、五行生剋圖、八卦載入。全部是 SVG，文字走 textContent（塔羅牌面在 tarot-art.js）。
 // 動畫只動 transform、opacity 與 stroke-dashoffset（線條用 pathLength=1 從 0 畫到滿）；
 // 使用者開了「減少動態效果」時，CSS 檔尾會讓動畫瞬間結束，直接顯示畫好的圖。
 
@@ -145,37 +145,4 @@ export function loader(text = '排盤中…') {
   const ring = s('g', { class: 'ld-ring' });
   Object.values(DIR_DEG).forEach((deg, i) => ring.append(trigram(40, 40, 22, deg, Object.values(HOUTIAN)[i])));
   return s('svg', { viewBox: '0 0 80 80', class: 'loader-svg', role: 'img', 'aria-label': text }, ring, s('circle', { cx: 40, cy: 40, r: 9, class: 'ld-core' }));
-}
-
-/** n 角星的頂點（外半徑 R、內半徑 r，第一個尖角朝上） */
-function starPoints(cx, cy, R, r, n) {
-  const pts = [];
-  for (let i = 0; i < n * 2; i += 1) {
-    const rad = (i * Math.PI) / n - Math.PI / 2;
-    const rr = i % 2 ? r : R;
-    pts.push(`${f(cx + rr * Math.cos(rad))},${f(cy + rr * Math.sin(rad))}`);
-  }
-  return pts.join(' ');
-}
-// 牌面圖示：大牌用八角星，小牌用花色（權杖、聖杯、寶劍、錢幣），都是自己畫的簡單幾何
-const TAROT_ICON = {
-  major: () => [s('polygon', { points: starPoints(20, 20, 16, 6.5, 8), class: 'tc-ico' }), s('circle', { cx: 20, cy: 20, r: 4, class: 'tc-hole' })],
-  權杖: () => [s('line', { x1: 20, y1: 5, x2: 20, y2: 36, class: 'tc-stroke' }), s('ellipse', { cx: 15, cy: 12, rx: 4.5, ry: 2, transform: 'rotate(-30 15 12)', class: 'tc-ico' }), s('ellipse', { cx: 25, cy: 19, rx: 4.5, ry: 2, transform: 'rotate(30 25 19)', class: 'tc-ico' })],
-  聖杯: () => [s('path', { d: 'M10 7 H30 Q30 21 20 23 Q10 21 10 7Z', class: 'tc-ico' }), s('line', { x1: 20, y1: 23, x2: 20, y2: 31, class: 'tc-stroke' }), s('line', { x1: 13, y1: 33, x2: 27, y2: 33, class: 'tc-stroke' })],
-  寶劍: () => [s('polygon', { points: '20,3 23,8 23,26 17,26 17,8', class: 'tc-ico' }), s('rect', { x: 11, y: 26, width: 18, height: 3, rx: 1, class: 'tc-ico' }), s('rect', { x: 18.5, y: 29, width: 3, height: 6, class: 'tc-ico' }), s('circle', { cx: 20, cy: 37, r: 2, class: 'tc-ico' })],
-  錢幣: () => [s('circle', { cx: 20, cy: 20, r: 15, class: 'tc-ring' }), s('polygon', { points: starPoints(20, 20, 12, 4.6, 5), class: 'tc-ico' })],
-};
-
-/**
- * 一張塔羅牌：背面朝上，翻過來是牌面（CSS 3D 翻牌）；逆位整張牌面倒過來。純裝飾，牌名與正逆位另外用文字寫。
- * @param {{mark:string, suit?:string, major:boolean, reversed:boolean, title:string}} card
- */
-export function tarotCard({ mark, suit, major, reversed, title }) {
-  return h('div', { class: 'tc', 'aria-hidden': 'true' },
-    h('div', { class: 'tc-inner' },
-      h('div', { class: 'tc-back' }, s('svg', { viewBox: '0 0 40 40', class: 'tc-svg' }, s('polygon', { points: starPoints(20, 20, 9, 3.5, 4), class: 'tc-ico dim' }))),
-      h('div', { class: `tc-front${reversed ? ' rev' : ''}` },
-        h('span', { class: 'tc-mark', text: mark }),
-        s('svg', { viewBox: '0 0 40 40', class: 'tc-svg' }, TAROT_ICON[major ? 'major' : suit]()),
-        h('span', { class: 'tc-title', text: title }))));
 }

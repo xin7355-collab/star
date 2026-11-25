@@ -1,7 +1,7 @@
 // 「我的」：目前查看的人＋本命星盤、家人朋友名單、查詢紀錄、備份與隱私。
 // 所有資料只存在這支手機；備份檔由使用者自己匯出保存。
 
-import { h, clear, fill } from '../ui/dom.js';
+import { h, clear, fill, segmented } from '../ui/dom.js';
 import { createBirthForm, describeRaw } from '../ui/birthform.js';
 import { buildNatal, describePlacement, describeBirth } from '../core/natal.js';
 import { SIGNS, ELEMENTS, MODALITIES, formatDegree, ASPECT_PLAIN, elementBalance } from '../core/zodiac.js';
@@ -22,12 +22,12 @@ export function mountMe(root, ctx) {
     const active = ctx.getActive();
     if (!people.length) {
       root.append(renderPersonForm({ self: true }, true));
-      root.append(renderBackup());
+      root.append(renderDisplay(), renderBackup());
       return;
     }
     if (editing) root.append(renderPersonForm(editing, false));
     if (active) root.append(renderActive(active));
-    root.append(renderPeople(people, active), renderHistory(), renderBackup());
+    root.append(renderPeople(people, active), renderHistory(), renderDisplay(), renderBackup());
   }
 
   // ── 新增／編輯一個人
@@ -306,6 +306,32 @@ export function mountMe(root, ctx) {
     );
   }
 
+  // ── 顯示與動畫：華麗動畫加多了，會暈或趕時間的人可以調低（不必去改整支手機的系統設定）
+  function renderDisplay() {
+    const level = ctx.getSettings().motion || 'full';
+    return h(
+      'section',
+      { class: 'card' },
+      h(
+        'details',
+        { class: 'more first' },
+        h('summary', { text: '顯示與動畫' }),
+        h('p', { class: 'field-label', text: '動畫強度' }),
+        segmented({
+          name: 'motion',
+          label: '動畫強度',
+          value: level,
+          options: [{ value: 'full', label: '完整' }, { value: 'lite', label: '輕量' }, { value: 'off', label: '關閉' }],
+          onChange: (v) => {
+            ctx.saveSettings({ motion: v });
+            ctx.toast(v === 'full' ? '已開啟完整動畫（含塔羅抽牌儀式）' : v === 'lite' ? '已改成輕量動畫：保留翻牌，拿掉儀式和特效' : '已關閉動畫：直接顯示結果');
+          },
+        }),
+        h('p', { class: 'hint', text: '完整：塔羅會進入抽牌儀式、翻牌有星屑和反光。輕量：只留簡短的翻牌與淡入。關閉：所有動畫都直接顯示結果（手機設定「減少動態效果」打開時，也會自動關閉）。' }),
+      ),
+    );
+  }
+
   // ── 備份與隱私
   function renderBackup() {
     const status = h('p', { class: 'hint', text: '檢查儲存狀態中…' });
@@ -367,7 +393,7 @@ export function mountMe(root, ctx) {
           class: 'link danger',
           text: '清除這支手機上的全部資料',
           onclick: () => {
-            if (window.confirm('名單、紀錄、設定都會刪除且無法復原（除非你有備份檔），確定？')) {
+            if (window.confirm('名單、紀錄、設定、自訂牌圖都會刪除且無法復原（除非你有備份檔），確定？')) {
               ctx.wipeAll();
               ctx.toast('已清除');
             }

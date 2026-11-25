@@ -142,6 +142,8 @@ export function sanitizeSettings(s) {
     solarTime: o.solarTime === 'true' ? 'true' : 'standard',
     // 多胞胎的紫微借宮看法：sibling＝弟妹依序借兄弟宮、travel＝老二借遷移宮
     twinMethod: o.twinMethod === 'travel' ? 'travel' : 'sibling',
+    // 動畫強度：full 完整（含抽牌儀式）、lite 輕量（只留短的轉場）、off 關閉（和系統「減少動態效果」一樣）
+    motion: ['lite', 'off'].includes(o.motion) ? o.motion : 'full',
   };
 }
 

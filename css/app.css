@@ -452,7 +452,7 @@ ol.pairs li b { flex: none; white-space: nowrap; font-variant-numeric: tabular-n
 /* ── 塔羅：每張牌從牌背翻到牌面（3D），逆位整張牌面倒過來；文字在牌的右邊 */
 ol.tarot-list { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 12px; }
 ol.tarot-list li {
-  display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: start;
+  display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 12px; align-items: start;
   background: var(--bg2); border: 1px solid var(--hairline); border-radius: 16px; padding: 12px;
   animation: rise 0.5s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 260ms);
 }
@@ -460,21 +460,34 @@ ol.tarot-list li.rev { border-style: dashed; }
 .tarot-body p { margin: 6px 0 0; }
 .tarot-topic { padding-left: 10px; border-left: 3px solid var(--accent2); }
 .tarot-summary { padding: 10px 12px; border-radius: var(--radius-s); background: var(--accent-soft); }
-.tc { width: 64px; height: 100px; perspective: 600px; }
+/* 塔羅牌：翻牌（背面轉到牌面）→ 星屑灑出 → 反光帶掃過；牌面由 tarot-art.js 的 SVG 畫，這裡只管尺寸與動畫 */
+.tc { position: relative; width: 78px; height: 130px; perspective: 700px; }
 .tc-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: tc-flip 0.8s var(--ease-out) both; animation-delay: calc(0.2s + var(--i, 0) * 260ms); }
 @keyframes tc-flip { from { transform: rotateY(180deg); } to { transform: rotateY(0deg); } }
-.tc-back, .tc-front { position: absolute; inset: 0; border: 2px solid var(--gold); border-radius: 8px; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
-.tc-back { display: flex; align-items: center; justify-content: center; transform: rotateY(180deg); background: var(--glyph-2) repeating-linear-gradient(45deg, var(--hairline) 0 2px, transparent 2px 9px); }
-.tc-front { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 5px 2px 4px; background: var(--card-2); }
+.tc-back, .tc-front { position: absolute; inset: 0; border-radius: 8px; overflow: hidden; -webkit-backface-visibility: hidden; backface-visibility: hidden; box-shadow: 0 6px 16px var(--shadow); }
+.tc-back { transform: rotateY(180deg); }
 .tc-front.rev { transform: rotate(180deg); }
-.tc-mark { font-size: 12px; font-weight: 800; line-height: 1; color: var(--gold); }
-.tc-svg { width: 40px; height: 40px; }
-.tc-ico { fill: var(--gold); }
-.tc-ico.dim { opacity: 0.7; }
-.tc-hole { fill: var(--card-2); }
-.tc-stroke { stroke: var(--gold); stroke-width: 2.5; stroke-linecap: round; }
-.tc-ring { fill: none; stroke: var(--gold); stroke-width: 2; }
-.tc-title { font-size: 10px; line-height: 1.1; color: var(--text); white-space: nowrap; }
+.tc-sheen { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 34%, rgba(255, 255, 255, 0.34) 47%, rgba(255, 236, 190, 0.14) 54%, transparent 64%); mix-blend-mode: screen; transform: translateX(-130%); animation: tc-sheen 1.2s ease-out both; animation-delay: calc(1s + var(--i, 0) * 260ms); }
+@keyframes tc-sheen { to { transform: translateX(130%); } }
+.tc-dust { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
+.tc-dust i { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; background: #ffe9a8; clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); opacity: 0; animation: tc-dust 1s var(--ease-out) both; animation-delay: calc(0.62s + var(--i, 0) * 260ms); }
+@keyframes tc-dust { 0% { opacity: 0; transform: rotate(var(--a)) translateY(0) scale(0.3); } 25% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-62px) scale(1); } }
+.ta-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.ta-face, .ta-back { display: block; width: 100%; height: 100%; }
+.ta-frame { fill: none; stroke: url(#ta-gold); stroke-width: 2.2; }
+.ta-frame.thin { stroke-width: 0.9; }
+.ta-l { fill: none; stroke: url(#ta-gold); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ta-l.bold { stroke-width: 2.6; }
+.ta-l.thin { stroke-width: 0.9; }
+.ta-f { fill: url(#ta-gold); }
+.ta-f.soft { opacity: 0.55; }
+.ta-cut { fill: #15123a; }
+.ta-cut-l { fill: none; stroke: #15123a; stroke-width: 1.4; stroke-linecap: round; }
+.ta-ray { stroke: url(#ta-gold); stroke-width: 0.6; opacity: 0.42; }
+.ta-plate { fill: rgba(10, 8, 30, 0.58); stroke: url(#ta-gold); stroke-width: 0.9; }
+.ta-mark { fill: #f6dc9b; font-size: 10.5px; font-weight: 800; letter-spacing: 0.5px; font-family: Georgia, 'Times New Roman', serif; }
+.ta-name { fill: #fff3c9; font-size: 12px; font-weight: 700; }
+.ta-name.long { font-size: 10px; }
 .pos { font-size: 13px; color: var(--muted); }
 .tarot-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 18px; }
 .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--badge-bg); color: var(--text); }
@@ -904,6 +917,88 @@ path.palm-line.pl-life, path.palm-line.pl-head, path.palm-line.pl-heart, path.pa
 .ts-dot { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--text); border: 3px solid var(--card); box-shadow: 0 0 0 2px var(--gold); animation: fam-pop 0.5s var(--ease-spring) both; animation-delay: 0.2s; }
 .ts-ends { display: flex; justify-content: space-between; gap: 12px; margin-top: 6px; font-size: 13px; color: var(--muted); }
 .ts-ends span:last-child { text-align: right; }
+
+/* 塔羅：點牌放大的按鈕外框、今日一張、凱爾特十字 */
+.tc-btn { display: block; padding: 0; border: 0; background: none; border-radius: 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.tc-btn:focus-visible { outline: 2px solid var(--accent2); outline-offset: 3px; }
+.tc-btn:active .tc { transform: scale(0.97); }
+.daily-row { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 14px; align-items: start; }
+.daily-row h2 { margin: 0 0 6px; font-size: 18px; }
+.row-input { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.row-input input { flex: 1; min-width: 0; }
+.rev-ways { margin-top: 6px; }
+.celtic { position: relative; width: 256px; height: 366px; margin: 6px auto 14px; }
+.celtic-card { position: absolute; }
+.celtic-card .tc { width: 52px; height: 87px; }
+.celtic-no { position: absolute; top: -7px; left: -7px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--gold); color: var(--on-accent); font-size: 12px; font-weight: 800; line-height: 20px; text-align: center; box-shadow: 0 2px 6px var(--shadow); }
+.celtic .c1 { left: 60px; top: 139px; }
+.celtic .c2 { left: 60px; top: 139px; transform: rotate(90deg); z-index: 1; }
+.celtic .c2 .celtic-no { transform: rotate(-90deg); }
+.celtic .c3 { left: 60px; top: 239px; }
+.celtic .c4 { left: 0; top: 139px; }
+.celtic .c5 { left: 60px; top: 39px; }
+.celtic .c6 { left: 120px; top: 139px; }
+.celtic .c7 { left: 196px; top: 279px; }
+.celtic .c8 { left: 196px; top: 186px; }
+.celtic .c9 { left: 196px; top: 93px; }
+.celtic .c10 { left: 196px; top: 0; }
+
+/* 放大看一張牌：手指拖曳時 3D 傾斜，反光帶跟著移動，放開彈回 */
+.tz { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; background: var(--scrim); animation: fade 0.2s ease-out both; }
+.tz-panel { width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto; background: var(--bg2); border-radius: 22px 22px 0 0; padding: 18px 16px calc(18px + var(--safe-b)); box-shadow: 0 -10px 40px var(--shadow); animation: sheet-up 0.3s var(--ease-out) both; }
+.tz-stage { display: flex; justify-content: center; padding: 6px 0 14px; perspective: 900px; touch-action: none; }
+.tz-card { position: relative; width: min(58vw, 236px); aspect-ratio: 3 / 5; border-radius: 12px; overflow: hidden; box-shadow: 0 18px 40px var(--shadow); transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform 0.45s var(--ease-spring); }
+.tz-card.tilting { transition: transform 0.06s linear; }
+.tz-card.rev .ta-face { transform: rotate(180deg); }
+.tz-sheen { position: absolute; inset: -20%; pointer-events: none; background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.3) 48%, rgba(255, 228, 170, 0.16) 54%, transparent 62%); mix-blend-mode: screen; transform: translateX(var(--sx, -60%)); transition: transform 0.45s var(--ease-out); }
+.tz-card.tilting .tz-sheen { transition: none; }
+.tz-text h2 { margin: 0 0 6px; }
+
+/* 抽牌儀式（全螢幕）：洗牌 → 扇形攤開 → 挑牌 → 翻牌 */
+.rt { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: calc(12px + var(--safe-t)) 16px 0; overflow: hidden; color: var(--text); background: radial-gradient(ellipse at 50% 30%, #2a2270 0%, #120f36 55%, #070b1a 100%); animation: fade 0.25s ease-out both; }
+.rt.closing { animation: rt-out 0.22s ease-in both; }
+@keyframes rt-out { to { opacity: 0; } }
+.rt-top { width: 100%; max-width: 520px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rt-top b { font-size: 17px; }
+.rt-count { color: var(--gold-2); font-size: 14px; margin-left: 6px; }
+.rt-close { min-width: 44px; min-height: 44px; font-size: 20px; color: var(--muted); }
+.rt-hint { margin: 0; max-width: 520px; text-align: center; font-size: 14px; color: var(--muted); min-height: 2.6em; }
+.rt-slots { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; max-width: 520px; }
+.rt-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 60px; font-size: 11px; color: var(--muted); text-align: center; line-height: 1.25; }
+.rt-slots.two-rows .rt-slot { width: 54px; }
+.rt-slot-card { width: 100%; aspect-ratio: 3 / 5; border-radius: 7px; border: 1px dashed var(--hairline-strong); }
+.rt-slot-card.filled { border: 0; animation: rt-land 0.35s var(--ease-spring) both; }
+.rt-slot-card .ta-back { border-radius: 7px; }
+.rt-slot-card .tc { width: 100%; height: 100%; }
+@keyframes rt-land { from { transform: translateY(40px) scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+.rt-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.rt-fan { position: relative; flex: 1; width: 100%; min-height: 220px; touch-action: none; }
+.rt-card { position: absolute; left: calc(50% - 23px); bottom: -46px; width: 46px; height: 77px; transform-origin: 50% 100%; transform: rotate(var(--t)) translateY(calc(-1 * var(--r))); transition: transform 0.5s var(--ease-out), opacity 0.3s; transition-delay: calc(var(--k, 0) * 5ms); }
+.rt-card .ta-back { border-radius: 5px; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5); }
+.rt-fan.shuffling .rt-card { transform: translateY(-46vh); transition-delay: 0s; }
+.rt-fan.shuffling .rt-card:nth-child(-n+8) { animation: rt-riffle 0.5s ease-in-out 3 alternate; }
+.rt-fan.shuffling .rt-card:nth-child(odd) { --dir: -1; }
+.rt-fan.shuffling .rt-card:nth-child(even) { --dir: 1; }
+@keyframes rt-riffle { from { transform: translateY(-46vh); } to { transform: translateY(-46vh) translateX(calc(var(--dir, 1) * 34px)) rotate(calc(var(--dir, 1) * 9deg)); } }
+.rt-card.hover { transform: rotate(var(--t)) translateY(calc(-1 * var(--r) - 22px)); transition-duration: 0.15s; transition-delay: 0s; z-index: 2; }
+.rt-card.taken { opacity: 0; transform: rotate(var(--t)) translateY(calc(-1 * var(--r) - 90px)) scale(1.15); transition-delay: 0s; pointer-events: none; }
+.rt-fan.gone .rt-card { opacity: 0; transform: rotate(var(--t)) translateY(calc(-1 * var(--r) + 140px)); }
+.rt-ring { position: absolute; left: -4px; top: -4px; width: calc(100% + 8px); height: calc(100% + 8px); overflow: visible; pointer-events: none; }
+.rt-ring rect { fill: none; stroke: var(--gold-2); stroke-width: 3; stroke-dasharray: 1; stroke-dashoffset: 1; animation: rt-charge 0.6s linear forwards; }
+@keyframes rt-charge { to { stroke-dashoffset: 0; } }
+.rt-done { margin-top: 4px; }
+
+/* 動畫強度：輕量＝拿掉儀式與特效、翻牌變快；關閉＝和系統「減少動態效果」一樣直接顯示結果 */
+:root[data-motion="lite"] .tc-dust, :root[data-motion="lite"] .tc-sheen, :root[data-motion="lite"] .palm-end { display: none; }
+:root[data-motion="lite"] .tc-inner { animation-duration: 0.45s; animation-delay: calc(var(--i, 0) * 110ms); }
+:root[data-motion="lite"] ol.tarot-list li, :root[data-motion="lite"] .rv { animation-duration: 0.25s !important; animation-delay: 0s !important; }
+:root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

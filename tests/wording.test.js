@@ -30,3 +30,11 @@ test('斷掌說明：提到民俗說法沒有根據，並說明是常見的天�
   assert.match(palmTexts.SIMIAN_NOTE, /沒有根據/);
   assert.match(palmTexts.SIMIAN_NOTE, /不代表健康有問題/);
 });
+
+test('塔羅文字（牌義、牌位讀法、總結）：同樣不出現宿命、恐嚇、打包票的字眼', async () => {
+  const { readFile } = await import('node:fs/promises');
+  for (const file of ['js/core/tarot.js', 'js/core/tarot-reading.js', 'js/views/tarot.js']) {
+    const src = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+    for (const word of BANNED) assert.ok(!src.includes(word), `「${word}」出現在 ${file}`);
+  }
+});
