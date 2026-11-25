@@ -169,7 +169,7 @@ export function palmThumb(field, option, hand) {
 
 /** 三個校正點在示意圖上的位置（照 App 要使用者點的順序） */
 const CALIB_XY = { index: B, pinky: A, wrist: W };
-export const CALIB_ORDER = ['index', 'pinky', 'wrist'];
+const CALIB_ORDER = ['index', 'pinky', 'wrist'];
 // 示範每條線時畫的樣子（一般人最常見的線形）
 const GUIDE_LINE = { life: 'long-wide', head: 'slope', heart: 'long-curve', fate: 'wrist', simian: 'full' };
 const mirrorX = (hand, [x, y]) => [hand === 'left' ? VB_W - x : x, y];

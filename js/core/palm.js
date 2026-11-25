@@ -84,7 +84,6 @@ export const PALM_FIELDS = [
   { id: 'shape', label: '掌形', options: ['square-short', 'square-long', 'long-long', 'long-short'] },
   { id: 'thick', label: '手掌厚薄', options: ['thick', 'medium', 'thin'] },
 ];
-const FIELD = Object.fromEntries(PALM_FIELDS.map((f) => [f.id, f]));
 // 真斷掌時不另外看的欄位
 const MERGED_BY_SIMIAN = ['head', 'start', 'heart'];
 
@@ -373,4 +372,3 @@ export function handRole(hand, { school = 'gender', gender = '', dominant = '' }
   return hand === main ? 'main' : 'ref';
 }
 
-export const fieldLabel = (id) => (FIELD[id] ? FIELD[id].label : id);

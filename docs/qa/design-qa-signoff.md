@@ -100,6 +100,7 @@
   design-qa 新增 palm-trace 快照（練習手掌點好三個位置、描一條線之後；320／390／long／1440 共 5 張），工具列、描線按鈕、示範圖都量過對比與焦點。
   抓到並處理：照片選擇器搬到按鈕列外面，豁免位置跟著改（WCAG 2.5.8 Equivalent，由 44px 的「拍照或選照片」按鈕觸發）。
   本機 design-qa 96 張 CLEAN、finish lint 82 個檔案 CLEAN、狀態表 36 個畫面 COMPLETE、E2E 24/24（Chromium）。
+  CI run 45596875808（main 09f8776）：unit 通過、E2E 48/48（Chromium 24＋WebKit 24，沒有重試）、design-qa 96 張 CLEAN。
 
 ## 4. 腳本量不到的（要人工）
 
