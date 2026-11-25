@@ -139,10 +139,14 @@ export function mountTarot(root, ctx) {
     const sp = SPREADS.find((s) => s.id === spread);
     const topicLabel = TOPICS.find((t) => t.id === topic).label;
     let r;
+    let ritual = null;
     if (useRitual()) {
+      // 儀式模組載不到（例如更新到一半）就直接抽，不能讓按鈕按了沒反應
+      ritual = await import('../ui/tarot-ritual.js').catch(() => null);
+    }
+    if (ritual) {
       const deck = shuffleDeck();
-      const { runRitual } = await import('../ui/tarot-ritual.js');
-      const picks = await runRitual({
+      const picks = await ritual.runRitual({
         title: `${sp.short}・${topicLabel}`,
         positions: sp.positions.map(optionName),
         reveal: (k) => {
@@ -239,8 +243,8 @@ export function mountTarot(root, ctx) {
       accept: 'image/*',
       multiple: true,
       class: 'visually-hidden',
-      'aria-hidden': 'true',
       tabindex: '-1',
+      'aria-label': '選擇牌圖檔案',
       onchange: async (e) => {
         const files = [...(e.target.files || [])];
         e.target.value = '';

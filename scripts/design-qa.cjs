@@ -28,7 +28,9 @@ const LONG_PEOPLE = [ME, ...Array.from({ length: 49 }, (_, k) => {
   const i = k + 1;
   const name = i % 2 ? Array.from({ length: 20 }, (_, j) => ZH[(i + j) % ZH.length]).join('') : 'Wolfeschlegelsteinha';
   // 本名取最長的 6 個字（複姓＋四字名），檢查姓名分析的版面
-  return { id: `p-${hex(i + 1)}`, name, fullName: '司馬諸葛美玲', bloodType: ['A', 'B', 'O', 'AB'][i % 4], birthOrder: i % 5, gender: i % 2 ? '女' : '男', self: false, createdAt: '2026-11-24T00:00:00.000Z', raw: rawOf(i) };
+  // 長內容組正在看的人（第 3 個）兩隻手的掌紋都選滿：解讀最長、還有左右手比較
+  const palm = i === 2 ? { palm: { dominant: 'right', right: { simian: 'half', life: 'double', head: 'fork', start: 'apart', heart: 'long-curve', fate: 'broken', shape: 'long-long', thick: 'thin' }, left: { simian: 'full', life: 'short', fate: 'none', shape: 'square-short', thick: 'thick' } } } : {};
+  return { id: `p-${hex(i + 1)}`, name, fullName: '司馬諸葛美玲', bloodType: ['A', 'B', 'O', 'AB'][i % 4], birthOrder: i % 5, gender: i % 2 ? '女' : '男', self: false, createdAt: '2026-11-24T00:00:00.000Z', raw: rawOf(i), ...palm };
 })];
 const TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu'];
 const LONG_HISTORY = Array.from({ length: 300 }, (_, i) => ({
@@ -146,6 +148,10 @@ async function tour(browser, width, prefix, opts) {
   await tool(page, 'numerology');
   await page.waitForSelector('#view-destiny .nine-wrap');
   files.push(await snap(page, `${prefix}numerology`, width));
+  // 掌紋：一般組還沒選（解讀區是空的提示），長內容組兩隻手都選滿
+  await tool(page, 'palm');
+  await page.waitForSelector('#view-destiny .palm-options');
+  files.push(await snap(page, `${prefix}palm`, width));
   await oracle(page, '解惑');
   await page.locator('#oracle-jiehuo').getByRole('button', { name: '起卦' }).click();
   await page.waitForSelector('#oracle-jiehuo .hexa');
@@ -161,8 +167,9 @@ async function tour(browser, width, prefix, opts) {
   await oracle(page, '塔羅');
   if (opts.people.length > 2) {
     // 長內容組：五張牌、問感情，每張牌的解讀與整副牌分析最長
+    // 長內容組：凱爾特十字十張牌（十字＋右側一柱的版面在 320 寬也要放得下）、問感情
     await page.locator('#oracle-tarot .seg label', { hasText: '感情' }).click();
-    await page.locator('#oracle-tarot').getByRole('combobox', { name: '牌陣' }).selectOption('five');
+    await page.locator('#oracle-tarot').getByRole('combobox', { name: '牌陣' }).selectOption('celtic');
   }
   await page.locator('#oracle-tarot').getByRole('button', { name: '洗牌並抽牌' }).click();
   await page.waitForSelector('#oracle-tarot ol.tarot-list li');

@@ -5,16 +5,12 @@
 
 import { h, s } from './dom.js';
 import { reducedMotion } from './motion.js';
+import { TAROT } from './palette.js';
 
 const f = (n) => Number(n.toFixed(2));
 const EL = { 火: 'fire', 水: 'water', 風: 'air', 土: 'earth' };
-const BG = {
-  fire: ['#3d0f1d', '#6e1e22', '#2b0a14'],
-  water: ['#0a1c40', '#114470', '#071430'],
-  air: ['#1a1642', '#3a2c80', '#110e2e'],
-  earth: ['#0e2a1d', '#2f4c1f', '#0a1c13'],
-};
-const GLOW = { fire: '#ffb36b', water: '#7fd8ff', air: '#d4c1ff', earth: '#c4ea8f' };
+const BG = TAROT.bg;
+const GLOW = TAROT.glow;
 
 let defsReady = false;
 /** 共用的漸層與裁切：第一次畫牌時放進 body（寬高 0，不能用 display:none，否則有的瀏覽器漸層會失效） */
@@ -24,8 +20,8 @@ export function ensureTarotDefs() {
   const stops = (list) => list.map(([o, c, a = 1]) => s('stop', { offset: o, 'stop-color': c, 'stop-opacity': a }));
   const defs = s('defs', {},
     // userSpaceOnUse：水平、垂直的直線外框寬或高是 0，用預設的 objectBoundingBox 會整條畫不出來
-    s('linearGradient', { id: 'ta-gold', gradientUnits: 'userSpaceOnUse', x1: 0, y1: 0, x2: 120, y2: 200 }, stops([[0, '#fff3c9'], [0.28, '#e9c46a'], [0.52, '#b4842a'], [0.78, '#f6dc9b'], [1, '#c4912f']])),
-    s('linearGradient', { id: 'ta-back', x1: 0, y1: 0, x2: 0, y2: 1 }, stops([[0, '#1b1f57'], [0.5, '#2c2270'], [1, '#141845']])),
+    s('linearGradient', { id: 'ta-gold', gradientUnits: 'userSpaceOnUse', x1: 0, y1: 0, x2: 120, y2: 200 }, stops(TAROT.gold)),
+    s('linearGradient', { id: 'ta-back', x1: 0, y1: 0, x2: 0, y2: 1 }, stops(TAROT.back)),
     ...Object.entries(BG).map(([k, [a, b, c]]) => s('linearGradient', { id: `ta-bg-${k}`, x1: 0, y1: 0, x2: 0, y2: 1 }, stops([[0, a], [0.55, b], [1, c]]))),
     ...Object.entries(GLOW).map(([k, c]) => s('radialGradient', { id: `ta-glow-${k}`, cx: 0.5, cy: 0.5, r: 0.5 }, stops([[0, c, 0.55], [0.55, c, 0.16], [1, c, 0]]))),
     s('clipPath', { id: 'ta-clip', clipPathUnits: 'objectBoundingBox' }, s('rect', { x: 0, y: 0, width: 1, height: 1, rx: 0.07, ry: 0.042 })),

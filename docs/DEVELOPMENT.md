@@ -29,7 +29,10 @@
   `EAGER`，也一起預載；其他分頁的模組維持用到才載入。
 - 畫面文字一律用 `textContent`，不用 `innerHTML`（測試會擋）。換掉子元素用 `dom.js` 的 `fill()`，
   不要直接用 `replaceChildren`（它會把 null 印成文字「null」，測試會擋）。
-- 動畫只動 transform／opacity；要尊重「減少動態效果」（`css/app.css` 檔尾、`js/ui/motion.js`）。
+- 動畫只動 transform／opacity（線條另可動 stroke-dashoffset）；要尊重「減少動態效果」與「我的 → 動畫強度」
+  （`css/app.css` 檔尾、`:root[data-motion]`、`js/ui/motion.js` 的 `reducedMotion()`／`motionLevel()`）。
+- 依序出現的動畫用 CSS 變數 `--i` 算延遲：`h()`／`s()` 的 style 物件會用 `setProperty` 寫 CSS 變數；
+  不要自己寫 `el.style['--i'] = …`（瀏覽器會默默忽略）。
   分數環的 `--p` 要是可繼承的（進度弧畫在 `::before`）。
 - 函式庫輸出的簡體字經 `js/core/zh.js` 的 `tw()` 轉成台灣繁中。
 - 不得新增任何把名單、生日、紀錄送出去的請求（E2E 的隱私測試會擋）。
@@ -58,6 +61,8 @@ js/core/              計算核心（不碰畫面，可在 Node 測試）
   astro.js natal.js zodiac.js 行星位置、上升天頂、本命資料、星座
   fortune.js synastry.js      運勢計分、配對（快速看星座；精準看兩張星盤的度數相位）
   tarot.js tarot-reading.js   塔羅抽牌；牌位情境、主題（感情／工作／財運）、整副牌陣分析
+  tarot-deck.js               自訂牌組：檔名認牌（中文、英文、常見編號；模糊的不猜）
+  palm.js palm-texts.js       掌紋：掌心框座標、線形範本與描線判定、斷掌、白名單；解讀文字（兩端刻度、不論吉凶）
   calendar.js                 農曆換算、農民曆
   bazi.js ziwei.js            八字（大運流年、犯太歲）、紫微
   geju.js                     八字月令格局（子平真詮的取格與成敗救應）
@@ -78,9 +83,10 @@ js/core/              計算核心（不碰畫面，可在 Node 測試）
   reading.js reading-texts.js 多系統綜合解讀、多胞胎、各系統白話內容
   records.js                  名單與紀錄的驗證、備份格式
   zh.js zh-data.js            簡轉台灣繁中
-js/ui/                共用元件（生日表單、圖卡、儲存、AI 佇列、自動更新、動畫 motion.js、圖示 icons.js、命理圖 charts.js（羅盤、飛星路線、五行生剋圖、八卦載入、塔羅牌面）、
-                      吉時條／彩球／時間軸／擇日格 widgets.js）
-js/views/             today（今日）、fortune（時運）、destiny（命盤：tool-career、tool-fengshui、tool-family、tool-blood）、
+js/ui/                共用元件（生日表單、圖卡、儲存、AI 佇列、自動更新、動畫 motion.js（含動畫強度）、圖示 icons.js、命理圖 charts.js（羅盤、飛星路線、五行生剋圖、八卦載入）、
+                      吉時條／彩球／時間軸／擇日格／兩端刻度 widgets.js、掌紋圖 palm-chart.js、塔羅牌面與放大 tarot-art.js、
+                      抽牌儀式 tarot-ritual.js（用到才載入）、自訂牌圖倉庫 deck-store.js（IndexedDB））
+js/views/             today（今日）、fortune（時運）、destiny（命盤：tool-career、tool-fengshui、tool-family、tool-blood、tool-palm）、
                       oracle（占卜：jiehuo、tarot、lotto、match）、me（我的）；profile.js 把一個人的各系統命盤一次算好
 vendor/               打包好的第三方函式庫（來源與授權見 NOTICE.md）
 worker/               Cloudflare Worker（AI 代理，選用）

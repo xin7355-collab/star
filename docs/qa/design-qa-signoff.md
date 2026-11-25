@@ -3,14 +3,15 @@
 依 `.claude/skills/design-qa/assets/finish_signoff.md` 範本填寫；貼的是腳本的判定行，不是摘要。
 
 **畫面／流程：** 五個分頁（今日、時運、命盤、占卜〔塔羅／樂透選號／配對〕、我的）＋分享圖卡
-**版本：** APP_VER 見 `js/version.js`（本次簽核在 2026-11-24 的提交）
+**版本：** APP_VER 見 `js/version.js`（本次簽核在 2026-11-25 的提交）
 **擷取的寬度：** 320 × 760、390 × 760、1440 × 760（`npm run qa:design`，Chromium）
 **設計稿：** 無（2026-11-24 改版為「星夜鎏金」主題：深夜藍底＋金色重點；色彩集中在 `css/tokens.css`、`js/ui/palette.js`）
 **審查人（要真人）：** 尚未指定（目前只有自動檢查，見第 4 節）
 
 ## 1. 原始碼檢查（`finish_lint.py css js index.html`）
 
-- 判定：`design-qa finish lint: CLEAN  (52 files; 0 blocker, 0 high, 0 warn; template traits 0 -> generic risk LOW)`
+- 判定：`design-qa finish lint: CLEAN  (79 files; 0 blocker, 0 high, 0 warn; template traits 0 -> generic risk LOW)`
+- 2026-11-25 抓到、已修：塔羅牌面與掌紋描線新增的顏色散在程式裡（TOKEN_DRIFT 30 個）→ SVG 漸層色票收進 `js/ui/palette.js`、CSS 收進 `css/tokens.css`
 - 已修：顏色散落 → 全部改用 `css/tokens.css` 的變數與 `js/ui/palette.js`（TOKEN_DRIFT；改版時把系統標籤底色、幸運色色票、遮罩黑色也收進變數）
 - 抑制（各附理由）：`index.html` 五個分頁按鈕與「關閉」按鈕標 `design-qa: allow BUTTON_NO_ACTION`。
   點擊事件在 `js/app.js` 統一綁定（第 52、125 行），工具只看同一行所以誤判
@@ -18,7 +19,8 @@
 
 ## 2. 狀態表（`state_matrix_checker.py --matrix docs/qa/states.csv`）
 
-- 判定：`design-qa state matrix: COMPLETE  (23 surfaces, 100% of required states covered; 0 blocker, 0 high, 0 warn)`
+- 判定：`design-qa state matrix: COMPLETE  (34 surfaces, 100% of required states covered; 0 blocker, 0 high, 0 warn)`
+- 2026-11-25 新增：掌紋看圖選（控制項）、掌紋拍照描線（表單：三點不合理、讀取中、照片打不開）、掌紋解讀、今日一張、自訂牌組（動作：處理中、檔名對不到）、動畫強度；塔羅抽牌的 busy 改成儀式畫面、failure 是儀式模組載不到時直接抽
 - 新增四個畫面：工作與方向、開運佈置、血型（資料畫面，含長內容）、解惑（表單：驗證錯誤、起卦中、成功、模組載入失敗）
 - 改版新增的畫面：今日儀表板、吉時表、近期提醒、擇日、樂透選號、姓名分析、綜合解讀、底部分頁
 - 標 NA 的狀態與理由：運勢卡／名單／查詢紀錄的 loading（本機同步計算或讀取）、運勢卡 error（純計算，沒有外部呼叫）、
@@ -75,6 +77,13 @@
   抓到並修好的：三方四正被照會的宮用漸層底色，工具量不到對比（16 個警告），改成實色底；三段主命數（38／11／2）超出圓環，長的縮小字級；
   紫微宮位詳解出現「化忌在0」。印章、三方四正連線、塔羅翻牌、九宮格連線都確認滑到眼前才播、320 寬沒有水平捲動。
   CI run 45501824279（main 3e5232b）：E2E 38/38（Chromium 19＋WebKit 19，沒有重試）、design-qa 87 張 CLEAN
+- 掌紋、塔羅華麗化、交界提醒這輪（2026-11-25）：新增掌紋 5 張快照（一般組還沒選、長內容組兩手選滿＋20 字英文名字，320／390／1440），
+  塔羅長內容組改成凱爾特十字十張（十字＋右側一柱在 320 寬放得下）；本機 design-qa 91 張 CLEAN。
+  抓到並修好的：掌紋步驟列橫向捲動時 Tab 到畫面外的按鈕，瀏覽器只捲出一角（FOCUS_OBSCURED）→ 取得焦點時自己捲到整顆看得到；
+  新加的隱藏檔案選擇器沒有名稱 → 補 aria-label，並比照備份檔加豁免（我的頁面多一張「顯示與動畫」卡，舊豁免的位置跟著改）；
+  放大看牌時「關閉」按鈕取得焦點把面板捲到底、牌面上半部看不到（改 preventScroll）。
+  另外發現既有 bug：style 物件裡的 CSS 變數（--i）一直沒寫進去，依序出現的動畫其實同時跳出來（dom.js 改用 setProperty，實測確認）。
+  本機 E2E 23/23（Chromium 與 chromium 新版 headless 各一次）
 
 ## 4. 腳本量不到的（要人工）
 
@@ -83,7 +92,10 @@
   （只量得到每段前 80 字；錯誤訊息、提示框等沒出現在快照裡的文字靠程式碼審閱）
 - [x] 真實極端資料：最長名字、最多名單與紀錄（上表 long-*）；慢速網路見 `docs/qa/performance.md`
 - [ ] 真的 iPhone Safari：**沒驗到**（雲端只有 Chromium；CI 用 WebKit 跑 E2E，最接近但不等於實機）
-- [x] 動畫：E2E 另有一組開著動畫跑（分數環、數字、彩球、吉時條），其他測試與 design-qa 在「減少動態效果」下量最終畫面
+- [x] 動畫：E2E 另有一組開著動畫跑（分數環、數字、彩球、吉時條、塔羅抽牌儀式），其他測試與 design-qa 在「減少動態效果」下量最終畫面
+- [ ] 塔羅儀式的手指操作（滑過扇形、停留 0.6 秒）在真的 iPhone 觸控上：**沒驗到**（E2E 用滑鼠模擬 pointer 事件）
+- [ ] 掌紋描線判定用真的手掌照片的準確度：**沒驗到**（只用範本線形與程式畫的假手掌測過，所以只當建議、可以改）
+- [x] 文案：這輪新寫的掌紋解讀、塔羅牌位與總結、提示訊息跑 zh-tw-humanizer `check.py`：只剩誤判（「水平地橫過手掌」是方向、「需要支持」是心理支持；其餘是程式碼片段）
 
 ## 決定
 
@@ -91,4 +103,4 @@
 - [ ] 上線但有待辦
 - [ ] 未完成
 
-簽核：Claude Code（自動檢查）；真人審查待補　日期：2026-11-24
+簽核：Claude Code（自動檢查）；真人審查待補　日期：2026-11-25

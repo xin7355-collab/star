@@ -7,6 +7,7 @@ import { cardHead } from '../ui/icons.js';
 import { traitScale } from '../ui/widgets.js';
 import { playWhenVisible } from '../ui/motion.js';
 import { palmDiagram, palmThumb, diagramFields } from '../ui/palm-chart.js';
+import { PALM_CANVAS } from '../ui/palette.js';
 import { activeFields, sanitizePicks, palmFrame, simplifyStroke, suggestPicks, photoAdvice, compareHands, handRole } from '../core/palm.js';
 import { PALM_TEXT, PALM_HOW, ROLE_TEXT, SIMIAN_NOTE, PALM_DISCLAIMER, palmReading, handDiffText } from '../core/palm-texts.js';
 
@@ -111,7 +112,7 @@ function uvTraces(ph) {
   return out;
 }
 
-const lineColor = (field) => getComputedStyle(document.documentElement).getPropertyValue(`--pl-${field}`).trim() || '#e9c46a';
+const lineColor = (field) => getComputedStyle(document.documentElement).getPropertyValue(`--pl-${field}`).trim() || PALM_CANVAS.fallbackLine;
 
 /**
  * 照片畫布：先點三個校正點，再沿著掌紋描線。只用 pointer 事件，滑鼠、手指、觸控筆都能用。
@@ -158,7 +159,7 @@ function photoCanvas(ph, { getTarget, onCalib, onStroke }) {
     };
     for (const [field, strokes] of Object.entries(ph.strokes)) {
       for (const st of strokes) {
-        line(st, 'rgba(0,0,0,0.55)', 6);
+        line(st, PALM_CANVAS.shadow, 6);
         line(st, lineColor(field), 3.5);
       }
     }
@@ -167,21 +168,21 @@ function photoCanvas(ph, { getTarget, onCalib, onStroke }) {
     const frame = frameOf(ph);
     if (frame) {
       c.setLineDash([6 * px, 5 * px]);
-      line([frame.toXY([-0.1, 0]), frame.toXY([1.15, 0])], 'rgba(255,255,255,0.75)', 1.5);
-      line([frame.toXY([0.5, 0]), frame.toXY([0.5, 1])], 'rgba(255,255,255,0.75)', 1.5);
+      line([frame.toXY([-0.1, 0]), frame.toXY([1.15, 0])], PALM_CANVAS.guide, 1.5);
+      line([frame.toXY([0.5, 0]), frame.toXY([0.5, 1])], PALM_CANVAS.guide, 1.5);
       c.setLineDash([]);
     }
     CALIB.forEach((cp, i) => {
       const q = ph.calib[cp.key];
       if (!q) return;
-      c.fillStyle = 'rgba(0,0,0,0.6)';
+      c.fillStyle = PALM_CANVAS.marker;
       c.beginPath();
       c.arc(q[0], q[1], 11 * px, 0, Math.PI * 2);
       c.fill();
-      c.strokeStyle = '#f6dc9b';
+      c.strokeStyle = PALM_CANVAS.markerLine;
       c.lineWidth = 2 * px;
       c.stroke();
-      c.fillStyle = '#f6dc9b';
+      c.fillStyle = PALM_CANVAS.markerLine;
       c.font = `700 ${13 * px}px system-ui, sans-serif`;
       c.textAlign = 'center';
       c.textBaseline = 'middle';
@@ -296,7 +297,14 @@ export function drawPalm(p, { ctx, actions }) {
       class: `palm-step${j === i ? ' on' : ''}${picks()[f.id] ? ' done' : ''}`,
       'aria-pressed': j === i ? 'true' : 'false',
       onclick: () => { session.step[hand] = j; paintPicker(); },
+      // 橫向捲動列：Tab 到畫面外的按鈕時瀏覽器只捲出一角，要自己捲到整顆看得到
+      onfocus: (e) => e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
     }, h('b', { text: f.label }), h('span', { text: picks()[f.id] ? PALM_TEXT[f.id][picks()[f.id]].label : '未選' }))));
+    // 目前這題的按鈕捲到中間（只動這一列，不動整頁）
+    requestAnimationFrame(() => {
+      const on = chips.querySelector('.on');
+      if (on && chips.isConnected) chips.scrollLeft = Math.max(0, on.offsetLeft - (chips.clientWidth - on.offsetWidth) / 2);
+    });
     const options = h('div', { class: `palm-options n${field.options.length}`, role: 'group', 'aria-label': field.label }, field.options.map((opt) => h('button', {
       type: 'button',
       class: `palm-opt${opt === cur ? ' on' : ''}`,
@@ -353,14 +361,16 @@ export function drawPalm(p, { ctx, actions }) {
       type: 'file',
       accept: 'image/*',
       class: 'visually-hidden',
-      'aria-hidden': 'true',
       tabindex: '-1',
+      'aria-label': '選擇手掌照片',
       onchange: async (e) => {
         const file = e.target.files && e.target.files[0];
         e.target.value = '';
         if (!file) return;
         try {
           dropPhoto(hand);
+          // 大張照片解碼要一點時間：先告訴使用者在處理，免得以為按了沒反應
+          fill(photoBox, h('p', { class: 'palm-instr', role: 'status', text: '讀取照片中…（只在這支手機處理）' }));
           session.photos[hand] = await readPhoto(file);
           paintPhoto();
         } catch (err) {

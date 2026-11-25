@@ -31,6 +31,15 @@
   --pl-simian: #c9a6ff;
   --palm-skin: #2b3566;
   --palm-skin-2: #222a55;
+  /* 塔羅牌面與抽牌儀式 */
+  --ta-cut: #15123a;
+  --ta-name: #fff3c9;
+  --ta-dust: #ffe9a8;
+  --ta-plate: rgba(10, 8, 30, 0.58);
+  --rt-bg-1: #2a2270;
+  --rt-bg-2: #120f36;
+  --sheen-1: rgba(255, 255, 255, 0.32);
+  --sheen-2: rgba(255, 232, 180, 0.15);
   --seal-bg: rgba(255, 143, 122, 0.08);
   --on-accent: #17120a;
   --radius: 20px;

@@ -697,6 +697,9 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
   await expect(dv.getByText(/這些說法沒有根據/)).toBeVisible();
   await expect(dv.locator('.trait-scale')).toHaveCount(2);
 
+  // 壞掉的照片：說清楚怎麼辦，不會卡住
+  await dv.locator('input[type="file"]').setInputFiles({ name: 'broken.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not an image') });
+  await expect(dv.getByText(/這張照片打不開.+請改用「拍照」直接拍一張/)).toBeVisible();
   // 拍照描線：用程式畫一張手掌圖當照片（測試不用真人照片）
   const png = await page.evaluate(() => {
     const c = document.createElement('canvas');

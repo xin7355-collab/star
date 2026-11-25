@@ -467,10 +467,10 @@ ol.tarot-list li.rev { border-style: dashed; }
 .tc-back, .tc-front { position: absolute; inset: 0; border-radius: 8px; overflow: hidden; -webkit-backface-visibility: hidden; backface-visibility: hidden; box-shadow: 0 6px 16px var(--shadow); }
 .tc-back { transform: rotateY(180deg); }
 .tc-front.rev { transform: rotate(180deg); }
-.tc-sheen { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 34%, rgba(255, 255, 255, 0.34) 47%, rgba(255, 236, 190, 0.14) 54%, transparent 64%); mix-blend-mode: screen; transform: translateX(-130%); animation: tc-sheen 1.2s ease-out both; animation-delay: calc(1s + var(--i, 0) * 260ms); }
+.tc-sheen { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 34%, var(--sheen-1) 47%, var(--sheen-2) 54%, transparent 64%); mix-blend-mode: screen; transform: translateX(-130%); animation: tc-sheen 1.2s ease-out both; animation-delay: calc(1s + var(--i, 0) * 260ms); }
 @keyframes tc-sheen { to { transform: translateX(130%); } }
 .tc-dust { position: absolute; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; }
-.tc-dust i { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; background: #ffe9a8; clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); opacity: 0; animation: tc-dust 1s var(--ease-out) both; animation-delay: calc(0.62s + var(--i, 0) * 260ms); }
+.tc-dust i { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; background: var(--ta-dust); clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); opacity: 0; animation: tc-dust 1s var(--ease-out) both; animation-delay: calc(0.62s + var(--i, 0) * 260ms); }
 @keyframes tc-dust { 0% { opacity: 0; transform: rotate(var(--a)) translateY(0) scale(0.3); } 25% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-62px) scale(1); } }
 .ta-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 .ta-face, .ta-back { display: block; width: 100%; height: 100%; }
@@ -481,12 +481,12 @@ ol.tarot-list li.rev { border-style: dashed; }
 .ta-l.thin { stroke-width: 0.9; }
 .ta-f { fill: url(#ta-gold); }
 .ta-f.soft { opacity: 0.55; }
-.ta-cut { fill: #15123a; }
-.ta-cut-l { fill: none; stroke: #15123a; stroke-width: 1.4; stroke-linecap: round; }
+.ta-cut { fill: var(--ta-cut); }
+.ta-cut-l { fill: none; stroke: var(--ta-cut); stroke-width: 1.4; stroke-linecap: round; }
 .ta-ray { stroke: url(#ta-gold); stroke-width: 0.6; opacity: 0.42; }
-.ta-plate { fill: rgba(10, 8, 30, 0.58); stroke: url(#ta-gold); stroke-width: 0.9; }
-.ta-mark { fill: #f6dc9b; font-size: 10.5px; font-weight: 800; letter-spacing: 0.5px; font-family: Georgia, 'Times New Roman', serif; }
-.ta-name { fill: #fff3c9; font-size: 12px; font-weight: 700; }
+.ta-plate { fill: var(--ta-plate); stroke: url(#ta-gold); stroke-width: 0.9; }
+.ta-mark { fill: var(--gold-2); font-size: 10.5px; font-weight: 800; letter-spacing: 0.5px; font-family: Georgia, 'Times New Roman', serif; }
+.ta-name { fill: var(--ta-name); font-size: 12px; font-weight: 700; }
 .ta-name.long { font-size: 10px; }
 .pos { font-size: 13px; color: var(--muted); }
 .tarot-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 18px; }
@@ -950,12 +950,12 @@ path.palm-line.pl-life, path.palm-line.pl-head, path.palm-line.pl-heart, path.pa
 .tz-card { position: relative; width: min(58vw, 236px); aspect-ratio: 3 / 5; border-radius: 12px; overflow: hidden; box-shadow: 0 18px 40px var(--shadow); transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform 0.45s var(--ease-spring); }
 .tz-card.tilting { transition: transform 0.06s linear; }
 .tz-card.rev .ta-face { transform: rotate(180deg); }
-.tz-sheen { position: absolute; inset: -20%; pointer-events: none; background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.3) 48%, rgba(255, 228, 170, 0.16) 54%, transparent 62%); mix-blend-mode: screen; transform: translateX(var(--sx, -60%)); transition: transform 0.45s var(--ease-out); }
+.tz-sheen { position: absolute; inset: -20%; pointer-events: none; background: linear-gradient(105deg, transparent 38%, var(--sheen-1) 48%, var(--sheen-2) 54%, transparent 62%); mix-blend-mode: screen; transform: translateX(var(--sx, -60%)); transition: transform 0.45s var(--ease-out); }
 .tz-card.tilting .tz-sheen { transition: none; }
 .tz-text h2 { margin: 0 0 6px; }
 
 /* 抽牌儀式（全螢幕）：洗牌 → 扇形攤開 → 挑牌 → 翻牌 */
-.rt { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: calc(12px + var(--safe-t)) 16px 0; overflow: hidden; color: var(--text); background: radial-gradient(ellipse at 50% 30%, #2a2270 0%, #120f36 55%, #070b1a 100%); animation: fade 0.25s ease-out both; }
+.rt { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: calc(12px + var(--safe-t)) 16px 0; overflow: hidden; color: var(--text); background: radial-gradient(ellipse at 50% 30%, var(--rt-bg-1) 0%, var(--rt-bg-2) 55%, var(--bg) 100%); animation: fade 0.25s ease-out both; }
 .rt.closing { animation: rt-out 0.22s ease-in both; }
 @keyframes rt-out { to { opacity: 0; } }
 .rt-top { width: 100%; max-width: 520px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -974,7 +974,7 @@ path.palm-line.pl-life, path.palm-line.pl-head, path.palm-line.pl-heart, path.pa
 .rt-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .rt-fan { position: relative; flex: 1; width: 100%; min-height: 220px; touch-action: none; }
 .rt-card { position: absolute; left: calc(50% - 23px); bottom: -46px; width: 46px; height: 77px; transform-origin: 50% 100%; transform: rotate(var(--t)) translateY(calc(-1 * var(--r))); transition: transform 0.5s var(--ease-out), opacity 0.3s; transition-delay: calc(var(--k, 0) * 5ms); }
-.rt-card .ta-back { border-radius: 5px; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5); }
+.rt-card .ta-back { border-radius: 5px; box-shadow: 0 3px 8px var(--shadow); }
 .rt-fan.shuffling .rt-card { transform: translateY(-46vh); transition-delay: 0s; }
 .rt-fan.shuffling .rt-card:nth-child(-n+8) { animation: rt-riffle 0.5s ease-in-out 3 alternate; }
 .rt-fan.shuffling .rt-card:nth-child(odd) { --dir: -1; }
