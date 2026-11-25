@@ -8,7 +8,8 @@ import { order, playWhenVisible } from '../ui/motion.js';
 import { AREAS, ISSUES, PRINCIPLE, tailor, pickIssues, STAR_CURE_WHY } from '../core/fengshui-fix.js';
 import { loadProfile } from './profile.js';
 import { luopan, flightPath, FLY_ORDER } from '../ui/charts.js';
-import { askOrientation, openCompass, compassDenied } from '../ui/compass-live.js';
+import { openCompass, compassDenied } from '../ui/compass-live.js';
+import { askOrientation } from '../ui/orientation.js';
 import { DIR_DEG } from '../core/compass.js';
 
 const STEP = [['move', '能改就改'], ['block', '改不了：擋'], ['cure', '擋不了：化']];

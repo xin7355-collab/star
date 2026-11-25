@@ -1,29 +1,11 @@
 // 手機羅盤：要權限、聽方位感測器、在面板裡畫即時羅盤，告訴使用者往哪邊轉才會對準財位或要避開的方位。
-// iPhone 的「動作與方向」權限一定要在點擊當下要：askOrientation 要在 onclick 裡第一個呼叫，前面不能 await 別的東西。
+// iPhone 的「動作與方向」權限一定要在點擊當下要：orientation.js 的 askOrientation 要在 onclick 裡第一個呼叫，前面不能 await 別的東西。
 // 感測器資料只拿來轉動畫面，不存、不送出。
 
 import { h, fill } from './dom.js';
+import { screenAngle } from './orientation.js';
 import { liveCompass } from './charts.js';
 import { headingFromEvent, dirOf, mountainOf, smooth, unwrap, turnHint, isFlat, DIR_DEG } from '../core/compass.js';
-
-/** 點擊當下呼叫；iPhone 會跳出詢問，其他裝置不用問。回傳 Promise<'granted'|'denied'> */
-export function askOrientation() {
-  const DOE = window.DeviceOrientationEvent;
-  if (DOE && typeof DOE.requestPermission === 'function') {
-    try {
-      return DOE.requestPermission().then((st) => (st === 'granted' ? 'granted' : 'denied'), () => 'denied');
-    } catch {
-      return Promise.resolve('denied');
-    }
-  }
-  return Promise.resolve('granted');
-}
-
-const screenAngle = () => {
-  const o = window.screen && window.screen.orientation;
-  if (o && typeof o.angle === 'number') return o.angle;
-  return typeof window.orientation === 'number' ? window.orientation : 0;
-};
 
 /**
  * 開始聽方位，回傳停止函式。Android 會同時發相對、絕對兩種事件：收到過「有資料的」絕對事件後就只用絕對的。

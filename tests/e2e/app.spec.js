@@ -1037,6 +1037,78 @@ test('開運佈置：手機羅盤（iPhone 要權限、跟著轉、往哪轉、�
   await expect(sheet).toContainText('內建的「指南針」App');
 });
 
+test('AR 星空：跟著手機轉、對準月亮看說明、iPhone 指南針換算與校正、沒權限改拖曳、相機打不開有說明、定位、Esc 關閉；不連外', async ({ page, baseURL }) => {
+  // 2026/11/25 晚上 8 點的台北：月亮在東方高 29°（雙子座 15°，滿月剛過）、土星在南方高 66°
+  await page.clock.setFixedTime(new Date('2026-11-25T20:00:00+08:00'));
+  await page.addInitScript(() => {
+    if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class extends Event {};
+    window.DeviceOrientationEvent.requestPermission = () => Promise.resolve(window.__deny ? 'denied' : 'granted');
+  });
+  const requests = [];
+  page.on('request', (r) => requests.push({ url: r.url(), method: r.method() }));
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'me');
+  const open = page.getByRole('button', { name: '看現在的天空（AR）' });
+  await open.click();
+  const ar = page.getByRole('dialog', { name: 'AR 星空' });
+  await expect(ar).toBeVisible();
+  await expect(ar.getByRole('button', { name: '關閉' })).toBeFocused();
+  // 文字版清單（螢幕閱讀器也讀得到）
+  await ar.locator('.ar-list summary').click();
+  await expect(ar.locator('.ar-list-items')).toContainText('月亮：東方、高 29°（雙子座 15°，滿月）');
+  await expect(ar.locator('.ar-list-items')).toContainText('土星：南方、高 66°');
+  await expect(ar.locator('.ar-mine')).toContainText('你的太陽星座獅子座：');
+  // Android：絕對方位。鏡頭朝方位 71.6°、高 29°（alpha＝360－71.6、beta＝90＋29）
+  const fire = (type, v) => page.evaluate(([t, o]) => { const e = new Event(t); for (const [k, x] of Object.entries(o)) Object.defineProperty(e, k, { value: x }); window.dispatchEvent(e); }, [type, v]);
+  await fire('deviceorientationabsolute', { alpha: 288.4, beta: 119, gamma: 0, absolute: true });
+  const info = ar.locator('.ar-info');
+  await expect(info).toContainText('月亮・雙子座 15°（滿月）');
+  await expect(info).toContainText('情緒、安全感與家。東方、高 29°。');
+  await fire('deviceorientationabsolute', { alpha: 186, beta: 150, gamma: 0, absolute: true });
+  await expect(info).toContainText('土星・牡羊座 8°');
+  await page.keyboard.press('Escape');
+  await expect(ar).toHaveCount(0);
+  await expect(open).toBeFocused();
+
+  // iPhone：相對 alpha＋指南針。指南針偏了 20°（室內常見）→ 月亮不在中間 → 按「校正方向」用月亮對回來
+  await open.click();
+  await expect(ar).toBeVisible(); // AR 是按了才載入：畫面出來前送的方向事件沒人收
+  await fire('deviceorientation', { alpha: 10, beta: 119, gamma: 0, webkitCompassHeading: 51.6 });
+  await expect(info).toContainText('鏡頭朝：東北、高 29°');
+  await ar.getByRole('button', { name: '校正方向' }).click();
+  await expect(page.locator('#toast')).toHaveText('已用月亮校正方向（差了 20°）');
+  await fire('deviceorientation', { alpha: 10, beta: 119, gamma: 0, webkitCompassHeading: 51.6 });
+  await expect(info).toContainText('月亮・雙子座 15°');
+  // 相機：測試瀏覽器沒有鏡頭 → 說明不開相機也能看，按鈕維持「開相機」
+  await ar.getByRole('button', { name: '開相機' }).click();
+  await expect(page.locator('#toast')).toContainText('不開相機也能看星空');
+  await expect(ar.getByRole('button', { name: '開相機' })).toHaveAttribute('aria-pressed', 'false');
+  // 定位：按了才問；只拿來算位置
+  await page.context().grantPermissions(['geolocation']);
+  await page.context().setGeolocation({ latitude: 22.63, longitude: 120.3 });
+  await ar.getByRole('button', { name: '用我現在的位置' }).click();
+  await expect(ar).toContainText('位置：目前位置（北緯 22.6°）');
+  await ar.getByRole('button', { name: '關閉' }).click();
+  await expect(ar).toHaveCount(0);
+
+  // 沒給「動作與方向」權限：直接改拖曳，先對著月亮；拖了就換方向
+  await page.evaluate(() => { window.__deny = true; });
+  await open.click();
+  await expect(ar.locator('.ar-status').first()).toContainText('沒有「動作與方向」權限：用手指拖曳畫面來看');
+  await expect(ar.getByRole('button', { name: '校正方向' })).toBeHidden();
+  await expect(info).toContainText('月亮・雙子座 15°');
+  const box = await ar.locator('canvas.ar-sky').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 150, box.y + box.height / 3, { steps: 5 });
+  await page.mouse.up();
+  await expect(info).toContainText('鏡頭朝：');
+  await ar.getByRole('button', { name: '關閉' }).click();
+  expect(requests.filter((r) => !r.url.startsWith(baseURL) && !/^(blob|data):/.test(r.url))).toEqual([]);
+  expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
+});
+
 test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、沒有「null／undefined」字樣', async ({ page }) => {
   await seed(page);
   await page.setViewportSize({ width: 320, height: 640 });

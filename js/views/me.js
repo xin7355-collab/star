@@ -7,6 +7,7 @@ import { buildNatal, describePlacement, describeBirth } from '../core/natal.js';
 import { SIGNS, ELEMENTS, MODALITIES, formatDegree, ASPECT_PLAIN, elementBalance } from '../core/zodiac.js';
 import { BODY_NAME } from '../core/astro.js';
 import { newId, RELATIONS, relationLabel, ALT_NAME_KINDS } from '../core/records.js';
+import { askOrientation } from '../ui/orientation.js';
 
 const HISTORY_SHOWN = 50;
 const TYPE_LABEL = {
@@ -196,6 +197,15 @@ export function mountMe(root, ctx) {
         { class: 'actions' },
         h('button', { type: 'button', class: 'btn primary', text: '今日運勢', onclick: () => ctx.go('today') }),
         h('button', { type: 'button', class: 'btn', text: '命盤解讀', onclick: () => ctx.go('destiny') }),
+        h('button', {
+          type: 'button',
+          class: 'btn',
+          text: '看現在的天空（AR）',
+          // iPhone 的方向權限要在點擊當下要；AR 的程式（畫布、相機）按了才載入，不拖慢開 App
+          onclick: () => askOrientation()
+            .then((st) => import('../ui/ar-sky.js').then((m) => m.openArSky({ natalSign: natal.sun.certain ? natal.sun.sign : null, orientation: st, toast: ctx.toast })))
+            .catch(() => ctx.toast('AR 星空沒有載入成功：連上網路後再試一次。')),
+        }),
         h('button', {
           type: 'button',
           class: 'btn',
