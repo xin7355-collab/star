@@ -153,6 +153,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); outl
 .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 /* 快速配對：名字通常很短，星座選單需要比較寬，320 寬時星座名稱才不會被截成「獅子…」 */
 .row2.name-sign { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+/* 「我的」表單的藝名列：種類、名字、移除排一行（320 寬也放得下 6 個字） */
+.alt-names { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.alt-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto; gap: 8px; align-items: center; width: 100%; }
 .time-section { display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: var(--radius-s); }
 .time-section[hidden] { display: none; }
 .check { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 8px 0; cursor: pointer; }

@@ -139,6 +139,38 @@ test('分享圖卡：先預覽，可以勾「匿名」拿掉名字和出生時�
   await expect(sheet.locator('img.sheet-img')).toHaveAttribute('alt', /^星盤：/);
 });
 
+test('名單：編輯儲存不會洗掉掌紋結果和藝名；「我的」表單可以直接加、改、移除藝名', async ({ page }) => {
+  const palm = { school: 'gender', dominant: 'right', left: {}, right: {} };
+  await seed(page, [{ ...ME, palm, altNames: [{ kind: '藝名', name: '王明星' }] }]);
+  await page.goto('/');
+  await tab(page, 'me');
+  const me = page.locator('#view-me');
+  const row = me.locator('ul.people li').first();
+  await expect(row).toContainText('藝名 王明星');
+  await row.getByRole('button', { name: '編輯' }).click();
+  // 有藝名時進階區自動打開，原本的藝名已經填好
+  await expect(me.getByRole('textbox', { name: '第 1 個藝名或筆名' })).toHaveValue('王明星');
+  await me.getByRole('button', { name: '＋ 加藝名或筆名' }).click();
+  await expect(me.getByRole('textbox', { name: '第 2 個藝名或筆名' })).toBeFocused();
+  await me.getByRole('combobox', { name: '第 2 個名字的種類' }).selectOption('筆名');
+  await me.getByRole('textbox', { name: '第 2 個藝名或筆名' }).fill('abc');
+  await me.getByRole('button', { name: '計算並儲存' }).click();
+  await expect(page.locator('#toast')).toContainText('「abc」請輸入 2～6 個中文字');
+  await me.getByRole('textbox', { name: '第 2 個藝名或筆名' }).fill('林小筆');
+  await me.getByRole('button', { name: '計算並儲存' }).click();
+  await expect(row).toContainText('藝名 王明星・筆名 林小筆');
+  const people = () => page.evaluate(() => JSON.parse(localStorage.getItem('star.v1.people')));
+  // 名單是整筆覆蓋儲存：表單沒有的欄位（掌紋結果）也要留著
+  expect((await people())[0].palm).toEqual(palm);
+  expect((await people())[0].altNames).toEqual([{ kind: '藝名', name: '王明星' }, { kind: '筆名', name: '林小筆' }]);
+  await row.getByRole('button', { name: '編輯' }).click();
+  await me.getByRole('button', { name: '移除第 1 個名字' }).click();
+  await me.getByRole('button', { name: '計算並儲存' }).click();
+  await expect(row).not.toContainText('王明星');
+  expect((await people())[0].altNames).toEqual([{ kind: '筆名', name: '林小筆' }]);
+  expect((await people())[0].palm).toEqual(palm);
+});
+
 test('姓名：藝名和本名並排比較（存在手機、可移除）；匿名試算不儲存、可比多個名字', async ({ page }) => {
   await seed(page);
   await page.goto('/');

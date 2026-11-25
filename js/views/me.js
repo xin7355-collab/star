@@ -6,7 +6,7 @@ import { createBirthForm, describeRaw } from '../ui/birthform.js';
 import { buildNatal, describePlacement, describeBirth } from '../core/natal.js';
 import { SIGNS, ELEMENTS, MODALITIES, formatDegree, ASPECT_PLAIN, elementBalance } from '../core/zodiac.js';
 import { BODY_NAME } from '../core/astro.js';
-import { newId, RELATIONS, relationLabel } from '../core/records.js';
+import { newId, RELATIONS, relationLabel, ALT_NAME_KINDS } from '../core/records.js';
 
 const HISTORY_SHOWN = 50;
 const TYPE_LABEL = {
@@ -50,11 +50,30 @@ export function mountMe(root, ctx) {
     const isSelf = person ? person.self : !!target.self;
     const relationSel = isSelf ? null : h('select', { 'aria-label': '和我的關係' }, h('option', { value: '', text: '不填' }), RELATIONS.map((r) => h('option', { value: r.id, text: r.label })));
     if (relationSel) relationSel.value = person?.relation || '';
+    // 藝名、筆名、常用名：和姓名分析的「藝名、筆名」卡存在同一欄（altNames），兩邊都能改
+    const altRows = (person?.altNames || []).map((a) => ({ kind: a.kind, name: a.name }));
+    const altBox = h('div', { class: 'alt-names' });
+    const paintAlts = (focusLast = false) => {
+      fill(altBox,
+        altRows.map((row, i) => {
+          const kind = h('select', { 'aria-label': `第 ${i + 1} 個名字的種類`, onchange: (e) => { row.kind = e.target.value; } }, ALT_NAME_KINDS.map((k) => h('option', { value: k, text: k })));
+          kind.value = row.kind;
+          return h('div', { class: 'alt-row' }, kind,
+            h('input', { type: 'text', maxlength: 6, value: row.name, 'aria-label': `第 ${i + 1} 個藝名或筆名`, placeholder: '例如：王明星', oninput: (e) => { row.name = e.target.value; } }),
+            h('button', { type: 'button', class: 'link danger', text: '移除', 'aria-label': `移除第 ${i + 1} 個名字`, onclick: () => { altRows.splice(i, 1); paintAlts(); } }));
+        }),
+        altRows.length < 3
+          ? h('button', { type: 'button', class: 'btn ghost small', text: '＋ 加藝名或筆名', onclick: () => { altRows.push({ kind: ALT_NAME_KINDS[0], name: '' }); paintAlts(true); } })
+          : h('p', { class: 'hint', text: '最多 3 個。' }));
+      if (focusLast) altBox.querySelectorAll('.alt-row input')[altRows.length - 1]?.focus();
+    };
+    paintAlts();
     const advanced = h(
       'details',
-      { class: 'more', open: !!(person && (person.fullName || person.birthOrder || person.bloodType)) },
-      h('summary', { text: '進階：本名、血型、多胞胎（可不填）' }),
+      { class: 'more', open: !!(person && (person.fullName || person.birthOrder || person.bloodType || person.altNames?.length)) },
+      h('summary', { text: '進階：本名、藝名、血型、多胞胎（可不填）' }),
       h('div', { class: 'field' }, h('span', { class: 'field-label', text: '本名（給姓名分析用，暱稱照上面填）' }), fullNameInput),
+      h('div', { class: 'field' }, h('span', { class: 'field-label', text: '藝名、筆名、常用名（姓名分析會和本名並排比較）' }), altBox),
       h('div', { class: 'field' }, h('span', { class: 'field-label', text: '血型' }), bloodSel),
       h('div', { class: 'field' }, h('span', { class: 'field-label', text: '多胞胎' }), orderSel),
       h('p', { class: 'hint', text: '同一天出生的多胞胎，八字與生命靈數會一樣；出生時間（精確到分）、本名與出生順序能區分彼此。' }),
@@ -83,8 +102,16 @@ export function mountMe(root, ctx) {
       }
       const fullName = fullNameInput.value.trim();
       if (fullName && !/^\p{Script=Han}{2,6}$/u.test(fullName)) return ctx.toast('本名請輸入 2～6 個中文字，或留空');
+      const altNames = [];
+      for (const row of altRows) {
+        const v = row.name.trim();
+        if (!v) continue; // 空白的列當成沒填
+        if (!/^\p{Script=Han}{2,6}$/u.test(v)) return ctx.toast(`「${v}」請輸入 2～6 個中文字，或按「移除」`);
+        altNames.push({ kind: row.kind, name: v });
+      }
       const saved = ctx.savePerson(
-        { id: person ? person.id : newId('p'), name: form.getName() || '未命名', gender: form.getGender(), self: isSelf, relation: relationSel ? relationSel.value : '', fullName, bloodType: bloodSel.value, birthOrder: Number(orderSel.value), raw: form.toRaw(), createdAt: person?.createdAt },
+        // 先帶上原本的資料再蓋表單的欄位：名單整筆覆蓋儲存，不帶的話掌紋結果這類別處存的欄位會被洗掉
+        { ...(person || {}), id: person ? person.id : newId('p'), name: form.getName() || '未命名', gender: form.getGender(), self: isSelf, relation: relationSel ? relationSel.value : '', fullName, altNames, bloodType: bloodSel.value, birthOrder: Number(orderSel.value), raw: form.toRaw(), createdAt: person?.createdAt },
         // 只有第一次輸入、或編輯正在查看的人時才切換；新增家人不搶走「我」的位置（今日、時運預設看自己）
         { activate: first || (person && person.id === ctx.getActive()?.id) },
       );
@@ -242,7 +269,7 @@ export function mountMe(root, ctx) {
           h(
             'li',
             { class: p.id === active?.id ? 'active' : '' },
-            h('div', { class: 'people-main' }, h('b', { text: p.name }), p.self ? h('span', { class: 'badge', text: '我' }) : null, p.relation ? h('span', { class: 'badge', text: relationLabel(p.relation, p.gender) }) : null, p.gender ? h('span', { class: 'badge alt', text: p.gender }) : null, p.birthOrder ? h('span', { class: 'badge', text: `多胞胎第 ${p.birthOrder}` }) : null, h('div', { class: 'muted small', text: `${p.fullName ? `本名 ${p.fullName}・` : ''}${p.bloodType ? `${p.bloodType} 型・` : ''}${describeRaw(p.raw)}` })),
+            h('div', { class: 'people-main' }, h('b', { text: p.name }), p.self ? h('span', { class: 'badge', text: '我' }) : null, p.relation ? h('span', { class: 'badge', text: relationLabel(p.relation, p.gender) }) : null, p.gender ? h('span', { class: 'badge alt', text: p.gender }) : null, p.birthOrder ? h('span', { class: 'badge', text: `多胞胎第 ${p.birthOrder}` }) : null, h('div', { class: 'muted small', text: `${p.fullName ? `本名 ${p.fullName}・` : ''}${(p.altNames || []).map((a) => `${a.kind} ${a.name}・`).join('')}${p.bloodType ? `${p.bloodType} 型・` : ''}${describeRaw(p.raw)}` })),
             h(
               'div',
               { class: 'people-actions' },
