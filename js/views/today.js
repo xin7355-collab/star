@@ -1,11 +1,11 @@
 // 「今日」：打開 App 第一眼看到的個人儀表板：今日綜合指數、今天要注意什麼、幾點適合做什麼（吉時表）、
-// 偏財指數與今日幸運號碼、幸運色與方位、近期重點。全部在手機上計算，不送出任何資料。
+// 偏財指數與今日幸運號碼、幸運色與方位、今天的瑪雅印記、近期重點。全部在手機上計算，不送出任何資料。
 // 用到農曆與八字的模組比較大，畫面先顯示骨架，模組載入完再補上內容。
 
 import { h, clear, fill } from '../ui/dom.js';
 import { load, save } from '../ui/storage.js';
 import { cardHead } from '../ui/icons.js';
-import { reveal, ringTo, countUp } from '../ui/motion.js';
+import { reveal, ringTo, countUp, playWhenVisible } from '../ui/motion.js';
 import { hourTimeline, ballsRow, timelineList, partsList } from '../ui/widgets.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
 import { SIGNS, mainSunSign } from '../core/zodiac.js';
@@ -21,6 +21,9 @@ function loadModules() {
     import('../core/daily.js'),
     import('../core/calendar.js'),
     import('../core/numerology.js'),
+    import('../core/maya-kin.js'),
+    import('../core/maya-texts.js'),
+    import('../ui/maya-glyphs.js'),
   ]);
 }
 
@@ -44,7 +47,7 @@ export function mountToday(root, ctx) {
       return;
     }
     if (my !== token) return;
-    const [{ buildBazi }, T, W, D, CAL, NUM] = mods;
+    const [{ buildBazi }, T, W, D, CAL, NUM, MK, MT, MG] = mods;
     const person = ctx.getActive();
     const natal = ctx.getNatal();
     const input = person ? ctx.inputOf(person) : null;
@@ -66,6 +69,7 @@ export function mountToday(root, ctx) {
       hours: T.hourGuide(today, bazi),
       windfall: W.windfallDay(today, { bazi, signIndex, birth }),
       lucky: D.luckyItems({ date: today, bazi }),
+      birth,
       profile: W.luckyProfile({ bazi, birth, lifePathNumber: birth ? NUM.lifePath(birth).number : null }),
       items: T.upcoming({ from: today, days: 30, bazi, birth, signIndex }),
       signIndex,
@@ -78,6 +82,7 @@ export function mountToday(root, ctx) {
       hoursCard(data),
       luckCard(data, W),
       luckyCard(data),
+      mayaCard(data, MK, MT, MG),
       upcomingCard(data),
     ]));
   }
@@ -214,6 +219,39 @@ export function mountToday(root, ctx) {
       h('div', { class: 'stat-row' }, stats.map((s) => h('div', { class: 'stat' }, h('div', { class: 'sv' }, s.v), h('div', { class: 'sl', text: s.l })))),
       h('p', { class: 'hint', text: '幸運色與尾數看你的喜用五行（依日主強弱）；方位取自當天農民曆。' }),
       lucky.element ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn', text: '財位與開運擺設', onclick: () => ctx.go('destiny', { tool: 'fengshui' }) })) : null,
+    );
+  }
+
+  // 今天的瑪雅印記（13 月亮曆）：今天的 KIN、今天問自己的問題、今天的圖騰落在你五大神諭的哪個位置、下次銀河生日
+  function mayaCard(data, MK, MT, MG) {
+    const { today, person } = data;
+    const dayKin = MK.kinOf(today);
+    if (dayKin === null) return null;
+    const day = MK.kinInfo(dayKin);
+    const st = MT.SEAL_TEXT[day.seal.n];
+    const mine = person && data.birth ? MK.mayaKin(data.birth) : null;
+    let relation = null;
+    if (mine) {
+      const type = MK.dayRelation(day.kin, mine.kin);
+      const ct = MT.COLOR_TEXT[mine.seal.color];
+      const next = type === 'return' ? null : MK.nextKinDate(today, mine.kin);
+      const when = next ? `${next.date.y === today.y ? '' : `${next.date.y}/`}${next.date.m}/${next.date.d}` : '';
+      relation = h('div', { class: `kin-relation ${type}` },
+        h('p', { text: type === 'color' ? `今天和你同屬${ct.name}家族（${ct.key}）：${MT.DAY_RELATION_TEXT.color}` : MT.DAY_RELATION_TEXT[type] }),
+        h('p', { class: 'muted small', text: `你的主印記是 KIN ${mine.kin} ${mine.title}${next ? `；下次銀河生日 ${when}（還有 ${next.days} 天）` : ''}` }));
+    }
+    return h(
+      'section',
+      { class: 'card', id: 'today-maya' },
+      cardHead(h, 'sparkle', '今天的瑪雅印記', `KIN ${day.kin}・${day.title}`),
+      h('div', { class: 'kin-hero compact' },
+        playWhenVisible(h('div', { class: 'kin-glyph' }, MG.mayaGlyph(day.seal.n, { tone: day.tone.n, animate: true, label: `今天的圖騰與調性：${day.title}（KIN ${day.kin}）` }))),
+        h('div', { class: 'kin-meta' },
+          h('div', { class: 'chips' }, st.keys.map((k) => h('span', { class: 'chip', text: k }))),
+          h('p', {}, h('b', { text: '今天問自己：' }), h('span', { text: MT.TONE_TEXT[day.tone.n].q })))),
+      h('p', { class: 'small', text: `今天的小行動：${st.tip}` }),
+      relation || h('p', { class: 'hint', text: '填生日後，會看到今天的圖騰和你的主印記是什麼關係。' }),
+      mine ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn', text: '看我的瑪雅曆', onclick: () => ctx.go('destiny', { tool: 'maya' }) })) : null,
     );
   }
 

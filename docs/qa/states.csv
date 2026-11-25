@@ -208,3 +208,19 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 分享圖卡預覽,action,disabled,NA,,沒有停用狀態
 分享圖卡預覽,action,busy,NA,,圖卡在手機上畫，幾毫秒完成
 分享圖卡預覽,action,failure,DONE,code:js/app.js 圖卡產生失敗、系統分享失敗都有提示（可以長按圖片或按下載）,
+今日瑪雅印記,data_view,loading,DONE,code:js/views/today.js 和今日儀表板同一個骨架「計算今天的運勢中…」（模組一起載入）,
+今日瑪雅印記,data_view,empty,DONE,code:js/views/today.js 沒有生日時只顯示今天的 KIN，並提示「填生日後，會看到今天的圖騰和你的主印記是什麼關係」,
+今日瑪雅印記,data_view,error,DONE,code:js/views/today.js 模組載入失敗時整頁「今日運勢需要的元件載入失敗，請確認網路後重新開啟 App。」,
+今日瑪雅印記,data_view,populated,DONE,e2e:今日：今天的瑪雅印記、和主印記的關係、下次銀河生日；直接到瑪雅曆，瑪雅密碼預設收起,
+今日瑪雅印記,data_view,long_content,DONE,npm run qa:design（long-today 快照含這張卡，320／390／1440）,
+瑪雅密碼收合,control,default,DONE,e2e:瑪雅密碼預設收起（多胞胎預設打開，見多胞胎 E2E）,
+瑪雅密碼收合,control,hover,NA,,觸控裝置為主
+瑪雅密碼收合,control,focus_visible,DONE,npm run qa:design（maya 快照鍵盤 Tab 實測標題開關）,
+瑪雅密碼收合,control,active,DONE,e2e:打開後勾雙胞胎分流重畫，仍是打開；開關記在這支手機,
+瑪雅密碼收合,control,disabled,NA,,沒有停用狀態
+藝名欄（我的表單）,form,default,DONE,e2e:名單：編輯儲存不會洗掉掌紋結果和藝名；「我的」表單可以直接加、改、移除藝名,
+藝名欄（我的表單）,form,focus_visible,DONE,e2e:按「＋ 加藝名或筆名」焦點移到新的名字欄（金色外框，css/app.css input:focus）,
+藝名欄（我的表單）,form,validation_error,DONE,e2e:填「abc」儲存時提示「「abc」請輸入 2～6 個中文字，或按「移除」」,
+藝名欄（我的表單）,form,submitting,DONE,code:js/views/me.js 和生日表單同一顆「計算並儲存」（計算中…並停用）,
+藝名欄（我的表單）,form,success,DONE,e2e:儲存後名單列表顯示「藝名 王明星・筆名 林小筆」，掌紋結果還在,
+藝名欄（我的表單）,form,server_error,NA,,沒有網路請求，只存在這支手機

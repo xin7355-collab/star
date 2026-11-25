@@ -6,7 +6,7 @@ import { buildBazi } from '../js/core/bazi.js';
 import { buildZiwei } from '../js/core/ziwei.js';
 import { buildNatal } from '../js/core/natal.js';
 import { computeMaya } from '../js/core/maya.js';
-import { CHENGGU_PLAIN } from '../js/core/reading-texts.js';
+import { CHENGGU_PLAIN, SEAL_TAGS, TAGS } from '../js/core/reading-texts.js';
 import { BLOOD, BLOOD_TYPES, bloodMatch } from '../js/core/blood.js';
 
 const INPUT = { date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: { lon: 121.5, lat: 25.04 }, fold: null };
@@ -86,7 +86,7 @@ test('多胞胎的瑪雅曆：加上各自的出生時分後結果不同，解�
   // 1990+8+15=2013 → 6；加 6 時 20 分 → 2039 → 14；加 6 時 35 分 → 2054 → 11
   assert.deepEqual([plain, older, younger].map((m) => m.items.find((x) => x.key === 'D').value), [6, 14, 11]);
   const line = (maya) => buildReading({ natal, bazi, ziwei, birth: INPUT.date, maya, today: TODAY, gender: '男', birthOrder: 2 })
-    .areas.find((a) => a.id === 'personality').points.find((pt) => pt.system === '瑪雅').text;
+    .areas.find((a) => a.id === 'personality').points.find((pt) => pt.system === '瑪雅' && pt.text.startsWith('瑪雅密碼')).text;
   assert.match(line(older), /已把出生時分加進計算/);
   assert.doesNotMatch(line(plain), /出生時分/);
 });
@@ -135,4 +135,30 @@ test('紫微：命宮以外的宮不再套命宮的個性；上升用自己的�
   const mayaText = same.areas.flatMap((a) => a.points).filter((p) => p.system === '瑪雅').map((p) => p.text).join('');
   assert.match(mayaText, /表象 D 和小宇宙 E 都是/);
   assert.equal(mayaText.split(`${kw}（`).length - 1, 1);
+});
+
+test('瑪雅銀河印記：參加共同點統計，個性、事業、人際、今年各一點；瑪雅密碼標明是另一套算法', () => {
+  const r = buildReading({ natal, bazi, ziwei, birth: INPUT.date, maya: computeMaya(INPUT.date), today: TODAY, gender: '男' });
+  const maya = (id) => r.areas.find((a) => a.id === id).points.filter((p) => p.system === '瑪雅').map((p) => p.text);
+  // 1990/8/15＝KIN 109 超頻紅月：支持超頻白狗、挑戰超頻藍風暴；2026/11/24 的流年從 2026/8/15 起＝KIN 249 月亮紅月
+  assert.match(maya('personality')[0], /^銀河印記 KIN 109「超頻紅月」：情感細膩.*調性「超頻」的關鍵是光芒/);
+  assert.match(maya('personality')[1], /^瑪雅密碼（另一套算法）：/);
+  assert.deepEqual(maya('career'), ['紅月的天賦：同理心強，能撫平別人的情緒，也能帶動改變。']);
+  assert.match(maya('social')[0], /支持位是超頻白狗（愛、忠誠、心）.*挑戰位是超頻藍風暴/);
+  assert.match(maya('year')[0], /^流年印記是 KIN 249「月亮紅月」（2026\/8\/15 生日起的一年）：關鍵字「淨化、流動、宇宙之水」，這一年常問自己：擋在前面的是什麼？$/);
+  const sources = r.ranked.flatMap((t) => t.sources);
+  assert.equal(sources.filter((s) => s === '瑪雅：銀河印記超頻紅月').length, SEAL_TAGS[9].length);
+  // 還沒過今年生日：流年看去年生日那天
+  const before = buildReading({ birth: INPUT.date, today: { y: 2026, m: 8, d: 14 } });
+  assert.match(before.areas.find((a) => a.id === 'year').points.find((p) => p.system === '瑪雅').text, /2025\/8\/15 生日起的一年/);
+});
+
+test('20 個圖騰都對到兩個存在的特質；多胞胎說明寫明銀河印記一樣、瑪雅密碼加時分', () => {
+  for (let n = 1; n <= 20; n += 1) {
+    assert.equal(SEAL_TAGS[n].length, 2, String(n));
+    for (const t of SEAL_TAGS[n]) assert.ok(TAGS[t], `${n}：${t}`);
+  }
+  const lines = twinsInfo({ birthOrder: 1 }).lines.join('');
+  assert.match(lines, /稱骨、瑪雅銀河印記通常完全一樣/);
+  assert.match(lines, /瑪雅密碼（另一套算法）會把出生的時與分加進去計算/);
 });

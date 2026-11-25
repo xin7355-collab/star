@@ -1,4 +1,4 @@
-// 綜合解讀：把星座、八字、紫微、生命靈數、瑪雅、姓名、稱骨、血型放在同一張桌上看。
+// 綜合解讀：把星座、八字、紫微、生命靈數、瑪雅（銀河印記與瑪雅密碼）、姓名、稱骨、血型放在同一張桌上看。
 //
 // 做法：
 // 1. 每個系統依你的盤面給出「特質標籤」（例：太陽獅子座 → 有主見、有創意；日主丙火 → 有主見、有創意）。
@@ -14,7 +14,9 @@ import { SHISHEN_TEXT, liunian, WUXING, yongShen } from './bazi.js';
 import { natalWealth, ziweiWealth } from './windfall.js';
 import { geju } from './geju.js';
 import { BLOOD } from './blood.js';
-import { CHENGGU_PLAIN, DAYMASTER, LIFEPATH_DETAIL, MAYA_KEYWORD_TEXT, MOON_SIGN_TEXT, SHISHEN_GROUPS, SIGN_DETAIL, TAGS, WUXING_HEALTH, ZIWEI_STARS, STAR_KEYWORDS, PALACE_DOMAIN, RISING_TEXT, mutagenIn } from './reading-texts.js';
+import { mayaKin, yearKin, kinInfo } from './maya-kin.js';
+import { SEAL_TEXT, TONE_TEXT } from './maya-texts.js';
+import { CHENGGU_PLAIN, DAYMASTER, LIFEPATH_DETAIL, MAYA_KEYWORD_TEXT, MOON_SIGN_TEXT, SEAL_TAGS, SHISHEN_GROUPS, SIGN_DETAIL, TAGS, WUXING_HEALTH, ZIWEI_STARS, STAR_KEYWORDS, PALACE_DOMAIN, RISING_TEXT, mutagenIn } from './reading-texts.js';
 
 const signName = (i) => SIGNS[i].name;
 
@@ -94,8 +96,8 @@ export function rotateZiwei(ziwei, shift) {
 export function twinsInfo({ birthOrder, natal = null, hasTime = false, method = 'sibling' }) {
   if (!birthOrder || birthOrder < 1) return null;
   const lines = [
-    '同一天出生的多胞胎：八字、生命靈數、稱骨通常完全一樣（除非出生時間跨過時辰，例如一個 12:50、一個 13:05）。',
-    '真正會不一樣的：①上升星座與宮位（上升星座平均每 2 小時換一個，差幾分鐘也可能不同）；②姓名，每個人的姓名學都不同；③紫微斗數的傳統借宮看法；④瑪雅曆會把出生的時與分加進去計算。',
+    '同一天出生的多胞胎：八字、生命靈數、稱骨、瑪雅銀河印記通常完全一樣（八字、稱骨除非出生時間跨過時辰，例如一個 12:50、一個 13:05）。',
+    '真正會不一樣的：①上升星座與宮位（上升星座平均每 2 小時換一個，差幾分鐘也可能不同）；②姓名，每個人的姓名學都不同；③紫微斗數的傳統借宮看法；④瑪雅密碼（另一套算法）會把出生的時與分加進去計算。',
     '個性與人生也大量受環境與選擇影響，同卵雙胞胎也會長成不同的人，命盤只是其中一個角度。',
   ];
   if (birthOrder >= 2) {
@@ -134,6 +136,8 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     return n;
   })();
   const twins = twinsInfo({ birthOrder, natal, hasTime: !!(natal && natal.mode === 'timed'), method: twinMethod });
+  // 瑪雅曆銀河印記只看日期，生日一定有，所以直接在這裡算（瑪雅密碼要看多胞胎時分，由呼叫的地方傳進來）
+  const kin = mayaKin(birth);
   const zw = ziwei && ziwei.ok ? (twins && twins.shift ? rotateZiwei(ziwei, twins.shift) : ziwei) : null;
 
   // ── 1. 收集特質標籤
@@ -155,6 +159,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     for (const s of stars) if (ZIWEI_STARS[s.name]) vote(ZIWEI_STARS[s.name].tags, `紫微：命宮${s.name}`);
   }
   vote(LIFEPATH_DETAIL[lp].tags, `生命靈數 ${lp}`);
+  if (kin) vote(SEAL_TAGS[kin.seal.n], `瑪雅：銀河印記${kin.title}`);
   const blood = BLOOD[bloodType] || null;
   if (blood) vote(blood.tags, `血型 ${bloodType} 型（流行文化）`);
   const ranked = Object.entries(votes).map(([tag, sources]) => ({ tag, label: TAGS[tag].label, count: sources.length, sources })).sort((a, b) => b.count - a.count);
@@ -177,6 +182,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     bazi && bazi.ok && { system: '八字', text: wuxingBalance(bazi) },
     zw && { system: '紫微', text: starLine(zw, '命宮', 'ming') },
     { system: '生命靈數', text: `生命靈數 ${lp}（${MEANINGS[lp].title}）：${MEANINGS[lp].text}` },
+    kin && { system: '瑪雅', text: kinLine(kin) },
     maya && { system: '瑪雅', text: mayaLine(maya) },
     name && name.ok && { system: '姓名', text: `人格 ${name.grids.人格.value}（${name.grids.人格.title}）：${name.grids.人格.text}` },
     chenggu && chenggu.ok && { system: '稱骨', text: `骨重 ${chenggu.text}。${CHENGGU_PLAIN[chenggu.total] || ''}` },
@@ -195,6 +201,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     curYun && { system: '八字', text: `目前大運 ${curYun.ganzhi}（${curYun.startYear}–${curYun.endYear}）是「${curYun.shishen}」運：${SHISHEN_TEXT[curYun.shishen]}` },
     zw && { system: '紫微', text: starLine(zw, '官祿', 'career') },
     { system: '生命靈數', text: LIFEPATH_DETAIL[lp].career },
+    kin && { system: '瑪雅', text: `${kin.seal.name}的天賦：${SEAL_TEXT[kin.seal.n].gift}` },
     name && name.ok && { system: '姓名', text: `總格 ${name.grids.總格.value}（${name.grids.總格.title}，${name.grids.總格.gradeText}）看中年以後的成就：${name.grids.總格.text}` },
     blood && { system: '血型', text: `${blood.work}常見適合：${blood.jobs.join('、')}。` },
   ]);
@@ -241,6 +248,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     bazi && bazi.ok && { system: '八字', text: socialLine(bazi) },
     zw && { system: '紫微', text: starLine(zw, '僕役')?.replace('僕役', '交友（僕役）宮') },
     zw && { system: '紫微', text: starLine(zw, '遷移') },
+    kin && { system: '瑪雅', text: oracleLine(kin) },
   ]);
 
   // ── 8. 今年
@@ -271,6 +279,8 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
   }
   const py = personalYearNumber(birth, today.y);
   yearPoints.push({ system: '生命靈數', text: `今年是你的流年數 ${py}：${PERSONAL_YEAR[py]}` });
+  const yk = yearKin(birth, today);
+  if (yk) yearPoints.push({ system: '瑪雅', text: `流年印記是 KIN ${yk.kin}「${yk.title}」（${yk.from.y}/${yk.from.m}/${yk.from.d} 生日起的一年）：關鍵字「${SEAL_TEXT[yk.seal.n].keys.join('、')}」，這一年常問自己：${TONE_TEXT[yk.tone.n].q}` });
   add('year', `${today.y} 年重點`, yearPoints.length > 2 ? '把下面幾個系統的提醒合起來看：哪件事被提到兩次以上，就是今年最該花心思的地方。' : '', yearPoints);
 
   return { traits: top, ranked, areas, twins, lifePathNumber: lp };
@@ -324,12 +334,26 @@ function socialLine(bazi) {
   return parts.join('');
 }
 
+/** 銀河印記：圖騰的性格＋調性的功課 */
+function kinLine(kin) {
+  const tt = TONE_TEXT[kin.tone.n];
+  return `銀河印記 KIN ${kin.kin}「${kin.title}」：${SEAL_TEXT[kin.seal.n].gist}調性「${kin.tone.name}」的關鍵是${tt.key}：${tt.text}`;
+}
+
+/** 五大神諭的支持位（最合拍的人）與挑戰位（逼你成長的人） */
+function oracleLine(kin) {
+  const a = kinInfo(kin.oracle.analog.kin);
+  const b = kinInfo(kin.oracle.antipode.kin);
+  return `五大神諭的支持位是${a.title}（${SEAL_TEXT[a.seal.n].keys.join('、')}）：和這種能量的人相處最輕鬆、最能互補；挑戰位是${b.title}（${SEAL_TEXT[b.seal.n].keys.join('、')}）：讓你不太舒服，卻最能逼你成長。`;
+}
+
+/** 瑪雅密碼 A～E（你提供的 V1 規則）：和銀河印記是不同算法，開頭標清楚 */
 function mayaLine(maya) {
   const d = maya.items.find((x) => x.key === 'D');
   const e = maya.items.find((x) => x.key === 'E');
   const kw = (x) => (x && x.keyword ? `${x.keyword}（${MAYA_KEYWORD_TEXT[x.keyword].replace(/。$/, '')}）` : '—');
   const twin = maya.twin ? '（多胞胎：已把出生時分加進計算，和手足會不同）' : '';
   // 1950–2025 年出生的人有七成多 D 和 E 是同一個詞：合成一句，不要同一個詞講兩次
-  if (d && e && d.keyword && d.keyword === e.keyword) return `表象 D 和小宇宙 E 都是「${kw(d)}」：別人看到的你，和你內在真正的核心是一致的。${twin}`;
-  return `表象 D 是「${kw(d)}」，別人看到的你；小宇宙 E 是「${kw(e)}」，你內在真正的核心。${twin}`;
+  if (d && e && d.keyword && d.keyword === e.keyword) return `瑪雅密碼（另一套算法）：表象 D 和小宇宙 E 都是「${kw(d)}」：別人看到的你，和你內在真正的核心是一致的。${twin}`;
+  return `瑪雅密碼（另一套算法）：表象 D 是「${kw(d)}」，別人看到的你；小宇宙 E 是「${kw(e)}」，你內在真正的核心。${twin}`;
 }

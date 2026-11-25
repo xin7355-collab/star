@@ -2,7 +2,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { kinOf, kinInfo, kinFrom, oracleOf, mayaKin, validDate, toneBarsDots, sealOf, toneOf, SEALS, TONES } from '../js/core/maya-kin.js';
+import { kinOf, kinInfo, kinFrom, oracleOf, mayaKin, validDate, toneBarsDots, sealOf, toneOf, yearKin, dayRelation, nextKinDate, SEALS, TONES } from '../js/core/maya-kin.js';
+import { DAY_RELATION_TEXT } from '../js/core/maya-texts.js';
 
 test('查證過的日期：年名、yokai.jp 的 KIN 34、2012 冬至', () => {
   const name = (date) => kinInfo(kinOf(date)).title;
@@ -68,4 +69,55 @@ test('波符、名稱、瑪雅數字：KIN 1 是磁性紅龍、KIN 260 是宇宙
   assert.deepEqual(toneBarsDots(5), { bars: 1, dots: 0 });
   assert.equal(SEALS.length, 20);
   assert.equal(TONES.length, 13);
+});
+
+test('流年印記：從今年生日那天起算（還沒過生日看去年）；2/29 生的人平年用 2/28', () => {
+  const b = { y: 1990, m: 8, d: 15 };
+  // 1990/8/15＝KIN 109，每年 +105：2026/8/15＝109＋36×105≡249（月亮紅月）
+  const now = yearKin(b, { y: 2026, m: 11, d: 25 });
+  assert.deepEqual(now.from, { y: 2026, m: 8, d: 15 });
+  assert.equal(now.kin, 249);
+  assert.equal(now.title, '月亮紅月');
+  assert.deepEqual(yearKin(b, { y: 2026, m: 8, d: 15 }).from, { y: 2026, m: 8, d: 15 }); // 生日當天就換
+  assert.deepEqual(yearKin(b, { y: 2026, m: 8, d: 14 }).from, { y: 2025, m: 8, d: 15 });
+  const leap = { y: 2000, m: 2, d: 29 };
+  assert.deepEqual(yearKin(leap, { y: 2027, m: 2, d: 28 }).from, { y: 2027, m: 2, d: 28 });
+  assert.deepEqual(yearKin(leap, { y: 2027, m: 2, d: 27 }).from, { y: 2026, m: 2, d: 28 });
+  assert.deepEqual(yearKin(leap, { y: 2028, m: 2, d: 29 }).from, { y: 2028, m: 2, d: 29 });
+  assert.equal(yearKin({ y: 1990, m: 2, d: 30 }, { y: 2026, m: 1, d: 1 }), null);
+});
+
+test('今天和你的關係：銀河生日、同圖騰、支持、挑戰、隱藏推動、引導、同色、沒有連結，每個 KIN 都分得出來', () => {
+  // KIN 109 超頻紅月：支持白狗（10）、挑戰藍風暴（19）、隱藏推動黃人（12）、引導紅地球（17）
+  const at = (seal, tone = 1) => kinFrom(seal, tone);
+  assert.equal(dayRelation(109, 109), 'return');
+  assert.equal(dayRelation(at(9, 2), 109), 'seal');
+  assert.equal(dayRelation(at(10), 109), 'analog');
+  assert.equal(dayRelation(at(19), 109), 'antipode');
+  assert.equal(dayRelation(at(12), 109), 'occult');
+  assert.equal(dayRelation(at(17), 109), 'guide');
+  assert.equal(dayRelation(at(1), 109), 'color'); // 紅龍：同是紅色家族
+  assert.equal(dayRelation(91, 109), 'none'); // 2026/11/25 宇宙藍猴
+  // 全部 260×260 組合都有結果，而且都有說明文字
+  for (let me = 1; me <= 260; me += 1) {
+    for (let day = 1; day <= 260; day += 1) assert.ok(DAY_RELATION_TEXT[dayRelation(day, me)], `${day}/${me}`);
+  }
+});
+
+test('下次銀河生日：今天就是回傳 0 天；260 天一輪，中間遇到 2/29 晚一天', () => {
+  assert.deepEqual(nextKinDate({ y: 2026, m: 11, d: 25 }, 91), { date: { y: 2026, m: 11, d: 25 }, days: 0 });
+  assert.deepEqual(nextKinDate({ y: 2026, m: 11, d: 25 }, 109), { date: { y: 2026, m: 12, d: 13 }, days: 18 });
+  // 隔天起算：下一次是 260 天後（扣掉已經過的 1 天＝259）
+  assert.equal(nextKinDate({ y: 2026, m: 11, d: 26 }, 91).days, 259);
+  // 2027/9/1 的下一輪會跨過 2028/2/29（2/29 和 2/28 同一個 KIN），整輪變 261 天：隔天起算是 260
+  const k = kinOf({ y: 2027, m: 9, d: 1 });
+  assert.deepEqual(nextKinDate({ y: 2027, m: 9, d: 2 }, k), { date: { y: 2028, m: 5, d: 19 }, days: 260 });
+  for (let i = 0; i < 400; i += 7) {
+    const t = new Date(Date.UTC(2026, 0, 1 + i));
+    const from = { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: t.getUTCDate() };
+    for (const kin of [1, 109, 260]) {
+      const r = nextKinDate(from, kin);
+      assert.ok(r && r.days >= 0 && r.days <= 261 && kinOf(r.date) === kin, `${JSON.stringify(from)} → ${kin}`);
+    }
+  }
 });

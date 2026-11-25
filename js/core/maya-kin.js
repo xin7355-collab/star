@@ -63,11 +63,12 @@ function noLeapDays(y, m, d) {
   return y * 365 + day;
 }
 
+const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+
 /** 日期合不合法（含閏年的 2/29） */
 export function validDate({ y, m, d }) {
   if (![y, m, d].every(Number.isInteger) || y < 1800 || y > 2200 || m < 1 || m > 12 || d < 1) return false;
-  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
-  return d <= (m === 2 && leap ? 29 : MONTH_DAYS[m - 1]);
+  return d <= (m === 2 && isLeap(y) ? 29 : MONTH_DAYS[m - 1]);
 }
 
 /** 西曆日期 → KIN（1～260）；日期不合法回傳 null */
@@ -128,4 +129,49 @@ export function mayaKin(date) {
   const info = kinInfo(kin);
   const leapDay = date.m === 2 && date.d === 29;
   return { ...info, leapDay, altKin: leapDay ? kinOf({ y: date.y, m: 3, d: 1 }) : null };
+}
+
+/**
+ * 流年印記：13 月亮曆的看法，每年從生日那天開始，那天的 KIN 就是這一年的主題（還沒過今年生日就看去年生日那天）。
+ * 2/29 生的人平年用 2/28（13 月亮曆本來就把 2/29 和 2/28 算成同一個 KIN）。
+ * @returns 這個 KIN 的完整資料，加上 from（這一輪流年從哪天開始）
+ */
+export function yearKin(birth, today) {
+  if (!validDate(birth) || !validDate(today)) return null;
+  const dayIn = (y) => (birth.m === 2 && birth.d === 29 && !isLeap(y) ? 28 : birth.d);
+  const passed = today.m > birth.m || (today.m === birth.m && today.d >= dayIn(today.y));
+  const y = passed ? today.y : today.y - 1;
+  const from = { y, m: birth.m, d: dayIn(y) };
+  const kin = kinOf(from);
+  return kin === null ? null : { ...kinInfo(kin), from };
+}
+
+/**
+ * 今天和你的關係：今天的圖騰落在你五大神諭的哪個位置。
+ * return＝銀河生日（同一個 KIN，260 天一次）、seal＝同圖騰、analog＝支持、antipode＝挑戰、occult＝隱藏推動、
+ * guide＝引導（調性 1、6、11 的引導就是自己，會先算成 seal）、color＝同顏色家族、none＝沒有特別連結。
+ */
+export function dayRelation(dayKin, myKin) {
+  if (dayKin === myKin) return 'return';
+  const o = oracleOf(myKin);
+  const s = sealOf(dayKin);
+  if (s === o.destiny.seal) return 'seal';
+  if (s === o.analog.seal) return 'analog';
+  if (s === o.antipode.seal) return 'antipode';
+  if (s === o.occult.seal) return 'occult';
+  if (s === o.guide.seal) return 'guide';
+  if (SEALS[s - 1].color === SEALS[o.destiny.seal - 1].color) return 'color';
+  return 'none';
+}
+
+/** 下一次（含今天）KIN 等於 kin 的日子：銀河生日 260 天一次，中間遇到 2/29 會晚一天 */
+export function nextKinDate(from, kin) {
+  if (!validDate(from)) return null;
+  let t = Date.UTC(from.y, from.m - 1, from.d);
+  for (let days = 0; days <= 262; days += 1, t += 86400000) {
+    const dt = new Date(t);
+    const date = { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
+    if (kinOf(date) === kin) return { date, days };
+  }
+  return null;
 }

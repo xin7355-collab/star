@@ -272,6 +272,10 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await expect(dv.locator('.trait').first()).toBeVisible();
   await expect(dv.locator('.trait .count').first()).toHaveText(/[2-9] 個系統/);
   await expect(dv.locator('details.area')).toHaveCount(7);
+  // 瑪雅銀河印記也在綜合解讀裡：個性（印記＋調性）和今年（流年印記）
+  // 七個面向固定順序：第一個是個性、最後一個是今年（「個性」兩字也會出現在健康的內文裡，不用文字找）
+  await expect(dv.locator('details.area').first()).toContainText('銀河印記 KIN 109「超頻紅月」');
+  await expect(dv.locator('details.area').last()).toContainText(/流年印記是 KIN \d+「/);
   await dv.locator('details.area summary', { hasText: '財運' }).click();
   await expect(dv.locator('details.area[open] .sys', { hasText: '紫微' }).first()).toBeVisible();
   const tool = dv.getByRole('combobox', { name: '選擇命理工具' });
@@ -775,6 +779,36 @@ test('今日：遇到困難直接到解惑，幸運小物直接到財位與開�
   await tv.getByRole('button', { name: '財位與開運擺設' }).click();
   await expect(page.getByRole('combobox', { name: '選擇命理工具' })).toHaveValue('fengshui');
   await expect(page.getByText('怎麼改善：開運佈置重點')).toBeVisible();
+});
+
+test('今日：今天的瑪雅印記、和主印記的關係、下次銀河生日；直接到瑪雅曆，瑪雅密碼預設收起', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-25T10:00:00+08:00'));
+  await seed(page);
+  await page.goto('/');
+  const card = page.locator('#today-maya');
+  // 2026/11/25＝KIN 91 宇宙藍猴；1990/8/15 的主印記是 KIN 109 超頻紅月，18 天後（12/13）回到 KIN 109
+  await expect(card.getByRole('heading', { name: '今天的瑪雅印記' })).toBeVisible();
+  await expect(card).toContainText('KIN 91・宇宙藍猴');
+  await expect(card.getByRole('img', { name: '今天的圖騰與調性：宇宙藍猴（KIN 91）' })).toBeVisible();
+  await expect(card).toContainText('今天問自己：我如何超越？');
+  await expect(card).toContainText('今天的圖騰和你的五大神諭沒有直接連結');
+  await expect(card).toContainText('你的主印記是 KIN 109 超頻紅月；下次銀河生日 12/13（還有 18 天）');
+  await card.getByRole('button', { name: '看我的瑪雅曆' }).click();
+  const dv = page.locator('#view-destiny');
+  await expect(dv.locator('.kin-no')).toHaveText('KIN 109');
+  // 瑪雅密碼是另一套算法：預設收起；打開後勾雙胞胎分流會重畫，打開的狀態要留著
+  const code = dv.locator('details.maya-code');
+  await expect(code).toHaveJSProperty('open', false);
+  await code.locator(':scope > summary').click(); // 裡面還有「白話解說」的小收合
+  await expect(dv.locator('.maya-cell').first()).toBeVisible();
+  await dv.locator('#maya-twin').check();
+  await expect(dv.locator('details.maya-code')).toHaveJSProperty('open', true);
+  expect(await page.evaluate(() => localStorage.getItem('star.v1.mayaCodeOpen'))).toBe('true');
+  // 銀河生日當天
+  await page.clock.setFixedTime(new Date('2026-12-13T10:00:00+08:00'));
+  await page.reload();
+  await expect(page.locator('#today-maya')).toContainText('今天是你的銀河生日');
+  await expect(page.locator('#today-maya')).not.toContainText('下次銀河生日');
 });
 
 test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、沒有「null／undefined」字樣', async ({ page }) => {

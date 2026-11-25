@@ -47,6 +47,8 @@ export function mountDestiny(root, ctx) {
   // 瑪雅曆的雙胞胎分流：填了出生順序（多胞胎）就預設打開，手動切換的結果按人記住。
   // 解讀和瑪雅工具共用同一個判斷，避免兩邊結果不一致（之前解讀從來不加時分，雙胞胎的瑪雅一模一樣）。
   const twinOverride = new Map();
+  // 瑪雅密碼區塊打開或收起：記在這支手機；勾雙胞胎分流、換合盤對象都會重畫，不記的話一勾就自己關掉
+  let mayaCodeOpen = load('mayaCodeOpen', null);
   const mayaTwinTime = (p, input) => (input.time && (twinOverride.has(p.id) ? twinOverride.get(p.id) : !!p.birthOrder) ? input.time : null);
   let token = 0;
 
@@ -444,7 +446,7 @@ export function mountDestiny(root, ctx) {
     );
   }
 
-  // ── 瑪雅密碼
+  // ── 瑪雅曆：上面是 13 月亮曆銀河印記，下面是瑪雅密碼 A～E（另一套算法，預設收起）
   async function drawMaya(p, input) {
     const [{ computeMaya, compareMaya }, { MAYA_POSITION_TEXT, MAYA_KEYWORD_TEXT }, MK, MT, MG] = await Promise.all([
       import('../core/maya.js'), import('../core/reading-texts.js'), import('../core/maya-kin.js'), import('../core/maya-texts.js'), import('../ui/maya-glyphs.js')]);
@@ -467,17 +469,24 @@ export function mountDestiny(root, ctx) {
       }
       compareBlock = h('div', { class: 'field' }, h('span', { class: 'field-label', text: '合盤' }), sel, table ? h('div', { class: 'table-wrap' }, table, h('p', { class: 'hint', text: '底色標示兩人相同的數字。' })) : null);
     }
+    // 瑪雅密碼是使用者提供的 V1 規則，和上面的 KIN 是不同算法：預設收起來，兩套數字才不會混在一起看。
+    // 多胞胎預設打開：只有它能把出生時分加進去、把手足分開。
+    const open = mayaCodeOpen === null ? !!p.birthOrder : mayaCodeOpen;
+    const codeBox = h('details', { class: 'maya-code', open });
+    const summary = h('summary', { onclick: () => { mayaCodeOpen = !codeBox.open; save('mayaCodeOpen', mayaCodeOpen); } },
+      h('h2', { text: `${p.name}的瑪雅密碼 A～E` }), h('span', { class: 'muted small', text: '另一套算法（V1 規則）' }));
     return [...kinCards, h(
       'section',
       { class: 'card' },
-      h('h2', { text: `${p.name}的瑪雅密碼` }),
-      h('div', { class: 'maya-grid' }, r.items.map((it) => h('div', { class: `maya-cell${it.key === 'C' ? ' wide' : ''}` }, h('div', { class: 'muted small', text: it.label }), h('div', { class: 'maya-value', text: it.value === null ? '—' : String(it.value) }), h('div', { text: it.keyword ? `${it.value % 10}｜${it.keyword}` : '不適用' })))),
-      r.exception ? h('p', { class: 'hint', text: '1910–1921、2010–2021 年出生：依規則 A、B 不適用，C 為 10。' }) : null,
-      h('details', { class: 'more', open: true }, h('summary', { text: '白話解說：每個位置代表什麼' }), h('ul', { class: 'plain' }, r.items.map((it) => h('li', {}, h('b', { text: MAYA_POSITION_TEXT[it.key] }), it.keyword ? h('div', { class: 'muted', text: `你的數字 ${it.value}「${it.keyword}」：${MAYA_KEYWORD_TEXT[it.keyword]}` }) : null)))),
-      h('label', { class: 'check', for: 'maya-twin' }, twinBox, h('span', { text: input.time ? '雙胞胎分流（加上出生的時＋分）' : '雙胞胎分流需要出生時間' })),
-      compareBlock,
-      h('p', { class: 'hint', text: '計算規則依你提供的 V1 計算器重寫（規則原始出處沒驗到）；數字的關鍵字依個位數對照，文字為本 App 撰寫，可能與其他老師的版本不同。' }),
-      actions(p, 'maya', '瑪雅密碼', r.items.map((it) => `${it.key}=${it.value ?? '—'}`).join(' '), { title: `${p.name}的瑪雅密碼`, lines: r.items.map((it) => `${it.label}：${it.value ?? '—'}${it.keyword ? `（${it.keyword}）` : ''}`) }),
+      fill(codeBox, summary,
+        h('p', { class: 'hint', text: '用生日數字加總的另一套算法（你先前提供的 V1 規則），和上面的 13 月亮曆銀河印記不是同一個系統，兩邊的數字不用互相對照。' }),
+        h('div', { class: 'maya-grid' }, r.items.map((it) => h('div', { class: `maya-cell${it.key === 'C' ? ' wide' : ''}` }, h('div', { class: 'muted small', text: it.label }), h('div', { class: 'maya-value', text: it.value === null ? '—' : String(it.value) }), h('div', { text: it.keyword ? `${it.value % 10}｜${it.keyword}` : '不適用' })))),
+        r.exception ? h('p', { class: 'hint', text: '1910–1921、2010–2021 年出生：依規則 A、B 不適用，C 為 10。' }) : null,
+        h('details', { class: 'more', open: true }, h('summary', { text: '白話解說：每個位置代表什麼' }), h('ul', { class: 'plain' }, r.items.map((it) => h('li', {}, h('b', { text: MAYA_POSITION_TEXT[it.key] }), it.keyword ? h('div', { class: 'muted', text: `你的數字 ${it.value}「${it.keyword}」：${MAYA_KEYWORD_TEXT[it.keyword]}` }) : null)))),
+        h('label', { class: 'check', for: 'maya-twin' }, twinBox, h('span', { text: input.time ? '雙胞胎分流（加上出生的時＋分）' : '雙胞胎分流需要出生時間' })),
+        compareBlock,
+        h('p', { class: 'hint', text: '計算規則依你提供的 V1 計算器重寫（規則原始出處沒驗到）；數字的關鍵字依個位數對照，文字為本 App 撰寫，可能與其他老師的版本不同。' }),
+        actions(p, 'maya', '瑪雅密碼', r.items.map((it) => `${it.key}=${it.value ?? '—'}`).join(' '), { title: `${p.name}的瑪雅密碼`, lines: r.items.map((it) => `${it.label}：${it.value ?? '—'}${it.keyword ? `（${it.keyword}）` : ''}`) })),
     )];
   }
 

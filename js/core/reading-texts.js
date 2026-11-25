@@ -18,6 +18,14 @@ export const TAGS = {
   romance: { label: '有魅力、桃花多', career: '需要個人魅力的工作（演藝、銷售、美業）', love: '桃花旺、有吸引力，選擇時多看人品' },
 };
 
+// ── 瑪雅曆 20 圖騰對到上面的特質（依 maya-texts.js 每個圖騰的性格與天賦挑兩個），讓銀河印記也參加「共同點」統計
+export const SEAL_TAGS = {
+  1: ['caring', 'lead'], 2: ['creative', 'sensitive'], 3: ['sensitive', 'wealth'], 4: ['steady', 'disciplined'], 5: ['adventurous', 'romance'],
+  6: ['social', 'adventurous'], 7: ['caring', 'steady'], 8: ['creative', 'romance'], 9: ['sensitive', 'caring'], 10: ['caring', 'social'],
+  11: ['creative', 'social'], 12: ['independent', 'analytic'], 13: ['adventurous', 'independent'], 14: ['sensitive', 'romance'], 15: ['analytic', 'creative'],
+  16: ['analytic', 'independent'], 17: ['lead', 'social'], 18: ['disciplined', 'analytic'], 19: ['adventurous', 'lead'], 20: ['lead', 'caring'],
+};
+
 // ── 星座：太陽（個性、事業）、金星（感情）、身體部位（古典占星對應）
 export const SIGN_DETAIL = [
   { tags: ['lead', 'adventurous'], personality: '衝勁十足、想到就做，喜歡當第一個', career: '適合開創、競爭與需要速度的環境', love: '喜歡直接、熱烈的感情，追求時很主動', body: '頭部、臉部（注意頭痛、上火）' },
