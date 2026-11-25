@@ -319,8 +319,12 @@ ul.reasons li.tone-info::before { background: var(--accent2); }
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   border-top: 1px solid var(--hairline);
+  transition: transform 0.25s var(--ease-out), opacity 0.2s ease, visibility 0s;
 }
 .period-bar .seg { max-width: 608px; margin: 0 auto; }
+/* 往下捲時收到分頁列後面（分頁列 z-index 比較高）；visibility 等滑完才切，收起來時也不會被 Tab 到 */
+.period-bar.tucked { transform: translateY(calc(100% + 12px)); opacity: 0; visibility: hidden; pointer-events: none; transition: transform 0.25s var(--ease-out), opacity 0.2s ease, visibility 0s linear 0.25s; }
+body:not([data-view="fortune"]) .period-slot { display: none; }
 
 /* ── 今日：吉時條（13 格，顏色代表吉凶；點一格看建議） */
 .hours { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 3px; margin: 10px 0 4px; }
@@ -682,6 +686,11 @@ blockquote.poem { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var
 .maya-cell.wide { grid-column: 1 / -1; }
 .maya-value { font-size: 30px; font-weight: 800; color: var(--gold); line-height: 1.2; }
 table.compare tr.same td, table.compare tr.same th { background: var(--accent-soft); }
+/* 名字比較表：分數最高的一列淡淡標出；名字底下的小按鈕（看完整分析、移除）要夠大好點 */
+table.name-cmp tr.best td, table.name-cmp tr.best th { background: var(--accent-soft); }
+table.name-cmp tbody th { white-space: normal; min-width: 92px; }
+.cmp-tools { display: flex; flex-wrap: wrap; gap: 0 10px; }
+.cmp-tools .link { min-height: 32px; font-size: 13px; padding: 0; }
 .nine-grid { display: grid; grid-template-columns: repeat(3, 64px); gap: 8px; justify-content: center; margin: 8px 0; }
 .nine-cell { width: 64px; height: 64px; border-radius: 50%; border: 1px dashed var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); }
 .nine-cell b { font-size: 22px; }
@@ -1029,6 +1038,70 @@ path.palm-line.pl-life, path.palm-line.pl-head, path.palm-line.pl-heart, path.pa
 .rt-ring rect { fill: none; stroke: var(--gold-2); stroke-width: 3; stroke-dasharray: 1; stroke-dashoffset: 1; animation: rt-charge 0.6s linear forwards; }
 @keyframes rt-charge { to { stroke-dashoffset: 0; } }
 .rt-done { margin-top: 4px; }
+
+/* ── 瑪雅曆：圖騰方塊、調性的瑪雅數字、五大神諭十字、260 格卓爾金曆 */
+.mg-tile { width: 100%; height: auto; display: block; overflow: visible; }
+.mg-bg { stroke: var(--maya-ink); stroke-width: 2.5; }
+.mg-bg.red { fill: var(--maya-red); }
+.mg-bg.white { fill: var(--maya-white); }
+.mg-bg.blue { fill: var(--maya-blue); }
+.mg-bg.yellow { fill: var(--maya-yellow); }
+.mg-line { fill: none; stroke: var(--maya-ink); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.mg-fill { fill: var(--maya-ink); }
+.mg-num rect, .mg-num path { fill: var(--gold); }
+/* 描線：線條依序畫出來，實心的部分接著浮現，最後調性的點、線一個個跳出來 */
+.mg-anim .mg-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: mg-draw 0.9s var(--ease-out) forwards; animation-delay: calc(0.2s + var(--i, 0) * 260ms); }
+.mg-anim .mg-fill { opacity: 0; animation: mg-fade 0.45s ease-out forwards; animation-delay: calc(0.7s + var(--i, 0) * 260ms); }
+.mg-anim .mg-num > * { opacity: 0; transform-box: fill-box; transform-origin: center; animation: palm-end 0.45s var(--ease-spring) forwards; animation-delay: calc(1.6s + var(--j, 0) * 160ms); }
+@keyframes mg-draw { to { stroke-dashoffset: 0; } }
+@keyframes mg-fade { to { opacity: 1; } }
+.kin-hero { display: flex; gap: 16px; align-items: center; margin: 4px 0 8px; }
+.kin-glyph { flex: 0 0 112px; width: 112px; }
+.kin-meta { min-width: 0; }
+.kin-no { color: var(--gold); font-weight: 800; letter-spacing: 0.06em; }
+.kin-title { margin: 2px 0 4px; font-size: 22px; }
+.kin-tone { display: flex; gap: 12px; align-items: flex-start; margin: 10px 0 4px; }
+.kin-tone .mg-tone { flex: 0 0 64px; width: 64px; margin-top: 4px; }
+.mg-tone { display: block; height: auto; }
+.oracle-cross { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-areas: '. top .' 'left center right' '. bottom .'; gap: 6px 10px; max-width: 330px; margin: 6px auto 10px; }
+.oracle-cell { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; animation: oracle-in 0.6s var(--ease-spring) both; animation-delay: calc(0.15s + var(--i, 0) * 140ms); }
+.oracle-cell .mg-tile { max-width: 78px; }
+.oracle-cell figcaption { display: flex; flex-direction: column; font-size: 12px; line-height: 1.3; color: var(--muted); }
+.oracle-cell figcaption b { color: var(--text); font-size: 13px; }
+.oracle-cell.top { grid-area: top; --dy: 100%; }
+.oracle-cell.left { grid-area: left; --dx: 100%; }
+.oracle-cell.center { grid-area: center; }
+.oracle-cell.right { grid-area: right; --dx: -100%; }
+.oracle-cell.bottom { grid-area: bottom; --dy: -100%; }
+/* 四張牌從中間（主印記的位置）飛到自己的位置 */
+@keyframes oracle-in { from { opacity: 0; transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.4); } to { opacity: 1; transform: none; } }
+.oracle-list li { padding: 8px 0; border-bottom: 1px solid var(--divider); }
+.tz-wrap { max-width: 340px; margin: 6px auto; }
+.tzolkin { width: 100%; height: auto; display: block; }
+.tz-cell { opacity: 0.32; animation: tz-in 0.4s ease-out both; animation-delay: calc(var(--c, 0) * 70ms); }
+.tz-cell.red { fill: var(--maya-red); }
+.tz-cell.white { fill: var(--maya-white); }
+.tz-cell.blue { fill: var(--maya-blue); }
+.tz-cell.yellow { fill: var(--maya-yellow); }
+.tz-cell.ws { opacity: 0.85; }
+@keyframes tz-in { from { opacity: 0; } }
+.tz-me { fill: none; stroke: var(--gold); stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: tz-pulse 1.6s ease-in-out infinite; animation-delay: 1.2s; }
+@keyframes tz-pulse { 50% { stroke-width: 3.2; } }
+.tz-today { fill: none; stroke: var(--text); stroke-width: 1.2; stroke-dasharray: 2 1.6; }
+.tz-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: center; color: var(--muted); }
+.tz-legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 3px; vertical-align: -1px; }
+.tz-legend .k-me::before { border: 2px solid var(--gold); }
+.tz-legend .k-today::before { border: 1.5px dashed var(--text); }
+.tz-legend .k-ws::before { background: var(--maya-blue); }
+.seal-gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 6px 0 10px; }
+.seal-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 2px 8px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--bg2); color: var(--text); font: inherit; font-size: 12px; line-height: 1.25; cursor: pointer; }
+.seal-btn .mg-tile { max-width: 54px; }
+.seal-btn[aria-pressed="true"] { border-color: var(--gold); background: var(--selected-bg); }
+.seal-btn:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+.seal-detail { padding: 8px 0 2px; border-top: 1px solid var(--divider); }
+.seal-detail h3 { margin-top: 4px; }
+.tone-list li { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--divider); }
+.tone-list .mg-tone { flex: 0 0 56px; width: 56px; margin-top: 4px; }
 
 /* 動畫強度：輕量＝拿掉儀式與特效、翻牌變快；關閉＝和系統「減少動態效果」一樣直接顯示結果 */
 :root[data-motion="lite"] .tc-dust, :root[data-motion="lite"] .tc-sheen, :root[data-motion="lite"] .palm-end { display: none; }

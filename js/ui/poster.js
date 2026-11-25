@@ -3,6 +3,7 @@
 // 參考 sbti SharePoster 的思路（Canvas 繪製 + 中文逐字換行），程式為本專案自行撰寫。
 
 import { h, fill } from './dom.js';
+import { load, save } from './storage.js';
 import { POSTER, LEVEL } from './palette.js';
 
 const W = 1080;
@@ -149,11 +150,58 @@ function canvasToBlob(canvas) {
   });
 }
 
-/** 分享或顯示圖卡 */
-export async function sharePoster(spec, { filename = 'star.png', sheet } = {}) {
-  const canvas = renderPoster(spec);
-  const blob = await canvasToBlob(canvas);
-  await shareFile(blob, filename, { sheet, previewAlt: spec.title, hint: '長按圖片即可儲存到相簿或分享' });
+/**
+ * 圖卡：先在面板裡預覽，可以勾「匿名」（拿掉名字、出生時間、提問），再按分享或下載。
+ * 為什麼不直接叫出系統分享面板：要讓使用者有機會選匿名，也先看到圖長什麼樣子；勾選會記住，下次預設一樣。
+ * iOS 的 navigator.share 一定要在點擊當下呼叫，所以「分享」是面板裡的按鈕，不是打開面板時自動叫出。
+ * @param {object} spec 圖卡內容
+ * @param {{filename?:string, sheet:object, anonymize?:(spec:object)=>object, notify?:(msg:string)=>void}} opts
+ */
+export async function sharePoster(spec, { filename = 'star.png', sheet, anonymize = null, notify = null } = {}) {
+  let anon = !!anonymize && load('shareAnon', false) === true;
+  let blob = null;
+  let url = null;
+  const img = h('img', { class: 'sheet-img', alt: spec.title || '圖卡' });
+  const link = h('a', { class: 'btn', download: filename, text: `下載 ${filename}` });
+  async function paint() {
+    const s = anon && anonymize ? anonymize(spec) : spec;
+    blob = await canvasToBlob(renderPoster(s));
+    if (url) URL.revokeObjectURL(url);
+    url = URL.createObjectURL(blob);
+    img.src = url;
+    img.alt = s.title || '圖卡';
+    link.href = url;
+  }
+  const probe = typeof File === 'function' ? new File([new Uint8Array(1)], filename, { type: 'image/png' }) : null;
+  const canShare = !!(probe && navigator.canShare && navigator.canShare({ files: [probe] }));
+  const shareBtn = canShare ? h('button', {
+    type: 'button',
+    class: 'btn primary',
+    text: '分享／存到相簿',
+    onclick: async () => {
+      try {
+        await navigator.share({ files: [new File([blob], filename, { type: 'image/png' })] });
+      } catch (err) {
+        if (!err || err.name !== 'AbortError') notify?.('分享沒有成功：可以長按圖片存到相簿，或按「下載」');
+      }
+    },
+  }) : null;
+  const anonBox = anonymize ? h('label', { class: 'check' },
+    h('input', {
+      type: 'checkbox',
+      checked: anon,
+      onchange: async (e) => {
+        anon = e.target.checked;
+        save('shareAnon', anon);
+        await paint();
+      },
+    }),
+    h('span', { text: '匿名：不顯示名字、出生時間和提問' })) : null;
+  await paint();
+  fill(sheet.body, img, anonBox, h('p', { class: 'hint center', text: '長按圖片也可以存到相簿或分享' }), h('div', { class: 'actions' }, shareBtn, link));
+  sheet.open(() => {
+    if (url) URL.revokeObjectURL(url);
+  });
 }
 
 /**

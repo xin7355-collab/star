@@ -216,6 +216,7 @@ export function mountTarot(root, ctx) {
         onclick: () => ctx.share({
           title: `塔羅・${r.label}牌陣・${topicLabel}`,
           subtitle: q ? `問題：${q}` : '',
+          private: ['subtitle'], // 自己寫的問題：匿名時拿掉
           lines: [...cards.map((c) => `${c.position}｜${c.card}（${c.orientation}）：${c.keywords}`), cards.length >= 3 ? sp.summary : ''].filter(Boolean),
         }, 'tarot.png'),
       })),

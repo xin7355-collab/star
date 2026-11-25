@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizePerson, sanitizeRaw, sanitizeSettings, validateBackup, mergeData, addHistory, exportData, LIMITS, newId, relationLabel, RELATIONS } from '../js/core/records.js';
+import { sanitizePerson, sanitizeRaw, sanitizeSettings, validateBackup, mergeData, addHistory, exportData, LIMITS, newId, relationLabel, RELATIONS, sanitizeAltNames, ALT_NAME_KINDS } from '../js/core/records.js';
 
 const raw = { calendar: 'solar', era: 'roc', year: '79', month: '8', day: '15', knowTime: true, time: '06:20', placeId: 'taipei', tz: 'Asia/Taipei' };
 
@@ -103,4 +103,24 @@ test('和我的關係：只收白名單代碼，「我」自己不存；顯示�
   assert.equal(relationLabel('spouse', '男'), '配偶、伴侶');
   assert.equal(relationLabel('nope', '男'), '');
   assert.equal(new Set(RELATIONS.map((r) => r.id)).size, RELATIONS.length);
+});
+
+test('藝名、筆名：只收 2～6 個中文字、不重複、最多 3 個；沒有就不多存這一欄', () => {
+  assert.deepEqual(ALT_NAME_KINDS, ['藝名', '筆名', '常用名']);
+  const list = sanitizeAltNames([
+    { kind: '藝名', name: ' 王明星 ' },
+    { kind: '筆名', name: 'Mike' }, // 不是中文
+    { kind: '藝名', name: '王明星' }, // 重複
+    { kind: '亂寫', name: '小王子' }, // 種類不認得：當常用名
+    { kind: '筆名', name: '一二三四五六七' }, // 太長
+    { kind: '筆名', name: '林大山' },
+    { kind: '筆名', name: '陳小雨' }, // 超過 3 個
+    null,
+  ]);
+  assert.deepEqual(list, [{ kind: '藝名', name: '王明星' }, { kind: '常用名', name: '小王子' }, { kind: '筆名', name: '林大山' }]);
+  assert.deepEqual(sanitizeAltNames('王明星'), []);
+  const raw = { calendar: 'solar', era: 'ad', year: 1990, month: 8, day: 15, leap: false, knowTime: false, time: '', placeId: 'taipei', lat: null, lon: null, tz: 'Asia/Taipei', fold: null, solar: null };
+  const p = sanitizePerson({ name: '我', raw, altNames: [{ kind: '藝名', name: '王明星' }] });
+  assert.deepEqual(p.altNames, [{ kind: '藝名', name: '王明星' }]);
+  assert.ok(!('altNames' in sanitizePerson({ name: '我', raw, altNames: [{ name: 'x' }] })));
 });

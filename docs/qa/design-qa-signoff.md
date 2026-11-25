@@ -101,6 +101,10 @@
   抓到並處理：照片選擇器搬到按鈕列外面，豁免位置跟著改（WCAG 2.5.8 Equivalent，由 44px 的「拍照或選照片」按鈕觸發）。
   本機 design-qa 96 張 CLEAN、finish lint 82 個檔案 CLEAN、狀態表 36 個畫面 COMPLETE、E2E 24/24（Chromium）。
   CI run 45596875808（main 09f8776）：unit 通過、E2E 48/48（Chromium 24＋WebKit 24，沒有重試）、design-qa 96 張 CLEAN。
+- 瑪雅曆 KIN、姓名比較、分享匿名、時運期間列（2026-11-25 深夜）：design-qa 新增 maya 快照（320／390／long／1440 共 5 張），
+  圖騰按鈕、五大神諭、260 格、說明文字都量過對比與焦點；姓名快照自動涵蓋新加的「藝名、筆名」「匿名試算」兩張卡。
+  分享圖卡的預覽面板不在快照裡（要按按鈕才出現），焦點與 Esc 關閉由 E2E 驗。
+  本機 design-qa 101 張 CLEAN、finish lint 86 個檔案 CLEAN、狀態表 40 個畫面 COMPLETE、E2E 27/27（Chromium）、unit 260/260。
 
 ## 4. 腳本量不到的（要人工）
 

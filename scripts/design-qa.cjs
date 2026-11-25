@@ -174,6 +174,9 @@ async function tour(browser, width, prefix, opts) {
   await tool(page, 'numerology');
   await page.waitForSelector('#view-destiny .nine-wrap');
   files.push(await snap(page, `${prefix}numerology`, width));
+  await tool(page, 'maya');
+  await page.waitForSelector('#view-destiny .kin-hero');
+  files.push(await snap(page, `${prefix}maya`, width));
   // 掌紋：一般組還沒選（解讀區是空的提示），長內容組兩隻手都選滿
   await tool(page, 'palm');
   await page.waitForSelector('#view-destiny .palm-options');

@@ -71,10 +71,27 @@ export function countUp(el, to, { duration = 900, suffix = '' } = {}) {
 /** 切換分頁時讓新分頁滑入 */
 export function enterView(el) {
   if (reducedMotion()) return;
+  playEntering(el);
+}
+
+/**
+ * 分頁、子面板的進場動畫（.entering）。播完就把 class 拿掉：transform 動畫停在最後一格（fill-mode both）時，
+ * iPhone 的 Safari 會把這個元素當成 position: fixed 子元素的定位框，「時運」底部的期間列就浮到內容中間擋住畫面。
+ * 只聽 animationend（不聽 cancel）：重播時先移除 class 會觸發 cancel，聽它會把剛加回去的 class 又拿掉。
+ */
+export function playEntering(el) {
+  if (el._enterDone) el.removeEventListener('animationend', el._enterDone);
   el.classList.remove('entering');
   // 讀一次版面讓瀏覽器重新開始動畫
   void el.offsetWidth;
   el.classList.add('entering');
+  el._enterDone = (e) => {
+    if (e.target !== el || e.animationName !== 'view-in') return; // 卡片自己的進場動畫也會冒泡上來
+    el.classList.remove('entering');
+    el.removeEventListener('animationend', el._enterDone);
+    el._enterDone = null;
+  };
+  el.addEventListener('animationend', el._enterDone);
 }
 
 /**

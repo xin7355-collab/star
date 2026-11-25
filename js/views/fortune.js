@@ -16,6 +16,10 @@ import { hourTimeline, timelineList, heatGrid } from '../ui/widgets.js';
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
 export function mountFortune(root, ctx) {
+  // 期間列掛在 body 底下，不放在分頁容器裡：容器有進場動畫（transform），iPhone 的 Safari 會把它當成
+  // position: fixed 的定位框，期間列就浮到內容中間、擋住後面的字（使用者回報過）。只在「時運」分頁顯示（CSS）
+  const periodSlot = h('div', { class: 'period-slot' });
+  document.body.append(periodSlot);
   let selected = null;
   let period = load('period', 'today');
   if (!PERIODS.some((p) => p.id === period)) period = 'today';
@@ -105,7 +109,8 @@ export function mountFortune(root, ctx) {
     );
 
     if (selected === null) {
-      root.append(h('p', { class: 'hint center', text: '點上方任一星座查看運勢' }), renderAlmanac(token), periodBar());
+      root.append(h('p', { class: 'hint center', text: '點上方任一星座查看運勢' }), renderAlmanac(token));
+      fill(periodSlot, periodBar());
       return;
     }
 
@@ -159,7 +164,8 @@ export function mountFortune(root, ctx) {
     );
 
     if (aiEnabled()) root.append(renderAi(sign, token));
-    root.append(...renderTiming(token), renderAlmanac(token), periodBar());
+    root.append(...renderTiming(token), renderAlmanac(token));
+    fill(periodSlot, periodBar());
   }
 
   // ── 近期提醒＋擇日
@@ -337,6 +343,28 @@ export function mountFortune(root, ctx) {
       }),
     );
   }
+
+  // 往下捲時收起、往上捲（或回到頂端、捲到底）再出現：固定在底部的期間列會擋住正在看的內容。
+  // 小幅晃動不算（累積超過 8px 才動作），免得手指一碰就閃
+  let lastY = 0;
+  let ticking = false;
+  function syncTuck() {
+    ticking = false;
+    const bar = periodSlot.firstElementChild;
+    if (!bar || document.body.dataset.view !== 'fortune') return;
+    const y = window.scrollY;
+    const atTop = y < 80;
+    const atEnd = window.innerHeight + y >= document.documentElement.scrollHeight - 40;
+    if (atTop || atEnd || y < lastY - 8) bar.classList.remove('tucked');
+    else if (y > lastY + 8) bar.classList.add('tucked');
+    else return;
+    lastY = y;
+  }
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(syncTuck);
+  }, { passive: true });
 
   ctx.onProfile(() => {
     selected = null;

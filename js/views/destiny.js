@@ -2,13 +2,17 @@
 // 紫微命盤、姓名分析、血型、瑪雅密碼、生命靈數、袁天罡稱骨。各工具的函式庫用到才載入（紫微約 51KB、康熙筆畫約 85KB gzip）。
 // 結果可「存到紀錄」（只存在手機）或存成圖卡。多胞胎依「我的」裡填的出生順序套用紫微借宮。
 
-import { h, s as svg, clear, segmented, fill } from '../ui/dom.js';
+import { h, s as svg, clear, segmented, fill, nextId } from '../ui/dom.js';
+import { ALT_NAME_KINDS } from '../core/records.js';
 import { load, save } from '../ui/storage.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
 import { cardHead } from '../ui/icons.js';
 import { reveal, order, ringTo, playWhenVisible } from '../ui/motion.js';
 import { loadProfile } from './profile.js';
 import { wuxingWheel, loader } from '../ui/charts.js';
+
+// 匿名試算的名字：只放在這次開著的 App 記憶體裡，不存檔、不進紀錄，換人也保留（不屬於任何人）；重開 App 就清掉
+const trial = { names: [], bazi: false };
 
 const TOOLS = [
   { id: 'reading', label: '綜合解讀（多系統一起看）' },
@@ -20,7 +24,7 @@ const TOOLS = [
   { id: 'ziwei', label: '紫微命盤' },
   { id: 'name', label: '姓名分析' },
   { id: 'blood', label: '血型' },
-  { id: 'maya', label: '瑪雅密碼' },
+  { id: 'maya', label: '瑪雅曆（銀河印記、瑪雅密碼）' },
   { id: 'numerology', label: '生命靈數' },
   { id: 'chenggu', label: '袁天罡稱骨' },
   { id: 'palm', label: '掌紋（含斷掌）' },
@@ -249,7 +253,7 @@ export function mountDestiny(root, ctx) {
         ];
       })(),
       yunBlock,
-      actions(p, 'bazi', '八字命盤', `${gz}；日主${b.dayMaster.gan}${b.dayMaster.wx}`, { title: `${p.name}的八字`, subtitle: b.clockText || '未填時間', lines: [gz, `日主 ${b.dayMaster.gan}${b.dayMaster.wx}`, b.wuxing.missing.length ? `缺 ${b.wuxing.missing.join('、')}` : '五行俱全'] }),
+      actions(p, 'bazi', '八字命盤', `${gz}；日主${b.dayMaster.gan}${b.dayMaster.wx}`, { title: `${p.name}的八字`, subtitle: b.clockText || '未填時間', private: ['subtitle'], lines: [gz, `日主 ${b.dayMaster.gan}${b.dayMaster.wx}`, b.wuxing.missing.length ? `缺 ${b.wuxing.missing.join('、')}` : '五行俱全'] }),
     );
   }
 
@@ -442,7 +446,9 @@ export function mountDestiny(root, ctx) {
 
   // ── 瑪雅密碼
   async function drawMaya(p, input) {
-    const [{ computeMaya, compareMaya }, { MAYA_POSITION_TEXT, MAYA_KEYWORD_TEXT }] = await Promise.all([import('../core/maya.js'), import('../core/reading-texts.js')]);
+    const [{ computeMaya, compareMaya }, { MAYA_POSITION_TEXT, MAYA_KEYWORD_TEXT }, MK, MT, MG] = await Promise.all([
+      import('../core/maya.js'), import('../core/reading-texts.js'), import('../core/maya-kin.js'), import('../core/maya-texts.js'), import('../ui/maya-glyphs.js')]);
+    const kinCards = mayaKinCards(p, input, MK, MT, MG);
     const r = computeMaya(input.date, mayaTwinTime(p, input));
     const others = ctx.getPeople().filter((x) => x.id !== p.id);
     const twinBox = h('input', { type: 'checkbox', id: 'maya-twin', checked: r.twin, disabled: !input.time, onchange: (e) => { twinOverride.set(p.id, e.target.checked); render(); } });
@@ -461,7 +467,7 @@ export function mountDestiny(root, ctx) {
       }
       compareBlock = h('div', { class: 'field' }, h('span', { class: 'field-label', text: '合盤' }), sel, table ? h('div', { class: 'table-wrap' }, table, h('p', { class: 'hint', text: '底色標示兩人相同的數字。' })) : null);
     }
-    return h(
+    return [...kinCards, h(
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的瑪雅密碼` }),
@@ -472,7 +478,115 @@ export function mountDestiny(root, ctx) {
       compareBlock,
       h('p', { class: 'hint', text: '計算規則依你提供的 V1 計算器重寫（規則原始出處沒驗到）；數字的關鍵字依個位數對照，文字為本 App 撰寫，可能與其他老師的版本不同。' }),
       actions(p, 'maya', '瑪雅密碼', r.items.map((it) => `${it.key}=${it.value ?? '—'}`).join(' '), { title: `${p.name}的瑪雅密碼`, lines: r.items.map((it) => `${it.label}：${it.value ?? '—'}${it.keyword ? `（${it.keyword}）` : ''}`) }),
-    );
+    )];
+  }
+
+  // ── 瑪雅曆（13 月亮曆）銀河印記：圖騰＋調性、五大神諭、波符與 260 格卓爾金曆、20 圖騰總覽
+  function mayaKinCards(p, input, MK, MT, MG) {
+    const mine = MK.mayaKin(input.date);
+    if (!mine) return [warnCard('生日不在 1800～2200 年之間，算不出瑪雅曆。')];
+    const { kin, seal, tone, oracle } = mine;
+    const ST = MT.SEAL_TEXT[seal.n];
+    const TT = MT.TONE_TEXT[tone.n];
+    const CT = MT.COLOR_TEXT[seal.color];
+    const name = (k) => MK.kinInfo(k).title;
+    const hero = h('section', { class: 'card feature maya-kin' },
+      cardHead(h, 'sparkle', `${p.name}的瑪雅銀河印記`, '13 月亮曆・20 圖騰 × 13 調性'),
+      h('div', { class: 'kin-hero' },
+        playWhenVisible(h('div', { class: 'kin-glyph' }, MG.mayaGlyph(seal.n, { tone: tone.n, animate: true, label: `${mine.title}（KIN ${kin}）的圖騰與調性` }))),
+        h('div', { class: 'kin-meta' },
+          h('div', { class: 'kin-no', text: `KIN ${kin}` }),
+          h('h3', { class: 'kin-title', text: mine.title }),
+          h('div', { class: 'muted small', text: `圖騰 ${seal.n}・${seal.name}（${seal.maya}）　調性 ${tone.n}・${tone.name}` }),
+          h('div', { class: 'chips' }, ST.keys.map((k) => h('span', { class: 'chip', text: k }))))),
+      mine.leapDay ? h('p', { class: 'hint', text: `2 月 29 日在 13 月亮曆不算日子（0.0 Hunab Ku），這裡用 2 月 28 日的 KIN；也有人用 3 月 1 日的 KIN ${mine.altKin}（${name(mine.altKin)}），兩個都可以參考。` }) : null,
+      h('p', { text: ST.gist }),
+      h('ul', { class: 'reasons' },
+        h('li', { class: 'tone-good' }, h('b', { text: '天賦：' }), h('span', { text: ST.gift })),
+        h('li', { class: 'tone-info' }, h('b', { text: '容易卡住：' }), h('span', { text: ST.shadow })),
+        h('li', { class: 'tone-info' }, h('b', { text: '小行動：' }), h('span', { text: ST.tip }))),
+      h('div', { class: 'kin-tone' }, MG.toneGlyph(tone.n),
+        h('div', {}, h('b', { text: `調性 ${tone.n}・${tone.name}：${TT.key}` }), h('div', { class: 'muted small', text: `問自己：${TT.q}` }), h('p', { text: TT.text }))),
+      h('p', {}, h('b', { text: `${CT.name}家族（${CT.key}）：` }), h('span', { text: CT.text })),
+      actions(p, 'maya', `瑪雅曆 KIN ${kin}`, `KIN ${kin} ${mine.title}`, {
+        title: `${p.name}的瑪雅銀河印記`,
+        big: `KIN ${kin}`,
+        bigLabel: mine.title,
+        lines: [`${seal.name}：${ST.keys.join('、')}`, `調性 ${tone.n} ${tone.name}：${TT.key}`, `引導 ${name(oracle.guide.kin)}・支持 ${name(oracle.analog.kin)}`, `挑戰 ${name(oracle.antipode.kin)}・隱藏推動 ${name(oracle.occult.kin)}`],
+      }));
+
+    // 五大神諭：十字排開（上引導、右支持、左挑戰、下隱藏推動），每張從中間飛到自己的位置
+    const POS = [['guide', 'top'], ['antipode', 'left'], ['destiny', 'center'], ['analog', 'right'], ['occult', 'bottom']];
+    const cross = playWhenVisible(h('div', { class: 'oracle-cross' }, POS.map(([key, area], i) => {
+      const x = oracle[key];
+      return h('figure', { class: `oracle-cell ${area}`, style: { '--i': String(i) } },
+        MG.mayaGlyph(x.seal, { tone: x.tone, label: `${MT.ORACLE_TEXT[key].label}：KIN ${x.kin} ${name(x.kin)}` }),
+        h('figcaption', {}, h('b', { text: MT.ORACLE_TEXT[key].label }), h('span', { text: name(x.kin) })));
+    })));
+    const oracleCard = h('section', { class: 'card' },
+      cardHead(h, 'compass', '五大神諭', '中間是你，上引導、右支持、左挑戰、下隱藏推動'),
+      cross,
+      h('ul', { class: 'plain oracle-list' }, ['guide', 'analog', 'antipode', 'occult'].map((key) => {
+        const x = oracle[key];
+        const xt = MT.SEAL_TEXT[x.seal];
+        return h('li', {},
+          h('b', { text: `${MT.ORACLE_TEXT[key].label}（${MT.ORACLE_TEXT[key].pos}）：KIN ${x.kin} ${name(x.kin)}` }),
+          h('div', { class: 'muted small', text: MT.ORACLE_TEXT[key].text }),
+          h('div', { text: `關鍵字：${xt.keys.join('、')}。${xt.gift}` }));
+      })),
+      h('details', { class: 'more' }, h('summary', { text: '五大神諭怎麼算' }),
+        h('p', { class: 'small', text: '引導：同調性、同顏色，依調性的點數決定是哪一個（調性 1、6、11 的引導就是自己）。支持：同調性，兩個圖騰號碼相加是 19。挑戰：同調性，圖騰號碼差 10。隱藏推動：兩個 KIN 相加是 261（圖騰 21 減、調性 14 減）。' })));
+
+    // 波符與卓爾金曆：你的 KIN 金框、今天虛線框、你的波符 13 天顏色深一點
+    const today = MK.kinOf(zoneToday(DEFAULT_TZ));
+    const ws = mine.wavespell;
+    const wsEnd = ((ws.kin + 11) % 260) + 1;
+    const wst = MT.SEAL_TEXT[ws.seal.n];
+    const gridCard = h('section', { class: 'card' },
+      cardHead(h, 'calendar', '波符與卓爾金曆', '260 天一輪的節奏'),
+      h('p', {}, h('b', { text: `你在「${ws.seal.name}波符」的第 ${ws.day} 天` }), h('span', { text: `（第 ${ws.index} 個波符：KIN ${ws.kin}～${wsEnd}）` })),
+      h('p', { text: `波符的主題是${ws.seal.name}（${wst.keys.join('、')}）：${wst.gist}` }),
+      h('p', { class: 'muted small', text: MT.WAVESPELL_TEXT }),
+      playWhenVisible(h('div', { class: 'tz-wrap' }, MG.tzolkinGrid({ kin, today, label: `卓爾金曆 260 格：你的 KIN ${kin} 在第 ${Math.ceil(kin / 20)} 欄第 ${((kin - 1) % 20) + 1} 列；今天是 KIN ${today}` }))),
+      h('div', { class: 'tz-legend small' },
+        h('span', { class: 'k-me', text: `你：KIN ${kin}` }),
+        h('span', { class: 'k-today', text: `今天：KIN ${today} ${name(today)}` }),
+        h('span', { class: 'k-ws', text: '你的波符' })),
+      h('p', { class: 'hint', text: '一欄 20 天、共 13 欄，由上往下、由左往右數；顏色是圖騰的顏色。' }));
+
+    // 20 圖騰與 13 調性總覽：點圖騰看說明（先打開自己的）
+    const detail = h('div', { class: 'seal-detail', 'aria-live': 'polite' });
+    const btns = [];
+    function showSeal(n) {
+      const sd = MK.SEALS[n - 1];
+      const t = MT.SEAL_TEXT[n];
+      btns.forEach((b, i) => b.setAttribute('aria-pressed', i + 1 === n ? 'true' : 'false'));
+      fill(detail,
+        h('h3', { text: `${n}. ${sd.name}（${sd.maya}）${n === seal.n ? '・你的圖騰' : ''}` }),
+        h('div', { class: 'chips' }, t.keys.map((k) => h('span', { class: 'chip', text: k }))),
+        h('p', { text: t.gist }),
+        h('ul', { class: 'reasons' },
+          h('li', { class: 'tone-good' }, h('b', { text: '天賦：' }), h('span', { text: t.gift })),
+          h('li', { class: 'tone-info' }, h('b', { text: '容易卡住：' }), h('span', { text: t.shadow })),
+          h('li', { class: 'tone-info' }, h('b', { text: '小行動：' }), h('span', { text: t.tip }))));
+    }
+    const gallery = h('div', { class: 'seal-gallery' }, MK.SEALS.map((sd) => {
+      const b = h('button', { type: 'button', class: 'seal-btn', 'aria-pressed': 'false', onclick: () => showSeal(sd.n) }, MG.mayaGlyph(sd.n), h('span', { text: `${sd.n}. ${sd.name}` }));
+      btns.push(b);
+      return b;
+    }));
+    showSeal(seal.n);
+    const allCard = h('section', { class: 'card' },
+      cardHead(h, 'book', '20 圖騰與 13 調性', '點圖騰看說明'),
+      gallery,
+      detail,
+      h('details', { class: 'more' }, h('summary', { text: '13 個調性（瑪雅數字：一條線＝5、一個點＝1）' }),
+        h('ul', { class: 'plain tone-list' }, MK.TONES.map((t) => h('li', {}, MG.toneGlyph(t.n),
+          h('div', {}, h('b', { text: `${t.n}・${t.name}：${MT.TONE_TEXT[t.n].key}` }), h('div', { class: 'muted small', text: `${MT.TONE_TEXT[t.n].q}${MT.TONE_TEXT[t.n].text}` })))))),
+      h('details', { class: 'more' }, h('summary', { text: '四種顏色' }),
+        h('ul', { class: 'plain' }, Object.values(MT.COLOR_TEXT).map((c) => h('li', {}, h('b', { text: `${c.name}（${c.key}）：` }), h('span', { text: c.text }))))),
+      h('p', { class: 'hint', text: MT.MAYA_NOTE }));
+    return [hero, oracleCard, gridCard, allCard];
   }
 
   // ── 生命靈數
@@ -639,7 +753,107 @@ export function mountDestiny(root, ctx) {
       out,
     );
     if (nameInput.value) analyze();
-    return card;
+
+    // ── 比較表：綜合分、人格、總格、三才（分數不含八字，不同名字可以直接比；分數最高的標 ★）
+    const showFull = (name) => {
+      nameInput.value = name;
+      surSel.value = '0';
+      analyze();
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    const cmpTable = (items, { baziCol = false } = {}) => {
+      const best = Math.max(...items.filter((x) => x.r.ok).map((x) => x.r.score));
+      return h('div', { class: 'table-wrap' }, h('table', { class: 'compare name-cmp' },
+        h('thead', {}, h('tr', {}, ['名字', '綜合分', '人格', '總格', '三才', baziCol ? '補到喜用' : null].filter(Boolean).map((t) => h('th', { scope: 'col', text: t })))),
+        h('tbody', {}, items.map(({ label, name, r, tools }) => h('tr', { class: r.ok && r.score === best && items.length > 1 ? 'best' : '' },
+          h('th', { scope: 'row' }, h('div', { text: name }), label ? h('div', { class: 'muted small', text: label }) : null, tools ? h('div', { class: 'cmp-tools' }, tools) : null),
+          ...(r.ok
+            ? [
+              h('td', { text: `${r.score}${r.score === best && items.length > 1 ? ' ★' : ''}` }),
+              h('td', { text: `${r.grids.人格.value}・${r.grids.人格.gradeText}` }),
+              h('td', { text: `${r.grids.總格.value}・${r.grids.總格.gradeText}` }),
+              h('td', { text: `${r.sancai.elements}・${r.sancai.gradeText}` }),
+              baziCol ? h('td', { text: r.bazi && r.bazi.helps.length ? r.bazi.helps.join('、') : '沒有' }) : null,
+            ]
+            : [h('td', { colspan: baziCol ? 5 : 4, class: 'muted small', text: '有罕用字查不到筆畫：按「看完整分析」補筆畫' })]))))));
+    };
+
+    // ── 藝名、筆名：存在這個人底下，和本名並排比較
+    const alts = p.altNames || [];
+    const kindSel = h('select', { 'aria-label': '名字種類' }, ALT_NAME_KINDS.map((k) => h('option', { value: k, text: k })));
+    const altInput = h('input', { type: 'text', maxlength: 6, 'aria-label': '藝名或筆名', placeholder: '例如：王明星' });
+    const saveAlts = (list, msg) => {
+      const saved = ctx.savePerson({ ...p, altNames: list });
+      ctx.toast(saved.ok ? msg : saved.error || '儲存失敗');
+    };
+    const altItems = [
+      ...(p.fullName ? [{ label: '本名', name: p.fullName, r: NM.analyzeName(p.fullName, data, { bazi }), tools: [h('button', { type: 'button', class: 'link', text: '看完整分析', onclick: () => showFull(p.fullName) })] }] : []),
+      ...alts.map((a) => ({
+        label: a.kind,
+        name: a.name,
+        r: NM.analyzeName(a.name, data, { bazi }),
+        tools: [
+          h('button', { type: 'button', class: 'link', text: '看完整分析', onclick: () => showFull(a.name) }),
+          h('button', { type: 'button', class: 'link', text: '移除', 'aria-label': `移除${a.kind}「${a.name}」`, onclick: () => saveAlts(alts.filter((x) => x.name !== a.name), `已移除${a.kind}「${a.name}」`) }),
+        ],
+      })),
+    ];
+    const altCard = h('section', { class: 'card' },
+      cardHead(h, 'pen', '藝名、筆名', '和本名並排比較，存在這支手機'),
+      alts.length ? cmpTable(altItems) : h('p', { class: 'muted', text: p.fullName ? '還沒有加藝名或筆名。加了會和本名並排比較。' : '還沒有加藝名或筆名；在上面設好本名，就能一起比較。' }),
+      alts.length < 3
+        ? [
+          h('div', { class: 'row2' }, h('div', { class: 'field' }, h('span', { class: 'field-label', text: '種類' }), kindSel), h('div', { class: 'field' }, h('span', { class: 'field-label', text: '名字' }), altInput)),
+          h('div', { class: 'actions' }, h('button', {
+            type: 'button',
+            class: 'btn',
+            text: '加入比較',
+            onclick: () => {
+              const v = altInput.value.trim();
+              if (!/^\p{Script=Han}{2,6}$/u.test(v)) return ctx.toast('請輸入 2～6 個中文字');
+              if (v === p.fullName || alts.some((a) => a.name === v)) return ctx.toast('這個名字已經在表上了');
+              saveAlts([...alts, { kind: kindSel.value, name: v }], `已加入${kindSel.value}「${v}」（只在這支手機）`);
+            },
+          })),
+        ]
+        : h('p', { class: 'hint', text: '最多 3 個；要換的話先移除一個。' }),
+      h('p', { class: 'hint', text: '常被叫的名字（藝名、筆名、大家平常叫的名字）姓名學一樣可以看，分數高低參考就好。' }),
+    );
+
+    // ── 匿名試算：幫朋友看、取名時比較候選名字；不存、不進紀錄
+    const trialBox = h('div', { 'aria-live': 'polite' });
+    const trialInput = h('input', { type: 'text', maxlength: 6, 'aria-label': '要試算的名字', placeholder: '例如：林小雨', enterkeyhint: 'done', onkeydown: (e) => { if (e.key === 'Enter') addTrial(); } });
+    const baziId = nextId('trial-bazi');
+    function paintTrial() {
+      const items = trial.names.map((n) => ({
+        name: n,
+        r: NM.analyzeName(n, data, { bazi: trial.bazi ? bazi : null }),
+        tools: [
+          h('button', { type: 'button', class: 'link', text: '看完整分析', onclick: () => showFull(n) }),
+          h('button', { type: 'button', class: 'link', text: '移除', 'aria-label': `移除「${n}」`, onclick: () => { trial.names = trial.names.filter((x) => x !== n); paintTrial(); } }),
+        ],
+      }));
+      fill(trialBox, items.length ? cmpTable(items, { baziCol: trial.bazi && !!bazi }) : h('p', { class: 'muted', text: '還沒有加名字。一次可以比 6 個。' }));
+    }
+    function addTrial() {
+      const v = trialInput.value.trim();
+      if (!/^\p{Script=Han}{2,6}$/u.test(v)) return ctx.toast('請輸入 2～6 個中文字');
+      if (trial.names.includes(v)) return ctx.toast('這個名字已經在表上了');
+      if (trial.names.length >= 6) return ctx.toast('一次最多比 6 個，先移除一個');
+      trial.names = [...trial.names, v];
+      trialInput.value = '';
+      paintTrial();
+    }
+    paintTrial();
+    const trialCard = h('section', { class: 'card' },
+      cardHead(h, 'pen', '匿名試算', '不儲存：幫朋友看、比較候選名字'),
+      h('div', { class: 'field' }, h('span', { class: 'field-label', text: '名字（含姓氏）' }), trialInput),
+      h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn', text: '加入比較', onclick: addTrial })),
+      bazi ? h('label', { class: 'check', for: baziId }, h('input', { type: 'checkbox', id: baziId, checked: trial.bazi, onchange: (e) => { trial.bazi = e.target.checked; paintTrial(); } }), h('span', { text: `配合${p.name}的八字，看名字補不補得到喜用五行（取名時用）` })) : null,
+      trialBox,
+      h('p', { class: 'hint', text: '這裡的名字不會存檔、不會進紀錄，重新開啟 App 就清掉；分數不含八字，可以直接比較。' }),
+    );
+    return [card, altCard, trialCard];
   }
 
   function nameResult(p, r) {

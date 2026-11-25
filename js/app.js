@@ -6,6 +6,7 @@ import { load, save } from './ui/storage.js';
 import { readRaw } from './ui/birthform.js';
 import { buildNatal } from './core/natal.js';
 import { sharePoster, shareFile } from './ui/poster.js';
+import { anonymizeSpec, namesOf } from './core/privacy.js';
 import * as store from './ui/records-store.js';
 import { mountMe } from './views/me.js';
 import { mountToday } from './views/today.js';
@@ -43,10 +44,12 @@ function toast(message) {
 // ── 分享面板
 const sheetEl = $('#sheet');
 let onSheetClose = null;
+let sheetOpener = null;
 const sheet = {
   body: $('#sheet-body'),
   open(onClose) {
     onSheetClose = onClose;
+    sheetOpener = document.activeElement;
     sheetEl.hidden = false;
     $('#sheet-close').focus();
   },
@@ -54,11 +57,18 @@ const sheet = {
     sheetEl.hidden = true;
     onSheetClose?.();
     onSheetClose = null;
+    // 關掉後焦點回到剛才按的按鈕，鍵盤、螢幕閱讀器使用者才不會被丟回頁首
+    if (sheetOpener && sheetOpener.isConnected) sheetOpener.focus({ preventScroll: true });
+    sheetOpener = null;
   },
 };
 $('#sheet-close').addEventListener('click', () => sheet.close());
 sheetEl.addEventListener('click', (e) => {
   if (e.target === sheetEl) sheet.close();
+});
+// 對話框慣例：Esc 關閉（外接鍵盤、電腦上用）
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !sheetEl.hidden) sheet.close();
 });
 
 // ── 狀態
@@ -222,7 +232,9 @@ const ctx = {
   toast,
   sheet,
   share(spec, filename) {
-    sharePoster(spec, { filename, sheet }).catch((err) => toast(err.message || '分享失敗'));
+    // 匿名版要藏的名字：名單上每個人的暱稱、本名、藝名（配對、家人的圖卡會出現別人的名字）
+    const anonymize = (s) => anonymizeSpec(s, namesOf(state.people));
+    sharePoster(spec, { filename, sheet, anonymize, notify: toast }).catch((err) => toast(err.message || '圖卡產生失敗，請再試一次'));
   },
 };
 

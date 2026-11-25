@@ -83,6 +83,24 @@ export function sanitizeRaw(raw) {
   return out;
 }
 
+// 藝名、筆名、常用名：姓名學另外分析、和本名並排比較（不影響其他命理）
+export const ALT_NAME_KINDS = ['藝名', '筆名', '常用名'];
+const ALT_NAME_MAX = 3;
+
+/** 其他名字的白名單：只收 2～6 個中文字、不重複、最多 3 個；種類不認得就當「常用名」 */
+export function sanitizeAltNames(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const a of list) {
+    if (!a || typeof a !== 'object') continue;
+    const name = typeof a.name === 'string' ? a.name.trim() : '';
+    if (!/^\p{Script=Han}{2,6}$/u.test(name) || out.some((x) => x.name === name)) continue;
+    out.push({ kind: ALT_NAME_KINDS.includes(a.kind) ? a.kind : '常用名', name });
+    if (out.length >= ALT_NAME_MAX) break;
+  }
+  return out;
+}
+
 export function sanitizePerson(p) {
   if (!p || typeof p !== 'object') return null;
   const raw = sanitizeRaw(p.raw);
@@ -104,6 +122,11 @@ export function sanitizePerson(p) {
     ...(() => {
       const palm = sanitizePalm(p.palm);
       return palm ? { palm } : {};
+    })(),
+    // 藝名、筆名、常用名（姓名學用）；沒有就不多存這一欄
+    ...(() => {
+      const alt = sanitizeAltNames(p.altNames);
+      return alt.length ? { altNames: alt } : {};
     })(),
     raw,
     createdAt: isoTime(p.createdAt) || new Date().toISOString(),

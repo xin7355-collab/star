@@ -2,7 +2,7 @@
 
 import { h, segmented, fill } from '../ui/dom.js';
 import { load, save } from '../ui/storage.js';
-import { reducedMotion } from '../ui/motion.js';
+import { reducedMotion, playEntering } from '../ui/motion.js';
 import { mountTarot } from './tarot.js';
 import { mountMatch } from './match.js';
 import { mountLotto } from './lotto.js';
@@ -32,11 +32,7 @@ export function mountOracle(root, ctx) {
       lotto = mountLotto(boxes.lotto, ctx);
       lotto.refresh();
     }
-    if (!reducedMotion()) {
-      boxes[panel].classList.remove('entering');
-      void boxes[panel].offsetWidth;
-      boxes[panel].classList.add('entering');
-    }
+    if (!reducedMotion()) playEntering(boxes[panel]);
   }
 
   mountJiehuo(boxes.jiehuo, ctx);

@@ -116,6 +116,82 @@ test('時運：期間列貼在分頁列正上方（不會浮在內容中間）�
   await expect(bar).toBeHidden();
 });
 
+test('分享圖卡：先預覽，可以勾「匿名」拿掉名字和出生時間，勾選會記住', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'me');
+  const me = page.locator('#view-me');
+  await me.getByRole('button', { name: '存成圖卡' }).click();
+  const sheet = page.locator('.sheet');
+  const img = sheet.locator('img.sheet-img');
+  await expect(img).toHaveAttribute('alt', /^我的星盤：/);
+  await expect(sheet.getByRole('link', { name: '下載 my-chart.png' })).toBeVisible();
+  const anon = sheet.getByRole('checkbox', { name: '匿名：不顯示名字、出生時間和提問' });
+  await expect(anon).not.toBeChecked();
+  await anon.check();
+  await expect(img).toHaveAttribute('alt', /^星盤：/);
+  expect(await page.evaluate(() => localStorage.getItem('star.v1.shareAnon'))).toBe('true');
+  // 關掉再開：記得上次勾了匿名
+  await page.keyboard.press('Escape');
+  await expect(sheet).toBeHidden();
+  await me.getByRole('button', { name: '存成圖卡' }).click();
+  await expect(sheet.getByRole('checkbox', { name: '匿名：不顯示名字、出生時間和提問' })).toBeChecked();
+  await expect(sheet.locator('img.sheet-img')).toHaveAttribute('alt', /^星盤：/);
+});
+
+test('姓名：藝名和本名並排比較（存在手機、可移除）；匿名試算不儲存、可比多個名字', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('name');
+  const card = (title) => dv.locator('section.card').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
+  const alt = card('藝名、筆名');
+  await expect(alt.getByText('還沒有加藝名或筆名。加了會和本名並排比較。')).toBeVisible();
+  await alt.getByRole('combobox', { name: '名字種類' }).selectOption('藝名');
+  await alt.getByRole('textbox', { name: '藝名或筆名' }).fill('王明星');
+  await alt.getByRole('button', { name: '加入比較' }).click();
+  await expect(page.locator('#toast')).toContainText('已加入藝名「王明星」');
+  const rows = card('藝名、筆名').locator('table.name-cmp tbody tr');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText('王小明');
+  await expect(rows.nth(0)).toContainText('本名');
+  await expect(rows.nth(1)).toContainText('王明星');
+  await expect(card('藝名、筆名').locator('tr.best')).toHaveCount(1);
+  // 存在名單裡：重開 App 還在；名單只多存名字，沒有別的
+  const people = JSON.parse(await page.evaluate(() => localStorage.getItem('star.v1.people')));
+  expect(people[0].altNames).toEqual([{ kind: '藝名', name: '王明星' }]);
+  await page.reload();
+  await tab(page, 'destiny');
+  await expect(card('藝名、筆名').locator('table.name-cmp tbody tr')).toHaveCount(2);
+  // 看完整分析：上面的姓名分析換成這個名字
+  await card('藝名、筆名').getByRole('button', { name: '看完整分析' }).nth(1).click();
+  await expect(card('姓名分析').getByRole('textbox', { name: '姓名（含姓氏）' })).toHaveValue('王明星');
+  await expect(dv.locator('.name-chars .hz')).toHaveText(['王', '明', '星']);
+  await card('藝名、筆名').getByRole('button', { name: '移除藝名「王明星」' }).click();
+  await expect(card('藝名、筆名').getByText('還沒有加藝名或筆名。加了會和本名並排比較。')).toBeVisible();
+
+  // 匿名試算：不存檔，重開 App 就沒了
+  const trialCard = card('匿名試算');
+  const input = trialCard.getByRole('textbox', { name: '要試算的名字' });
+  await input.fill('林小雨');
+  await trialCard.getByRole('button', { name: '加入比較' }).click();
+  await input.fill('陳大文');
+  await input.press('Enter');
+  await expect(trialCard.locator('table.name-cmp tbody tr')).toHaveCount(2);
+  await expect(trialCard.locator('thead th')).toHaveText(['名字', '綜合分', '人格', '總格', '三才']);
+  await trialCard.getByRole('checkbox', { name: /配合我的八字/ }).check();
+  await expect(trialCard.locator('thead th').last()).toHaveText('補到喜用');
+  const stored = await page.evaluate(() => Object.keys(localStorage).map((k) => localStorage.getItem(k)).join(''));
+  expect(stored).not.toContain('林小雨');
+  expect(stored).not.toContain('陳大文');
+  await trialCard.getByRole('button', { name: '移除「林小雨」' }).click();
+  await expect(trialCard.locator('table.name-cmp tbody tr')).toHaveCount(1);
+  await page.reload();
+  await tab(page, 'destiny');
+  await expect(card('匿名試算').getByText('還沒有加名字。一次可以比 6 個。')).toBeVisible();
+});
+
 test('今日：綜合指數有依據、吉時表可點、偏財與幸運號碼可再換一組', async ({ page }) => {
   await seed(page);
   await page.goto('/');
@@ -194,6 +270,21 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await expect(dv.locator('.name-char .zy')).toHaveText(['ㄨㄤˊ', 'ㄒㄧㄠˇ', 'ㄇㄧㄥˊ']);
   await tool.selectOption('maya');
   await expect(dv.locator('.maya-cell')).toHaveCount(5);
+  // 瑪雅曆（13 月亮曆）：1990-08-15＝KIN 109 超頻紅月；五大神諭照規則算（引導同色、支持相加 19、挑戰差 10、隱藏相加 261）
+  await expect(dv.locator('.kin-no')).toHaveText('KIN 109');
+  await expect(dv.locator('.kin-title')).toHaveText('超頻紅月');
+  await expect(dv.getByRole('img', { name: '超頻紅月（KIN 109）的圖騰與調性' })).toBeVisible();
+  await expect(dv.locator('.oracle-cell figcaption')).toHaveText(['引導超頻紅地球', '挑戰超頻藍風暴', '主印記超頻紅月', '支持超頻白狗', '隱藏推動太陽黃人']);
+  await expect(dv.getByText('你在「紅蛇波符」的第 5 天')).toBeVisible(); // 波符從 KIN 105（紅蛇）開始
+  await expect(dv.locator('svg.tzolkin .tz-cell')).toHaveCount(260);
+  await expect(dv.locator('svg.tzolkin .tz-cell.ws')).toHaveCount(13);
+  await expect(dv.locator('svg.tzolkin .tz-me')).toHaveCount(1);
+  // 20 圖騰總覽：先打開自己的，點別的換說明
+  await expect(dv.locator('.seal-btn')).toHaveCount(20);
+  await expect(dv.locator('.seal-detail h3')).toHaveText('9. 紅月（Muluk）・你的圖騰');
+  await dv.getByRole('button', { name: '14. 白巫師' }).click();
+  await expect(dv.locator('.seal-detail h3')).toHaveText('14. 白巫師（Ix）');
+  await expect(dv.getByRole('button', { name: '14. 白巫師' })).toHaveAttribute('aria-pressed', 'true');
   await tool.selectOption('numerology');
   await expect(dv.locator('.score-ring b')).toHaveText('33／6');
   // 1990-08-15：只有事業線（1-5-9），空缺 2、3、4、6、7；另一派圈進天賦數 3、3 與生命數 6 會多出智慧線

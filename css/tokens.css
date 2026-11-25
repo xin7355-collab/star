@@ -29,6 +29,12 @@
   --pl-heart: #ff8fa3;
   --pl-fate: #f6c453;
   --pl-simian: #c9a6ff;
+  /* 瑪雅曆四色家族（圖騰方塊的底色）與畫線的墨色：固定的品牌色，不跟主題變 */
+  --maya-red: #d9483b;
+  --maya-white: #f4efe2;
+  --maya-blue: #3a8fd8;
+  --maya-yellow: #f1b52a;
+  --maya-ink: #1c1a24;
   --palm-skin: #2b3566;
   --palm-skin-2: #222a55;
   /* 塔羅牌面與抽牌儀式 */

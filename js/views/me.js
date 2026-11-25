@@ -176,6 +176,7 @@ export function mountMe(root, ctx) {
           onclick: () => ctx.share({
             title: `${person.name}的星盤：${natal.sun.certain ? sun.name : '太陽換座日'}`,
             subtitle: describeBirth(natal, person.raw.era),
+            private: ['subtitle'], // 出生日期、時間、地點：匿名時拿掉
             big: sun.glyph,
             bigLabel: natal.sun.certain ? sun.name : '',
             lines: placements,
