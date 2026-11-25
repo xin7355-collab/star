@@ -333,6 +333,14 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await expect(dv.locator('.seal')).toHaveText('偏印格');
   await tool.selectOption('liunian');
   await expect(dv.getByText(/犯太歲/).first()).toBeVisible();
+  // 人生時間軸：10 年、先講哪幾年要注意，點開一年看可能遇到的事；接下來 12 個月（節氣換月）
+  const life = dv.locator('section.card.feature', { hasText: '的人生時間軸' });
+  await expect(life.locator('details.ly')).toHaveCount(10);
+  await expect(life.getByText('最需要注意：')).toBeVisible();
+  await life.locator('details.ly').first().locator('summary').click();
+  await expect(life.locator('details.ly').first()).toContainText('工作：');
+  await expect(life.locator('details.ly').first().locator('.sys', { hasText: '生命靈數' })).toBeVisible();
+  await expect(dv.locator('ol.months > li')).toHaveCount(12);
   await tool.selectOption('ziwei');
   await expect(dv.locator('.ziwei-grid .palace')).toHaveCount(12);
   // 一打開就示範命宮的三方四正：連線、三個被照會的宮；命宮格局列出機月同梁

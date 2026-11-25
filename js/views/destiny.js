@@ -20,7 +20,7 @@ const TOOLS = [
   { id: 'fengshui', label: '開運佈置（財庫、財位、擺設）' },
   { id: 'family', label: '家人關係（誰幫誰、怎麼相處）' },
   { id: 'bazi', label: '八字命盤' },
-  { id: 'liunian', label: '流年・大運・太歲' },
+  { id: 'liunian', label: '人生時間軸・流年・太歲' },
   { id: 'ziwei', label: '紫微命盤' },
   { id: 'name', label: '姓名分析' },
   { id: 'blood', label: '血型' },
@@ -256,16 +256,48 @@ export function mountDestiny(root, ctx) {
 
   // ── 流年・大運・太歲
   async function drawLiunian(p, input, opts) {
-    const { buildBazi, liunian, taiSuiList } = await import('../core/bazi.js');
+    const [{ buildBazi, liunian, taiSuiList }, { buildLifeline, monthsAhead, WARN_TAGS, GOOD_TAGS }, { LEVEL_TEXT, LIFELINE_NOTE }] = await Promise.all([
+      import('../core/bazi.js'), import('../core/lifeline.js'), import('../core/lifeline-texts.js')]);
     const b = buildBazi(input, opts);
     if (!b.ok) return warnCard(b.error, true);
     const y0 = opts.today.y;
+    // ── 人生時間軸：未來 10 年每年的重點（八字、大運、太歲、占星回歸、生命靈數、瑪雅），先講哪幾年要注意、哪幾年順
+    const L = buildLifeline({ bazi: b, natal: ctx.natalOf(p), birth: input.date, today: opts.today, gender: p.gender });
+    const LV = { 順: 'lv-high', 小順: 'lv-mid', 平: 'lv-flat', 注意: 'lv-low', 小心: 'lv-poor' };
+    const barPct = (score) => Math.round(Math.max(6, Math.min(100, ((score + 4) / 7) * 100))); // -4～+3 對到長條長度
+    // 注意的年份只講壓力的原因、順的年份只講助力的原因（依重要程度排）；都沒有就講那一年的十神
+    const why = (y, keys) => keys.filter((t) => y.tags.includes(t)).slice(0, 2).join('、') || y.tags[0] || y.level;
+    const timeline = h('section', { class: 'card feature' },
+      cardHead(h, 'calendar', `${p.name}的人生時間軸`, `未來 10 年（${L.years[0].year}～${L.years[L.years.length - 1].year}）每年的重點`),
+      h('p', {}, h('b', { text: '最需要注意：' }), h('span', { text: L.watch.length ? L.watch.map((y) => `${y.year}（${why(y, WARN_TAGS)}）`).join('、') : '未來 10 年沒有特別需要小心的年份。' })),
+      L.good.length ? h('p', {}, h('b', { text: '比較順：' }), h('span', { text: L.good.map((y) => `${y.year}（${why(y, GOOD_TAGS)}）`).join('、') })) : null,
+      h('p', { class: 'muted small', text: '點年份看那一年可能遇到的事（工作、財務、感情）和建議。' }),
+      h('div', { class: 'lifeline' }, L.years.map((y) => h('details', { class: 'ly' },
+        h('summary', {},
+          h('span', { class: 'ly-year' }, h('b', { text: String(y.year) }), h('small', { class: 'muted', text: `${y.age} 歲` })),
+          h('span', { class: `ly-bar ${LV[y.level]}`, style: { '--w': `${barPct(y.score)}%` }, 'aria-hidden': 'true' }),
+          h('span', { class: `ly-level ${LV[y.level]}`, text: y.level }),
+          h('span', { class: 'ly-tags muted small', text: y.tags.slice(0, 4).join('・') })),
+        h('p', { class: 'ly-advice', text: LEVEL_TEXT[y.level] }),
+        h('ul', { class: 'reasons' }, y.events.map((e) => h('li', { class: `tone-${e.tone}` }, h('span', { class: `sys sys-${e.system}`, text: e.system }), h('span', { text: e.text }))))))),
+      h('p', { class: 'hint', text: `${LIFELINE_NOTE}八字流年從立春（約 2/4）起算，流年印記從生日起算，年齡是當年生日過後的實歲。` }));
+    // ── 接下來 12 個月（以節氣換月）
+    const M = monthsAhead({ bazi: b, today: opts.today });
+    const monthsCard = h('section', { class: 'card' },
+      cardHead(h, 'bell', '接下來 12 個月', '流月、水星逆行、日月食'),
+      h('ol', { class: 'months' }, M.map((m) => h('li', { class: 'mo' },
+        h('div', { class: 'mo-head' },
+          h('b', { text: `${m.start.m}/${m.start.d}～${m.end.m}/${m.end.d}` }),
+          h('span', { class: 'muted small', text: `${m.ganzhi}月${m.shishen ? `・${m.shishen}` : ''}` }),
+          h('span', { class: `ly-level ${LV[m.level]}`, text: m.level })),
+        m.notes.length ? h('ul', { class: 'reasons small' }, m.notes.map((n) => h('li', { class: `tone-${n.tone}`, text: n.text }))) : null))),
+      h('p', { class: 'hint', text: '流月以節氣換月（例如 12/7 大雪起是子月），和國曆、農曆的月份不一樣。「注意」「小心」的月份，重要的決定和簽約可以避開或多準備。' }));
     const years = liunian(b, [y0, y0 + 1, y0 + 2, y0 + 3, y0 + 4]);
     const current = b.yun ? b.yun.list.find((d) => d.current) : null;
     const yearCard = h(
       'section',
       { class: 'card' },
-      h('h2', { text: `${p.name}的流年` }),
+      h('h2', { text: `${p.name}的八字流年細節（近 5 年）` }),
       current ? h('p', {}, h('b', { text: `目前大運：${current.ganzhi}（${current.shishen}）` }), h('span', { class: 'muted', text: ` ${current.startYear}–${current.endYear}` })) : h('p', { class: 'hint', text: b.yun ? '' : '在「我的」幫這個人選性別，就能顯示大運。' }),
       h(
         'ol',
@@ -301,7 +333,7 @@ export function mountDestiny(root, ctx) {
       h('p', { class: 'hint', text: `${p.name}的生肖：${mine}（以農曆正月初一為界）。犯太歲為民俗說法，可依習俗安太歲祈福，不必過度擔心。` }),
       h('p', { class: 'hint', text: '星座的今年運勢在「運勢」分頁選「今年」。' }),
     );
-    return [yearCard, taiSuiCard];
+    return [timeline, monthsCard, yearCard, taiSuiCard];
   }
 
   // ── 紫微命盤
@@ -727,7 +759,10 @@ export function mountDestiny(root, ctx) {
       h('summary', { text: a.title }),
       h('div', { class: 'area-body' },
         a.summary ? h('p', { class: 'gold', text: a.summary }) : null,
-        a.points.map((pt) => h('div', { class: 'point' }, h('span', { class: `sys sys-${pt.system}`, text: pt.system }), h('span', { text: pt.text })))),
+        a.points.map((pt) => h('div', { class: 'point' }, h('span', { class: `sys sys-${pt.system}`, text: pt.system }), h('span', { text: pt.text }))),
+        // 今年只是一年：要看哪幾年要注意、哪幾年順，直接跳到人生時間軸
+        a.id === 'year' ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '看未來 10 年的人生時間軸', onclick: () => { tool = 'liunian'; save('destinyTool', tool); render(); window.scrollTo(0, 0); } })) : null,
+        a.id === 'career' ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '看工作與未來方向（含新興產業）', onclick: () => { tool = 'career'; save('destinyTool', tool); render(); window.scrollTo(0, 0); } })) : null),
     ));
     const cards = [
       h(

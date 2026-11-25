@@ -328,7 +328,8 @@ export function monthChangesBetween(from, days) {
   const out = [];
   let cursor = from;
   const endIso = isoDate(addDays(from, days));
-  for (let guard = 0; guard < 6; guard += 1) {
+  // 每個節氣月約 30 天：依天數決定最多找幾個（人生時間軸要看 12 個月以上）
+  for (let guard = 0; guard < Math.ceil(days / 28) + 2; guard += 1) {
     const jie = lunarOf(cursor).getNextJie(true);
     if (!jie) break;
     const s = jie.getSolar();
