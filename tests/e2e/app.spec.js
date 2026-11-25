@@ -309,6 +309,8 @@ test.describe('動畫開啟時', () => {
     // 點一張、手指停在一張上 0.6 秒（金邊畫滿）抽一張、剩下的「幫我隨機挑」
     await tv.getByRole('button', { name: '洗牌並抽牌' }).click();
     await expect(page.locator('.rt-fan:not(.shuffling)')).toHaveCount(1, { timeout: 5000 });
+    // 等 78 張牌攤開的過場跑完再點（CI 機器慢時，過場中途量到的位置會點空）
+    await page.waitForFunction(() => [...document.querySelectorAll('.rt-card')].every((c) => c.getAnimations().every((a) => a.playState !== 'running')), null, { timeout: 5000 });
     const fanCards = page.locator('.rt-card:not(.taken)');
     let b = await fanCards.nth(20).boundingBox();
     await page.mouse.click(b.x + b.width / 2, b.y + 10);
@@ -693,6 +695,12 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
   await expect(dv.getByRole('heading', { name: /生命線（繞著拇指根部的弧線）/ })).toBeVisible();
   await opts.getByRole('button', { name: '短（到掌中）', exact: true }).click();
   await expect(dv.locator('.palm-item')).toHaveCount(2);
+  // 還沒儲存就整頁重載（iPhone 切到別的 App 再回來常這樣）：選擇要接回來
+  await page.reload();
+  await tab(page, 'destiny');
+  await expect(dv.locator('.palm-step', { hasText: '斷掌' }).first()).toContainText('半斷掌');
+  await expect(dv.getByText('上次還沒儲存的選擇已經接回來了，記得按儲存')).toBeVisible();
+  await expect(dv.locator('.palm-item')).toHaveCount(2);
   await expect(dv.getByText(/和壽命長短無關/)).toBeVisible();
   await expect(dv.getByText(/這些說法沒有根據/)).toBeVisible();
   await expect(dv.locator('.trait-scale')).toHaveCount(2);
@@ -862,7 +870,8 @@ test('塔羅：自訂牌組（檔名認牌、對不到的列出來、缺的用�
     { name: 'ace-of-cups.png', mimeType: 'image/png', buffer },
     { name: 'IMG_0001.png', mimeType: 'image/png', buffer },
   ]);
-  await expect(tv.getByText(/已匯入 2 張；1 個檔名對不到牌：IMG_0001\.png/)).toBeVisible();
+  // 先找到結果訊息再比內容：失敗時報告會印出實際寫了什麼（例如「讀不進來」的原因），不只是「找不到」
+  await expect(tv.locator('p', { hasText: /^已匯入/ })).toContainText('已匯入 2 張；1 個檔名對不到牌：IMG_0001.png');
   await expect(tv.getByText('目前用自訂牌組：已匯入 2／78 張，缺的牌用內建牌面。')).toBeVisible();
   await expect(tv.locator('.daily-tarot .ta-face.custom')).toHaveCount(1);
   // 存在 IndexedDB：重開還在

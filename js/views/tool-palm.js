@@ -3,6 +3,7 @@
 // 選好的線形按「存到資料」才寫進名單（records.js 白名單過濾），沒按就只留在這次開著的 App 裡。
 
 import { h, fill, segmented } from '../ui/dom.js';
+import { load, save, remove } from '../ui/storage.js';
 import { cardHead } from '../ui/icons.js';
 import { traitScale } from '../ui/widgets.js';
 import { playWhenVisible } from '../ui/motion.js';
@@ -45,6 +46,21 @@ function dropPhoto(hand) {
   const ph = session.photos[hand];
   if (ph) ph.canvas.width = 0; // 讓瀏覽器馬上釋放這張圖的記憶體
   session.photos[hand] = null;
+}
+
+// 草稿：iPhone 切到 LINE 再回來常常整頁重載，還沒按儲存的選擇會不見。每次改動就把選項代碼（不含照片）
+// 暫存在這支手機，回來時接上；按儲存或「放棄修改」就刪掉，放超過 7 天也不接
+const DRAFT_KEY = 'palmDraft';
+const DRAFT_MS = 7 * 86400000;
+const palmJson = (x) => JSON.stringify({ dominant: x.dominant || '', left: sanitizePicks(x.left), right: sanitizePicks(x.right) });
+function saveDraft() {
+  save(DRAFT_KEY, { personId: session.personId, hand: session.hand, dominant: session.dominant, left: session.picks.left, right: session.picks.right, at: Date.now() });
+}
+function takeDraft(p) {
+  const d = load(DRAFT_KEY, null);
+  if (!d || d.personId !== p.id || !(Date.now() - Number(d.at) < DRAFT_MS)) return null;
+  if (palmJson(d) === palmJson(p.palm || {})) return null; // 和已儲存的一樣，不用接
+  return d;
 }
 
 function loadSaved(p) {
@@ -254,9 +270,18 @@ export function drawPalm(p, { ctx, actions }) {
     loadSaved(p);
     session.hand = Object.keys(session.picks.left).length && !Object.keys(session.picks.right).length ? 'left' : 'right';
     session.dirty = false;
+    session.restored = false;
     session.step = { left: 0, right: 0 };
     dropPhoto('left');
     dropPhoto('right');
+    const draft = takeDraft(p);
+    if (draft) {
+      session.picks = { left: sanitizePicks(draft.left), right: sanitizePicks(draft.right) };
+      session.dominant = draft.dominant === 'left' || draft.dominant === 'right' ? draft.dominant : '';
+      if (draft.hand === 'left' || draft.hand === 'right') session.hand = draft.hand;
+      session.dirty = true;
+      session.restored = true;
+    }
   } else if (!session.dirty) {
     loadSaved(p); // 沒有未儲存的修改：以名單裡存的為準（例如剛匯入備份）
   }
@@ -276,6 +301,7 @@ export function drawPalm(p, { ctx, actions }) {
     if (field === 'simian' && value === 'full') for (const k of ['head', 'start', 'heart']) delete cur[k];
     session.picks[session.hand] = sanitizePicks(cur);
     session.dirty = true;
+    saveDraft();
   }
 
   function paintRole() {
@@ -352,6 +378,7 @@ export function drawPalm(p, { ctx, actions }) {
     ph.auto = Object.keys(sug);
     session.picks[session.hand] = sanitizePicks(cur);
     session.dirty = true;
+    saveDraft();
   }
 
   function paintPhoto() {
@@ -457,13 +484,28 @@ export function drawPalm(p, { ctx, actions }) {
           const saved = ctx.savePerson({ ...p, palm: { dominant: session.dominant, left: session.picks.left, right: session.picks.right } });
           if (saved.ok) {
             session.dirty = false;
+            session.restored = false;
+            remove(DRAFT_KEY);
             ctx.toast('已存進名單（只在這支手機），照片沒有儲存');
           } else {
             ctx.toast(saved.error || '儲存失敗');
           }
         },
       }),
-      h('span', { class: 'muted small', text: session.dirty ? '有還沒儲存的選擇' : '已儲存' }));
+      h('span', { class: 'muted small', text: !session.dirty ? '已儲存' : session.restored ? '上次還沒儲存的選擇已經接回來了，記得按儲存' : '有還沒儲存的選擇' }),
+      session.dirty ? h('button', {
+        type: 'button',
+        class: 'link',
+        text: '放棄修改',
+        onclick: () => {
+          remove(DRAFT_KEY);
+          loadSaved(p);
+          session.dirty = false;
+          session.restored = false;
+          domSel.value = session.dominant;
+          paintAll();
+        },
+      }) : null);
     if (!items.length) {
       fill(resultBox, h('p', { class: 'muted', text: '選了線形之後，這裡會畫出你的掌紋並逐項解讀。' }), session.dominant !== ((p.palm || {}).dominant || '') ? saveRow : null);
       return;
@@ -509,6 +551,7 @@ export function drawPalm(p, { ctx, actions }) {
     onchange: (e) => {
       session.dominant = e.target.value;
       session.dirty = true;
+      saveDraft();
       paintRole();
       paintResult();
     },

@@ -88,7 +88,9 @@ export async function importFiles(files, { onProgress } = {}) {
     }
     try {
       const blob = await shrink(file);
-      await tx('readwrite', (store) => { store.put(blob, m.back ? 'back' : m.id); });
+      // 存 ArrayBuffer 不存 Blob：Safari 無痕瀏覽的 IndexedDB 存不了 Blob（會整筆失敗），ArrayBuffer 可以
+      const data = await blob.arrayBuffer();
+      await tx('readwrite', (store) => { store.put({ type: blob.type || 'image/jpeg', data }, m.back ? 'back' : m.id); });
       saved += 1;
     } catch (err) {
       failed.push({ name: file.name, reason: err.message || '讀不進來' });
@@ -106,7 +108,8 @@ export async function loadDeck() {
     return keys.map((k, i) => [String(k), values[i]]);
   });
   for (const u of urls.values()) URL.revokeObjectURL(u);
-  urls = new Map((entries || []).filter(([, b]) => b instanceof Blob).map(([k, b]) => [k, URL.createObjectURL(b)]));
+  const toBlob = (v) => (v instanceof Blob ? v : v && v.data instanceof ArrayBuffer ? new Blob([v.data], { type: v.type || 'image/jpeg' }) : null);
+  urls = new Map((entries || []).map(([k, v]) => [k, toBlob(v)]).filter(([, b]) => b).map(([k, b]) => [k, URL.createObjectURL(b)]));
   return urls;
 }
 

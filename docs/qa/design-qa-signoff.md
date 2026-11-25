@@ -84,6 +84,10 @@
   放大看牌時「關閉」按鈕取得焦點把面板捲到底、牌面上半部看不到（改 preventScroll）。
   另外發現既有 bug：style 物件裡的 CSS 變數（--i）一直沒寫進去，依序出現的動畫其實同時跳出來（dom.js 改用 setProperty，實測確認）。
   本機 E2E 23/23（Chromium 與 chromium 新版 headless 各一次）
+  CI run 45519969871（main 19d1b18）：design-qa 91 張 CLEAN；E2E 44 過、1 失敗、1 不穩。
+  失敗的是 WebKit 的自訂牌組：Playwright 的 WebKit 是無痕狀態，Safari 無痕模式的 IndexedDB 存不了 Blob，匯入整批失敗
+  （真的 iPhone 開無痕瀏覽也會這樣）→ 改存 ArrayBuffer，讀出來再組回圖片。不穩的是儀式測試在 78 張牌攤開的過場中途就點，
+  點到空處（重試通過）→ 測試先等扇形的過場跑完再點。
 
 ## 4. 腳本量不到的（要人工）
 
