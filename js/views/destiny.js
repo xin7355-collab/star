@@ -716,7 +716,7 @@ export function mountDestiny(root, ctx) {
   // ── 袁天罡稱骨
   async function drawChenggu(p, input, opts) {
     if (!input.time) return warnCard('稱骨需要出生時間（時辰）。請到「我的」補上時間。', true);
-    const [{ buildBazi, baziClock }, { solarToLunar }, { chengGu }, { CHENGGU_PLAIN }] = await Promise.all([import('../core/bazi.js'), import('../core/calendar.js'), import('../core/chenggu.js'), import('../core/reading-texts.js')]);
+    const [{ buildBazi, baziClock }, { solarToLunar }, { chengGu, patternOf, bandOf, percentileOf, formatWeight }, { CHENGGU_PLAIN }] = await Promise.all([import('../core/bazi.js'), import('../core/calendar.js'), import('../core/chenggu.js'), import('../core/reading-texts.js')]);
     const clk = baziClock(input, { solarTime: opts.solarTime });
     if (!clk.ok) return warnCard(clk.error, true);
     const b = buildBazi(input, opts);
@@ -724,23 +724,39 @@ export function mountDestiny(root, ctx) {
     const yearGz = b.pillars[0].gan + b.pillars[0].zhi;
     const r = chengGu({ yearGanZhi: yearGz, lunarMonth: lunar.month, lunarDay: lunar.day, hour: clk.clock.h });
     if (!r.ok) return warnCard(r.error);
-    const w = (q) => `${q} 錢`;
+    const pat = patternOf(r.total);
+    const band = bandOf(r.total);
+    const pct = percentileOf(r.total);
+    // 骨重怎麼來：年、月、日、時各一段，長度照重量
+    const parts = [['年', `${yearGz}年`, r.parts.year], ['月', `農曆${lunar.monthName}`, r.parts.month], ['日', lunar.dayName, r.parts.day], ['時', `${r.shichen}時`, r.parts.hour]];
+    const STAGE = { 苦: ['辛苦', 'lv-poor'], 平: ['平穩', 'lv-flat'], 順: ['順利', 'lv-high'] };
     return h(
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的稱骨` }),
-      h('table', { class: 'compare' }, h('tbody', {},
-        h('tr', {}, h('th', { scope: 'row', text: `年（${yearGz}）` }), h('td', { text: w(r.parts.year) })),
-        h('tr', {}, h('th', { scope: 'row', text: `月（農曆${lunar.monthName}）` }), h('td', { text: w(r.parts.month) })),
-        h('tr', {}, h('th', { scope: 'row', text: `日（${lunar.dayName}）` }), h('td', { text: w(r.parts.day) })),
-        h('tr', {}, h('th', { scope: 'row', text: `時（${r.shichen}時）` }), h('td', { text: w(r.parts.hour) })),
-        h('tr', { class: 'same' }, h('th', { scope: 'row', text: '合計' }), h('td', {}, h('b', { text: r.text }))))),
+      h('div', { class: 'cg-hero' },
+        h('b', { class: 'cg-weight', text: r.text }),
+        h('span', { class: 'badge', text: `骨重${band.name}` }),
+        h('span', { class: 'muted small', text: pct <= 0 ? '幾乎是最輕的組合' : pct >= 99 ? '幾乎是最重的組合' : `所有年月日時的組合裡，比你輕的約占 ${pct}%` })),
+      h('div', { class: 'cg-bar', role: 'img', 'aria-label': `骨重的組成：${parts.map(([k, , q]) => `${k} ${formatWeight(q)}`).join('、')}` },
+        parts.map(([k, , q], i) => h('span', { class: `cg-seg s${i}`, style: { flexGrow: String(q) } }, h('b', { text: k }), h('small', { text: formatWeight(q) })))),
+      h('p', { class: 'muted small', text: `${parts.map(([k, label, q]) => `${k}（${label}）${formatWeight(q)}`).join('、')}，合計 ${r.text}。` }),
       h('blockquote', { class: 'poem', text: r.poem }),
       CHENGGU_PLAIN[r.total] ? h('p', {}, h('b', { text: '白話：' }), h('span', { text: CHENGGU_PLAIN[r.total] })) : null,
+      pat ? [
+        h('h3', { text: `人生三段：${pat.name}` }),
+        h('div', { class: 'cg-stages', role: 'img', 'aria-label': `歌訣說：早年${STAGE[pat.stages[0]][0]}、中年${STAGE[pat.stages[1]][0]}、晚年${STAGE[pat.stages[2]][0]}` },
+          ['早年', '中年', '晚年'].map((n, i) => h('div', { class: `cg-stage ${STAGE[pat.stages[i]][1]}` }, h('small', { text: n }), h('b', { text: STAGE[pat.stages[i]][0] })))),
+        h('p', { text: pat.text }),
+      ] : null,
+      h('details', { class: 'more' }, h('summary', { text: `骨重「${band.name}」代表什麼、稱骨怎麼算` }),
+        h('p', { text: band.text }),
+        h('p', { class: 'muted small', text: '稱骨把出生的年（干支）、農曆月、農曆日、時辰各配一個重量加起來（最輕 2 兩 1 錢、最重 7 兩 1 錢），再對照袁天罡稱骨歌。人生三段是依歌訣內容整理的；骨重只是民俗，輕不等於壞、重不等於好。' })),
       h('p', { class: 'hint', text: '民俗娛樂，不代表命運。年份以立春為界、閏月以本月計、23 點後日期以當天計（各家規則不同，結果可能和其他網站不一樣）。' }),
-      actions(p, 'chenggu', '稱骨', `${r.text}：${r.poem}`, { title: `${p.name}的稱骨`, big: r.text, lines: [r.poem] }),
+      actions(p, 'chenggu', '稱骨', `${r.text}：${r.poem}`, { title: `${p.name}的稱骨`, big: r.text, bigLabel: pat ? pat.name : '', lines: [r.poem, pat ? `早年${STAGE[pat.stages[0]][0]}・中年${STAGE[pat.stages[1]][0]}・晚年${STAGE[pat.stages[2]][0]}` : ''].filter(Boolean) }),
     );
   }
+
 
   // ── 綜合解讀：星座、八字、紫微、生命靈數、瑪雅、姓名、稱骨一起看
   async function drawReading(p, input, opts) {

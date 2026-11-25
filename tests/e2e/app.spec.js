@@ -387,7 +387,12 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await expect(dv.getByText(/多了智慧線/)).toBeVisible();
   await tool.selectOption('chenggu');
   await expect(dv.locator('blockquote.poem')).toBeVisible();
-  await expect(dv.getByText(/現代看法/)).toBeVisible();
+  await expect(dv.getByText(/現代看法/).first()).toBeVisible(); // 白話和骨重區間的說明都有「現代看法」
+  // 1990/8/15 卯時：庚午年 9 錢＋六月 1 兩 6 錢＋廿五 1 兩 5 錢＋卯時 1 兩＝5 兩；歌訣「中年福祿也多遭」→ 中年起飛型
+  await expect(dv.locator('.cg-weight')).toHaveText('5 兩');
+  await expect(dv.locator('.cg-bar .cg-seg')).toHaveCount(4);
+  await expect(dv.getByRole('heading', { name: '人生三段：中年起飛型' })).toBeVisible();
+  await expect(dv.getByRole('img', { name: '歌訣說：早年平穩、中年順利、晚年順利' })).toBeVisible();
   await dv.getByRole('button', { name: '存到紀錄' }).click();
   await tab(page, 'me');
   await expect(page.locator('#view-me summary', { hasText: '查詢紀錄（1）' })).toBeVisible();

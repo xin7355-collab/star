@@ -377,3 +377,28 @@ test('神煞：庚午 甲申 壬子 癸卯 → 天乙貴人在時柱、日刃、
   assert.deepEqual([y28.tone.gan, y28.tone.zhi], ['平', '忌']);
   assert.equal(ganzhiTone(b, '庚子').text, '天干、地支都是忌神：壓力大的一段，守成為主，重大決定多想一步。');
 });
+
+test('稱骨加深：21～72 兩都有人生三段；分類、骨重區間、百分位', async () => {
+  const { STAGES, patternOf, bandOf, percentileOf, PATTERNS } = await import('../js/core/chenggu.js');
+  for (let t = 21; t <= 72; t += 1) {
+    assert.match(STAGES[t], /^[苦平順]{3}$/, String(t));
+    const pat = patternOf(t);
+    assert.ok(PATTERNS[pat.key] && pat.text && pat.stages.length === 3, String(t));
+  }
+  // 依歌訣：26「晚來衣祿自無憂」晚成、30「老來稍可免憂愁」自立、32「到得中年衣食旺」中年起飛、68「十年不比前番事」少年得志
+  assert.equal(patternOf(26).key, 'late');
+  assert.equal(patternOf(30).key, 'selfmade');
+  assert.equal(patternOf(32).key, 'midrise');
+  assert.equal(patternOf(68).key, 'early');
+  assert.equal(patternOf(21).key, 'hard');
+  assert.equal(patternOf(51).key, 'steady');
+  assert.equal(bandOf(30).name, '偏輕');
+  assert.equal(bandOf(31).name, '中等');
+  assert.equal(bandOf(42).name, '中上');
+  assert.equal(bandOf(51).name, '偏重');
+  // 百分位：最輕 0、越重越高、最重的 7 兩 1 錢不到 100（無條件捨去）
+  assert.equal(percentileOf(21), 0);
+  for (let t = 22; t <= 71; t += 1) assert.ok(percentileOf(t) >= percentileOf(t - 1), String(t));
+  assert.ok(percentileOf(71) < 100 && percentileOf(71) >= 99);
+  assert.equal(patternOf(20), null);
+});

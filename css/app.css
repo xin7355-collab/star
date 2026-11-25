@@ -267,6 +267,18 @@ tbody th { font-weight: 600; }
 .lv-low { color: var(--low); }
 .lv-poor { color: var(--poor); }
 .lv-flat { color: var(--muted); }
+/* 稱骨：骨重、組成長條（年月日時）、人生三段 */
+.cg-hero { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin: 6px 0 10px; }
+.cg-weight { font-size: 30px; color: var(--gold); }
+.cg-bar { display: flex; gap: 2px; height: 46px; border-radius: 12px; overflow: hidden; margin: 4px 0; }
+.cg-seg { flex-basis: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text); font-size: 13px; line-height: 1.2; white-space: nowrap; overflow: hidden; }
+.cg-seg.s0 { background: var(--sys-bazi); }
+.cg-seg.s1 { background: var(--sys-ziwei); }
+.cg-seg.s2 { background: var(--sys-number); }
+.cg-seg.s3 { background: var(--sys-maya); }
+.cg-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 6px 0 8px; }
+.cg-stage { border: 1px solid var(--line); border-radius: 12px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; background: var(--bg2); }
+.cg-stage small { color: var(--muted); }
 /* 新興產業：AI 建議一個框，產業一列一列可以點開 */
 .ai-box { border: 1px solid var(--gold); border-radius: 14px; padding: 4px 12px; margin: 8px 0 12px; background: var(--accent-soft); }
 .ai-box h3 { margin: 8px 0 4px; }
