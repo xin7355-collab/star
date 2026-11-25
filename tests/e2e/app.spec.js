@@ -855,7 +855,7 @@ test('塔羅：今日一張固定、牌陣推薦、凱爾特十字排成十字�
   await expect(tv.locator('.tarot-summary')).toContainText('選擇 A 是');
 });
 
-test('塔羅：自訂牌組（檔名認牌、對不到的列出來、缺的用內建牌面、移除）；圖只存在手機', async ({ page, baseURL }) => {
+test('塔羅：自訂牌組（檔名認牌、對不到的列出來、逐張換圖、牌背、改回內建、匯出 zip、移除）；圖只存在手機', async ({ page, baseURL }) => {
   await page.clock.setFixedTime(new Date('2026-11-25T10:00:00+08:00'));
   await seed(page);
   const requests = [];

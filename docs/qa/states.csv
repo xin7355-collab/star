@@ -165,7 +165,7 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 今日一張,data_view,error,NA,,純計算，沒有外部呼叫
 今日一張,data_view,populated,DONE,e2e:塔羅：今日一張固定…（權杖三，重開還是同一張，心得存在手機）,
 今日一張,data_view,long_content,DONE,npm run qa:design（long-tarot 快照：20 字名字的標題）,
-自訂牌組,action,default,DONE,e2e:塔羅：自訂牌組（檔名認牌、逐張換圖、牌背、改回內建、匯出 zip、移除）,
+自訂牌組,action,default,DONE,e2e:塔羅：自訂牌組（檔名認牌、對不到的列出來、逐張換圖、牌背、改回內建、匯出 zip、移除）,
 自訂牌組,action,hover,NA,,觸控裝置為主
 自訂牌組,action,focus_visible,DONE,npm run qa:design（tarot 快照展開牌組區塊後鍵盤 Tab 實測「匯入牌圖」）,
 自訂牌組,action,disabled,NA,,沒有停用狀態；還沒匯入時不顯示「移除」

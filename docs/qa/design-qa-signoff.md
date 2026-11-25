@@ -94,6 +94,8 @@
   塔羅牌組區塊加「逐張換圖」（選牌＋選圖）、匯出 zip。抓到並處理：牌組區塊版面變了，兩個隱藏檔案選擇器的豁免位置跟著改
   （WCAG 2.5.8 Equivalent，由旁邊 44px 的「匯入牌圖」「選圖」按鈕觸發）。本機 design-qa 91 張 CLEAN、finish lint 80 個檔案 CLEAN、
   狀態表 34 個畫面 COMPLETE、E2E 23/23（Chromium）。
+  CI run 45529368765（main dc81916）：unit 通過、E2E 46/46（Chromium 23＋WebKit 23，沒有重試）、design-qa 91 張 CLEAN；
+  Pages 部署 run 45529368177 成功（APP_VER 2026.11.25-3）。
 
 ## 4. 腳本量不到的（要人工）
 
