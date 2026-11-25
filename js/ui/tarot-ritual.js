@@ -24,10 +24,10 @@ function randomPicks(n, size, taken = []) {
 }
 
 /**
- * @param {{title:string, positions:string[], size?:number, reveal:(fanIndex:number)=>{face:object, reversed:boolean}}} opts
+ * @param {{title:string, positions:string[], size?:number, reveal:(fanIndex:number)=>{face:object, reversed:boolean}, backImage?:string}} opts
  * @returns {Promise<number[]|null>} 挑到的扇形位置（依牌位順序）；關掉不抽回傳 null
  */
-export function runRitual({ title, positions, size = 78, reveal }) {
+export function runRitual({ title, positions, size = 78, reveal, backImage = null }) {
   const n = positions.length;
   const opener = document.activeElement;
   const picks = [];
@@ -54,7 +54,7 @@ export function runRitual({ title, positions, size = 78, reveal }) {
   const W = Math.min(globalThis.innerWidth || 390, 560);
   const span = 100;
   const cards = Array.from({ length: size }, (_, k) => {
-    const el = h('div', { class: 'rt-card', style: { '--t': `${(-span / 2 + (span * k) / (size - 1)).toFixed(2)}deg`, '--k': String(k) } }, cardBack());
+    const el = h('div', { class: 'rt-card', style: { '--t': `${(-span / 2 + (span * k) / (size - 1)).toFixed(2)}deg`, '--k': String(k) } }, cardBack(backImage));
     el.dataset.k = String(k);
     return el;
   });
@@ -110,7 +110,7 @@ export function runRitual({ title, positions, size = 78, reveal }) {
     c.classList.add('taken');
     picks.push(Number(c.dataset.k));
     const slot = slots.children[picks.length - 1].firstChild;
-    slot.append(cardBack());
+    slot.append(cardBack(backImage));
     slot.classList.add('filled');
     counter.textContent = `已選 ${picks.length}／${n}`;
     navigator.vibrate?.(12);
@@ -129,7 +129,7 @@ export function runRitual({ title, positions, size = 78, reveal }) {
     picks.forEach((k, i) => {
       const { face, reversed } = reveal(k);
       const slot = slots.children[i].firstChild;
-      const card = tarotCard(face, { reversed });
+      const card = tarotCard(face, { reversed, back: backImage });
       card.style.setProperty('--i', String(i));
       fill(slot, card);
     });

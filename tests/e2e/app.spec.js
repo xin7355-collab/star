@@ -1,5 +1,6 @@
 // 手機尺寸端對端測試：真的打開網頁、點按鈕，確認功能、隱私（不上傳）、離線與版面。
 import { spawn } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 
@@ -689,6 +690,11 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
   const dv = page.locator('#view-destiny');
   await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('palm');
   const opts = dv.locator('.palm-options');
+  // 預設傳統「男左女右」：「我」是男生，一打開就看左手
+  await expect(dv.getByRole('combobox', { name: '看哪隻手的看法' })).toHaveValue('gender');
+  await expect(dv.locator('input[name="palm-hand"]:checked')).toHaveValue('left');
+  await expect(dv.getByText('這是主要看的手：傳統「男左女右」，男生看左手。')).toBeVisible();
+  await expect(dv.getByRole('combobox', { name: '慣用手' })).toBeHidden(); // 只有「看慣用手」這派才問
   // 看圖自選：第一題是斷掌，選完自動跳到下一題
   await expect(dv.getByRole('heading', { name: /感情線和智慧線是分開的/ })).toBeVisible();
   await opts.getByRole('button', { name: '半斷掌', exact: true }).click();
@@ -770,20 +776,24 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
   await expect(page.locator('#toast')).toContainText('照片沒有儲存');
   const saved = await page.evaluate(() => localStorage.getItem('star.v1.people'));
   expect(saved).not.toContain('data:image');
-  expect(JSON.parse(saved)[0].palm.right).toMatchObject({ simian: 'half', life: 'long-wide', heart: 'long-curve' });
+  expect(JSON.parse(saved)[0].palm).toMatchObject({ school: 'gender', left: { simian: 'half', life: 'long-wide', heart: 'long-curve' } });
   await page.reload();
   await tab(page, 'destiny');
   await expect(dv.locator('.palm-step', { hasText: '感情線' })).toContainText('長、尾端上揚');
   await expect(dv.locator('canvas.palm-canvas')).toHaveCount(0); // 照片重開就沒了
 
-  // 左手選真斷掌：感情線、智慧線的題目拿掉；兩手不同時比較，選了慣用手講天生和後天
-  await dv.locator('.seg label', { hasText: '左手' }).click();
+  // 右手（參考手）選真斷掌：感情線、智慧線的題目拿掉；比較時以男左女右的左手為準
+  await dv.locator('.seg label', { hasText: '右手' }).click();
+  await expect(dv.getByText('這隻手當參考：傳統「男左女右」以左手為主。').first()).toBeVisible();
   await opts.getByRole('button', { name: '真斷掌', exact: true }).click();
   await expect(dv.locator('.palm-step')).toHaveCount(5);
   await expect(dv.getByRole('heading', { name: '左右手比較' })).toBeVisible();
+  await expect(dv.getByText(/斷掌：主要看的左手是「半斷掌：兩線有一段接在一起」，右手是「真斷掌：一條橫線貫穿手掌」。照男左女右以左手為準，右手當參考/)).toBeVisible();
+  // 換成「看慣用手」：才出現慣用手的選單；選了右手就講天生（左手）和後天（右手）
+  await dv.getByRole('combobox', { name: '看哪隻手的看法' }).selectOption('dominant');
   await expect(dv.getByText(/選了慣用手，就能看出哪一邊是後天的發展/)).toBeVisible();
   await dv.getByRole('combobox', { name: '慣用手' }).selectOption('right');
-  await expect(dv.getByText(/斷掌：天生（左手）是「真斷掌：一條橫線貫穿手掌」，後天（右手）是「半斷掌：兩線有一段接在一起」/)).toBeVisible();
+  await expect(dv.getByText(/斷掌：天生（左手）是「半斷掌：兩線有一段接在一起」，後天（右手）是「真斷掌：一條橫線貫穿手掌」/)).toBeVisible();
 
   // 隱私：照片和選項都沒有送出去
   expect(requests.filter((r) => !r.url.startsWith(baseURL) && !/^(blob|data):/.test(r.url))).toEqual([]);
@@ -872,8 +882,33 @@ test('塔羅：自訂牌組（檔名認牌、對不到的列出來、缺的用�
   ]);
   // 先找到結果訊息再比內容：失敗時報告會印出實際寫了什麼（例如「讀不進來」的原因），不只是「找不到」
   await expect(tv.locator('p', { hasText: /^已匯入/ })).toContainText('已匯入 2 張；1 個檔名對不到牌：IMG_0001.png');
-  await expect(tv.getByText('目前用自訂牌組：已匯入 2／78 張，缺的牌用內建牌面。')).toBeVisible();
+  await expect(tv.getByText('目前用自訂牌組：已換 2／78 張，缺的牌用內建牌面。')).toBeVisible();
+  // 自訂圖沒有字：牌名由 App 蓋在牌面下方
   await expect(tv.locator('.daily-tarot .ta-face.custom')).toHaveCount(1);
+  await expect(tv.locator('.daily-tarot .ta-face.custom .ta-name')).toHaveText('權杖三');
+  // 逐張換圖（iPhone 相簿的照片改不了檔名）：選牌 → 選圖；牌背也能換，翻牌前看到的就是它
+  const pick = tv.getByRole('combobox', { name: '要換圖的牌' });
+  await pick.selectOption('major-0');
+  await tv.locator('input[aria-label="選擇這張牌的圖"]').setInputFiles({ name: 'IMG_5678.png', mimeType: 'image/png', buffer });
+  await expect(tv.getByText('已換成你的圖：愚者')).toBeVisible();
+  await expect(pick.locator('option[value="major-0"]')).toHaveText('愚者（已換）');
+  await pick.selectOption('back');
+  await tv.locator('input[aria-label="選擇這張牌的圖"]').setInputFiles({ name: 'IMG_9999.png', mimeType: 'image/png', buffer });
+  await expect(tv.getByText('目前用自訂牌組：已換 3／78 張＋牌背，缺的牌用內建牌面。')).toBeVisible();
+  await expect(tv.locator('.daily-tarot .tc-back .ta-back.custom')).toHaveCount(1);
+  // 改回內建
+  await pick.selectOption('major-0');
+  await tv.getByRole('button', { name: '改回內建' }).click();
+  await expect(tv.getByText('愚者改回內建牌面')).toBeVisible();
+  await expect(pick.locator('option[value="major-0"]')).toHaveText('愚者');
+  // 匯出整副（zip，檔名是中文牌名）：沒有分享面板的瀏覽器改成下載連結
+  await tv.getByRole('button', { name: '匯出牌組（zip）' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#sheet a[download]').click()]);
+  expect(download.suggestedFilename()).toBe('star-tarot-deck-2026-11-25.zip');
+  const zipBytes = await readFile(await download.path());
+  for (const name of ['權杖三.jpg', '聖杯王牌.jpg', '牌背.jpg']) expect(zipBytes.includes(Buffer.from(name))).toBe(true);
+  expect(zipBytes.includes(Buffer.from('愚者.jpg'))).toBe(false);
+  await page.locator('#sheet-close').click();
   // 存在 IndexedDB：重開還在
   await page.reload();
   await oracle(page, '塔羅');

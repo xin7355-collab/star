@@ -99,14 +99,33 @@ export function sanitizePicks(raw) {
   return out;
 }
 
+// 看哪隻手的三種看法：都有人用、沒有公認的對錯（查到的多是一般網站，找不到可靠的古籍出處），畫面上講清楚用哪一種
+// - gender：傳統「男左女右」（左屬陽看男、右屬陰看女），另一隻手當參考
+// - side：「左手先天、右手後天」，不分男女
+// - dominant：現代西洋手相，慣用手看後天、另一隻手看先天
+export const HAND_SCHOOLS = [
+  { id: 'gender', label: '男左女右' },
+  { id: 'side', label: '左先天右後天' },
+  { id: 'dominant', label: '看慣用手' },
+];
+const SCHOOL_IDS = HAND_SCHOOLS.map((x) => x.id);
+
 /** 存進名單的掌紋資料（不含照片，照片從不儲存）；什麼都沒選回傳 null，名單就不多存一欄 */
 export function sanitizePalm(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const left = sanitizePicks(raw.left);
   const right = sanitizePicks(raw.right);
   const dominant = raw.dominant === 'left' || raw.dominant === 'right' ? raw.dominant : '';
-  if (!Object.keys(left).length && !Object.keys(right).length && !dominant) return null;
-  return { dominant, left, right };
+  const school = SCHOOL_IDS.includes(raw.school) ? raw.school : '';
+  if (!Object.keys(left).length && !Object.keys(right).length && !dominant && !school) return null;
+  return { school, dominant, left, right };
+}
+
+/** 依看法決定主要看哪隻手：男左女右看性別、慣用手派看慣用手；「左先天右後天」兩手並重，回傳 null */
+export function mainHand(school, { gender = '', dominant = '' } = {}) {
+  if (school === 'gender') return gender === '男' ? 'left' : gender === '女' ? 'right' : null;
+  if (school === 'dominant') return dominant === 'left' || dominant === 'right' ? dominant : null;
+  return null;
 }
 
 // ── 描線的量測
@@ -258,10 +277,16 @@ export function compareHands(left, right) {
   return PALM_FIELDS.filter((f) => L[f.id] && R[f.id] && L[f.id] !== R[f.id]).map((f) => ({ field: f.id, label: f.label, left: L[f.id], right: R[f.id] }));
 }
 
-/** 這一隻手在兩派看法中的角色：慣用手看後天、非慣用手看先天 */
-export function handRole(hand, dominant) {
-  if (dominant !== 'left' && dominant !== 'right') return null;
-  return hand === dominant ? 'acquired' : 'innate';
+/**
+ * 這一隻手在選定看法裡的角色：
+ * main／ref（男左女右的主要手、參考手）；innate／acquired（先天、後天）；資料不夠判斷時回傳 null
+ */
+export function handRole(hand, { school = 'gender', gender = '', dominant = '' } = {}) {
+  if (school === 'side') return hand === 'left' ? 'innate' : 'acquired';
+  const main = mainHand(school, { gender, dominant });
+  if (!main) return null;
+  if (school === 'dominant') return hand === main ? 'acquired' : 'innate';
+  return hand === main ? 'main' : 'ref';
 }
 
 export const fieldLabel = (id) => (FIELD[id] ? FIELD[id].label : id);

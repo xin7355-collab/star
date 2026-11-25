@@ -70,13 +70,23 @@ export const PALM_TEXT = {
 // 怎麼看、看哪隻手（各派不同，畫面上講清楚採哪一派）
 export const PALM_HOW = {
   pick: '先把手掌攤開、對著光，從「有沒有斷掌」開始，每一題選最像你的那張圖。看不清楚的可以先跳過。',
-  school: '看哪隻手各派不同：現代手相多半把慣用手看成「後天的發展」，另一隻手看成「天生的傾向」；傳統也有「男看左手、女看右手」的說法。兩隻手都看、比較差異，最有參考價值。',
+  school: '看哪隻手各派說法不同，沒有公認的對錯：傳統「男左女右」是男生看左手、女生看右手（左屬陽、右屬陰），另一隻手當參考；也有人不分男女，「左手看先天、右手看後天」；現代西洋手相多半看慣用手，慣用手看後天的發展、另一隻手看天生的傾向。兩隻手都看、比較差異，最有參考價值。',
   photo: '拍一張攤開的手掌，照片只在這支手機的畫面上處理，不會儲存或上傳；按「清除照片」或重新開啟 App 就會清掉。',
 };
-export const ROLE_TEXT = {
-  innate: '這是你的非慣用手：看天生的傾向。',
-  acquired: '這是你的慣用手：看後天的發展和現在的狀態。',
-};
+const HAND_NAME = { left: '左手', right: '右手' };
+
+/** 這隻手在目前看法裡怎麼看（一句話）；資料不夠時說要補什麼 */
+export function roleText(hand, school, { gender = '', dominant = '' } = {}, role = null) {
+  if (school === 'side') return hand === 'left' ? '左手看天生的傾向（「左先天、右後天」的看法，不分男女）。' : '右手看後天的發展和現在的狀態（「左先天、右後天」的看法，不分男女）。';
+  if (school === 'dominant') {
+    if (!role) return '還沒選慣用手：選了之後，會說明這隻手看的是天生還是後天。';
+    return role === 'acquired' ? '這是你的慣用手：看後天的發展和現在的狀態。' : '這是你的非慣用手：看天生的傾向。';
+  }
+  if (!role) return '男左女右要看性別：到「我的」幫這個人選性別，或改用其他看法。';
+  const main = role === 'main' ? hand : hand === 'left' ? 'right' : 'left';
+  const who = gender === '男' ? '男生看左手' : '女生看右手';
+  return role === 'main' ? `這是主要看的手：傳統「男左女右」，${who}。` : `這隻手當參考：傳統「男左女右」以${HAND_NAME[main]}為主。`;
+}
 export const SIMIAN_NOTE = '民間對斷掌有不少說法，有的偏負面、對女性尤其不公平，這些說法沒有根據，這裡不採用。醫學上叫「單一掌褶紋」，大約每 30 個人就有 1 個，多半只是天生的紋路，不代表健康有問題。';
 export const PALM_DISCLAIMER = '掌紋解讀是民俗與西洋手相的說法，沒有科學根據，當作認識自己的一個角度；健康問題請看醫師。';
 
@@ -88,13 +98,21 @@ export function palmReading(picks) {
     .map((f) => ({ ...PALM_TEXT[f.id][picks[f.id]], field: f.id, label: f.label, short: PALM_TEXT[f.id][picks[f.id]].label, option: picks[f.id], scale: SCALES[f.id] }));
 }
 
-/** 兩手不同的地方怎麼說：選了慣用手就講「天生 → 後天」，沒選就請他選 */
-export function handDiffText(diff, dominant) {
+/**
+ * 兩手不同的地方怎麼說，依看法：
+ * 男左女右講「以主要的手為準、另一隻當參考」；左先天右後天、慣用手講「天生 → 後天」；資料不夠就說要補什麼
+ */
+export function handDiffText(diff, { school = 'gender', gender = '', dominant = '' } = {}) {
   const t = (d, hand) => PALM_TEXT[d.field][d[hand]].title;
-  if (dominant === 'left' || dominant === 'right') {
-    const other = dominant === 'left' ? 'right' : 'left';
-    const name = { left: '左手', right: '右手' };
-    return `${diff.label}：天生（${name[other]}）是「${t(diff, other)}」，後天（${name[dominant]}）是「${t(diff, dominant)}」，這方面你後來有了改變。`;
+  const both = `左手「${t(diff, 'left')}」、右手「${t(diff, 'right')}」`;
+  const later = (innate, acquired) => `${diff.label}：天生（${HAND_NAME[innate]}）是「${t(diff, innate)}」，後天（${HAND_NAME[acquired]}）是「${t(diff, acquired)}」，這方面你後來有了改變。`;
+  if (school === 'side') return later('left', 'right');
+  if (school === 'dominant') {
+    if (dominant !== 'left' && dominant !== 'right') return `${diff.label}：${both}。選了慣用手，就能看出哪一邊是後天的發展。`;
+    return later(dominant === 'left' ? 'right' : 'left', dominant);
   }
-  return `${diff.label}：左手「${t(diff, 'left')}」、右手「${t(diff, 'right')}」。選了慣用手，就能看出哪一邊是後天的發展。`;
+  const main = gender === '男' ? 'left' : gender === '女' ? 'right' : null;
+  if (!main) return `${diff.label}：${both}。到「我的」選性別，就能照男左女右看哪隻手為主。`;
+  const other = main === 'left' ? 'right' : 'left';
+  return `${diff.label}：主要看的${HAND_NAME[main]}是「${t(diff, main)}」，${HAND_NAME[other]}是「${t(diff, other)}」。照男左女右以${HAND_NAME[main]}為準，${HAND_NAME[other]}當參考。`;
 }

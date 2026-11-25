@@ -3,14 +3,22 @@
 // 抽牌用裝置加密亂數；問題和二選一的選項名稱只留在畫面上，不儲存、不上傳。
 
 import { h, clear, fill, segmented } from '../ui/dom.js';
-import { drawSpread, shuffleDeck, fromPicks, dailyCard, SPREADS, TOPIC_SPREAD } from '../core/tarot.js';
+import { drawSpread, shuffleDeck, fromPicks, dailyCard, SPREADS, TOPIC_SPREAD, DECK } from '../core/tarot.js';
 import { readCard, readSpread, cardMark, TOPICS } from '../core/tarot-reading.js';
 import { load, save } from '../ui/storage.js';
 import { order, motionLevel, reducedMotion } from '../ui/motion.js';
-import { tarotCard, openCardView } from '../ui/tarot-art.js';
+import { tarotCard, openCardView, cardFace, cardBack } from '../ui/tarot-art.js';
+import { shareFile } from '../ui/poster.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
 
 const NOTE_KEEP = 60; // 今日一張的心得最多留幾天
+// 逐張換圖的選單：牌背、大牌、四個花色分組
+const CARD_GROUPS = [
+  { label: '牌背', ids: ['back'] },
+  { label: '大牌', ids: DECK.filter((d) => d.major).map((d) => d.id) },
+  ...['權杖', '聖杯', '寶劍', '錢幣'].map((suit) => ({ label: suit, ids: DECK.filter((d) => d.id.startsWith(`${suit}-`)).map((d) => d.id) })),
+];
+const CARD_NAME = new Map([...DECK.map((d) => [d.id, d.name]), ['back', '牌背']]);
 const dateKey = () => {
   const t = zoneToday(DEFAULT_TZ);
   return `${t.y}-${String(t.m).padStart(2, '0')}-${String(t.d).padStart(2, '0')}`;
@@ -60,7 +68,7 @@ export function mountTarot(root, ctx) {
       h('p', { class: 'hint', text: '同一張逆位牌可以這三種方向讀，選最貼近你處境的那一種。' }));
   }
   const cardButton = (c, i, extra = '') => {
-    const btn = h('button', { type: 'button', class: `tc-btn${extra}`, 'aria-label': `放大看${c.card}（${c.orientation}）`, onclick: () => zoom(c) }, tarotCard(faceOf(c), { reversed: c.orientation === '逆位' }));
+    const btn = h('button', { type: 'button', class: `tc-btn${extra}`, 'aria-label': `放大看${c.card}（${c.orientation}）`, onclick: () => zoom(c) }, tarotCard(faceOf(c), { reversed: c.orientation === '逆位', back: images.get('back') || null }));
     btn.style.setProperty('--i', String(i));
     return btn;
   };
@@ -147,6 +155,7 @@ export function mountTarot(root, ctx) {
     if (ritual) {
       const deck = shuffleDeck();
       const picks = await ritual.runRitual({
+        backImage: images.get('back') || null,
         title: `${sp.short}・${topicLabel}`,
         positions: sp.positions.map(optionName),
         reveal: (k) => {
@@ -236,8 +245,30 @@ export function mountTarot(root, ctx) {
     renderDaily();
     if (lastResult) renderResult();
   }
+  let pickId = 'major-0'; // 逐張換圖目前選的牌
+
+  /** 換了牌圖之後：重讀圖片、重畫牌組區、今日一張與結果 */
+  async function afterDeckChange(store, message) {
+    images = await store.loadDeck();
+    renderDeck(message);
+    renderDaily();
+    if (lastResult) renderResult();
+  }
+
+  /** 整副自訂圖打包成 zip（檔名是中文牌名），用分享面板存到「檔案」或傳出去 */
+  async function exportDeck() {
+    const [store, { zipStore }] = await Promise.all([import('../ui/deck-store.js'), import('../core/zip.js')]);
+    const all = (await store.readAll()).filter((x) => CARD_NAME.has(x.id));
+    if (!all.length) return renderDeck('還沒有自訂牌圖可以匯出。');
+    const ext = (t) => (t === 'image/png' ? 'png' : t === 'image/webp' ? 'webp' : 'jpg');
+    const blob = new Blob(zipStore(all.map((x) => ({ name: `${CARD_NAME.get(x.id)}.${ext(x.type)}`, data: x.data }))), { type: 'application/zip' });
+    await shareFile(blob, `star-tarot-deck-${dateKey()}.zip`, { sheet: ctx.sheet, hint: `共 ${all.length} 張，檔名就是牌名。存到「檔案」App；要內建進 App，把這個檔上傳到 GitHub（使用說明有步驟）。` });
+    return null;
+  }
+
   function renderDeck(message = null) {
     const count = [...images.keys()].filter((k) => k !== 'back').length;
+    const hasBack = images.has('back');
     const input = h('input', {
       type: 'file',
       accept: 'image/*',
@@ -254,24 +285,70 @@ export function mountTarot(root, ctx) {
         try {
           const store = await import('../ui/deck-store.js');
           const res = await store.importFiles(files, { onProgress: (i, n) => { status.textContent = `處理中 ${i}／${n}…（一張一張縮小再存，不會上傳）`; } });
-          images = await store.loadDeck();
           const parts = [`已匯入 ${res.saved} 張`];
-          if (res.unknown.length) parts.push(`${res.unknown.length} 個檔名對不到牌：${res.unknown.slice(0, 5).join('、')}${res.unknown.length > 5 ? '…' : ''}（請照下面的命名方式改名）`);
+          if (res.unknown.length) parts.push(`${res.unknown.length} 個檔名對不到牌：${res.unknown.slice(0, 5).join('、')}${res.unknown.length > 5 ? '…' : ''}（請照下面的命名方式改名，或用「逐張換圖」）`);
           if (res.failed.length) parts.push(`${res.failed.length} 張讀不進來：${res.failed.slice(0, 3).map((x) => `${x.name}（${x.reason}）`).join('、')}`);
-          renderDeck(parts.join('；'));
-          renderDaily();
-          if (lastResult) renderResult();
+          await afterDeckChange(store, parts.join('；'));
         } catch (err) {
           renderDeck(err.message || '匯入失敗');
         }
       },
     });
+    // 逐張換圖：先選牌、再從相簿挑一張（iPhone 相簿的照片改不了檔名，靠檔名認牌不方便）
+    const one = h('input', {
+      type: 'file',
+      accept: 'image/*',
+      class: 'visually-hidden',
+      tabindex: '-1',
+      'aria-label': '選擇這張牌的圖',
+      onchange: async (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        try {
+          const store = await import('../ui/deck-store.js');
+          await store.saveCardImage(pickId, file);
+          await afterDeckChange(store, `已換成你的圖：${CARD_NAME.get(pickId)}`);
+        } catch (err) {
+          renderDeck(`${CARD_NAME.get(pickId)}沒有換成功：${err.message || '讀不進來'}`);
+        }
+      },
+    });
+    const pickSel = h('select', {
+      'aria-label': '要換圖的牌',
+      onchange: (e) => { pickId = e.target.value; renderDeck(); },
+    }, CARD_GROUPS.map((g) => h('optgroup', { label: g.label }, g.ids.map((id) => h('option', { value: id, text: `${CARD_NAME.get(id)}${images.has(id) ? '（已換）' : ''}` })))));
+    pickSel.value = pickId;
+    const meta = DECK.find((d) => d.id === pickId);
+    const preview = pickId === 'back'
+      ? cardBack(images.get('back') || null)
+      : cardFace((() => { const c = readCard({ position: '今日指引', card: meta.name, id: meta.id, major: meta.major, orientation: '正位', keywords: meta.upright }, 'general'); return faceOf(c); })());
     fill(deckBox,
-      h('p', { text: count ? `目前用自訂牌組：已匯入 ${count}／78 張，缺的牌用內建牌面。` : '目前用內建牌面（金框、星芒與每張牌的圖騰都是本 App 自己畫的）。' }),
-      message ? h('p', { class: /失敗|讀不進來|不能|拒絕|空間不足/.test(message) ? 'warn' : 'small', text: message }) : null,
+      h('p', { text: count || hasBack ? `目前用自訂牌組：已換 ${count}／78 張${hasBack ? '＋牌背' : ''}，缺的牌用內建牌面。` : '目前用內建牌面（金框、星芒與每張牌的圖騰都是本 App 自己畫的）。' }),
+      message ? h('p', { class: /失敗|讀不進來|不能|拒絕|空間不足|沒有換成功/.test(message) ? 'warn' : 'small', role: 'status', text: message }) : null,
+      h('h3', { text: '逐張換圖（不用改檔名）' }),
+      h('div', { class: 'deck-pick' },
+        h('div', { class: 'deck-preview', 'aria-hidden': 'true' }, preview),
+        h('div', {},
+          h('div', { class: 'field' }, h('span', { class: 'field-label', text: '選一張牌' }), pickSel),
+          h('div', { class: 'actions' },
+            h('button', { type: 'button', class: 'btn primary', text: images.has(pickId) ? '換一張圖' : '選圖', onclick: () => one.click() }),
+            images.has(pickId) ? h('button', {
+              type: 'button',
+              class: 'btn ghost',
+              text: '改回內建',
+              onclick: async () => {
+                const store = await import('../ui/deck-store.js');
+                await store.removeCard(pickId);
+                await afterDeckChange(store, `${CARD_NAME.get(pickId)}改回內建牌面`);
+              },
+            }) : null,
+            one))),
+      h('h3', { text: '一次匯入很多張（看檔名認牌）' }),
       h('div', { class: 'actions' },
         h('button', { type: 'button', class: 'btn', text: '匯入牌圖', onclick: () => input.click() }),
-        count ? h('button', {
+        count || hasBack ? h('button', { type: 'button', class: 'btn', text: '匯出牌組（zip）', onclick: () => exportDeck().catch((err) => renderDeck(`匯出失敗：${err.message || '請再試一次'}`)) }) : null,
+        count || hasBack ? h('button', {
           type: 'button',
           class: 'btn ghost',
           text: '移除自訂牌組',
@@ -292,8 +369,8 @@ export function mountTarot(root, ctx) {
           h('li', { text: '大牌：愚者.jpg、魔術師.jpg…世界.jpg，或 00.jpg～21.jpg、the-fool.jpg' }),
           h('li', { text: '小牌：權杖王牌.jpg、聖杯三.jpg、寶劍侍者.jpg、錢幣國王.jpg，或 cups-03.jpg、ace-of-wands.jpg、Pents14.jpg' }),
           h('li', { text: '牌背：back.jpg 或 牌背.jpg（選用）' })),
-        h('p', { class: 'small', text: '對不到的檔名會列出來，不會亂配到別張牌。' })),
-      h('p', { class: 'hint', text: '只匯入你有權使用的圖。圖片縮小後只存在這支手機，不會上傳，也不會放進備份檔；換手機要重新匯入。' }));
+        h('p', { class: 'small', text: '對不到的檔名會列出來，不會亂配到別張牌。用 AI 畫的圖請它不要寫字，牌名會由 App 蓋在牌面下方。' })),
+      h('p', { class: 'hint', text: '只匯入你有權使用的圖。圖片縮小後只存在這支手機，不會上傳，也不會放進備份檔；換手機可以先「匯出牌組」，到新手機再匯入。' }));
   }
 
   // 第二天再打開（App 一直開著）時換今日一張

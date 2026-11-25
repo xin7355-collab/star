@@ -4,9 +4,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   palmFrame, TEMPLATES, HEAD_APART_START, PALM_FIELDS, activeFields, sanitizePicks, sanitizePalm,
-  simplifyStroke, classifyStrokes, suggestPicks, polylineGap, photoAdvice, compareHands, handRole,
+  simplifyStroke, classifyStrokes, suggestPicks, polylineGap, photoAdvice, compareHands, handRole, mainHand, HAND_SCHOOLS,
 } from '../js/core/palm.js';
-import { PALM_TEXT, SCALES, palmReading, handDiffText } from '../js/core/palm-texts.js';
+import { PALM_TEXT, SCALES, palmReading, handDiffText, roleText } from '../js/core/palm-texts.js';
 import { sanitizePerson, HISTORY_TYPES } from '../js/core/records.js';
 
 test('掌心框：三個校正點換算來回一致；左手（食指在左）也一樣；三點太近或一直線拒絕', () => {
@@ -75,11 +75,13 @@ test('白名單：只收已知選項；真斷掌時丟掉感情線、智慧線�
   assert.deepEqual(sanitizePicks({ life: 'short', heart: 'nope', evil: 'x', simian: 'none' }), { simian: 'none', life: 'short' });
   assert.deepEqual(sanitizePicks({ simian: 'full', heart: 'mid', head: 'slope', start: 'apart', fate: 'mid' }), { simian: 'full', fate: 'mid' });
   assert.equal(sanitizePalm({ left: {}, right: {} }), null);
-  assert.deepEqual(sanitizePalm({ dominant: 'left', right: { life: 'short' }, photo: 'data:image/png;base64,AAAA' }), { dominant: 'left', left: {}, right: { life: 'short' } });
+  assert.deepEqual(sanitizePalm({ dominant: 'left', right: { life: 'short' }, photo: 'data:image/png;base64,AAAA' }), { school: '', dominant: 'left', left: {}, right: { life: 'short' } });
+  assert.deepEqual(sanitizePalm({ school: 'gender' }), { school: 'gender', dominant: '', left: {}, right: {} });
+  assert.equal(sanitizePalm({ school: 'evil' }), null);
   const person = { id: 'p-0123456789abcdef', name: '測試', raw: { calendar: 'solar', era: 'ad', year: 1990, month: 8, day: 15 } };
   assert.ok(!('palm' in sanitizePerson(person)));
   const withPalm = sanitizePerson({ ...person, palm: { right: { simian: 'half', heart: 'mid' }, image: 'x' } });
-  assert.deepEqual(withPalm.palm, { dominant: '', left: {}, right: { simian: 'half', heart: 'mid' } });
+  assert.deepEqual(withPalm.palm, { school: '', dominant: '', left: {}, right: { simian: 'half', heart: 'mid' } });
   assert.ok(HISTORY_TYPES.includes('palm'));
 });
 
@@ -101,12 +103,41 @@ test('解讀文字：每個選項都有完整的說明與兩端位置，縮圖�
   assert.deepEqual(activeFields({ simian: 'full' }).map((x) => x.id), ['simian', 'life', 'fate', 'shape', 'thick']);
 });
 
-test('左右手比較：只列兩手都選了又不同的；有慣用手才講天生、後天', () => {
+test('看哪隻手：男左女右依性別決定主要的手；左先天右後天不分男女；慣用手派看慣用手', () => {
+  assert.deepEqual(HAND_SCHOOLS.map((x) => x.id), ['gender', 'side', 'dominant']);
+  assert.equal(mainHand('gender', { gender: '男' }), 'left');
+  assert.equal(mainHand('gender', { gender: '女' }), 'right');
+  assert.equal(mainHand('gender', { gender: '' }), null);
+  assert.equal(mainHand('side', { gender: '男' }), null);
+  assert.equal(mainHand('dominant', { dominant: 'left' }), 'left');
+  // 男左女右：主要的手和參考的手
+  assert.equal(handRole('left', { school: 'gender', gender: '男' }), 'main');
+  assert.equal(handRole('right', { school: 'gender', gender: '男' }), 'ref');
+  assert.equal(handRole('right', { school: 'gender', gender: '女' }), 'main');
+  assert.equal(handRole('left', { school: 'gender', gender: '' }), null);
+  // 左先天右後天：不看性別
+  assert.equal(handRole('left', { school: 'side', gender: '女' }), 'innate');
+  assert.equal(handRole('right', { school: 'side', gender: '男' }), 'acquired');
+  // 慣用手：慣用手看後天
+  assert.equal(handRole('right', { school: 'dominant', dominant: 'right' }), 'acquired');
+  assert.equal(handRole('left', { school: 'dominant', dominant: 'right' }), 'innate');
+  assert.equal(handRole('left', { school: 'dominant' }), null);
+  // 畫面上的一句話
+  assert.match(roleText('left', 'gender', { gender: '男' }, 'main'), /主要看的手.+男生看左手/);
+  assert.match(roleText('left', 'gender', { gender: '女' }, 'ref'), /當參考.+以右手為主/);
+  assert.match(roleText('left', 'gender', {}, null), /選性別/);
+  assert.match(roleText('right', 'side', {}, 'acquired'), /右手看後天.+不分男女/);
+  assert.match(roleText('left', 'dominant', {}, null), /還沒選慣用手/);
+});
+
+test('左右手比較：只列兩手都選了又不同的；說法跟著看法走', () => {
   const diffs = compareHands({ heart: 'mid', life: 'short', fate: 'wrist' }, { heart: 'long-curve', life: 'short' });
   assert.deepEqual(diffs.map((d) => d.field), ['heart']);
-  assert.match(handDiffText(diffs[0], 'right'), /天生（左手）是「感情線停在食指和中指之間」，後天（右手）是「感情線長，尾端上揚到食指下」/);
-  assert.match(handDiffText(diffs[0], ''), /選了慣用手/);
-  assert.equal(handRole('right', 'right'), 'acquired');
-  assert.equal(handRole('left', 'right'), 'innate');
-  assert.equal(handRole('left', ''), null);
+  const d = diffs[0];
+  assert.match(handDiffText(d, { school: 'gender', gender: '男' }), /主要看的左手是「感情線停在食指和中指之間」，右手是「感情線長，尾端上揚到食指下」。照男左女右以左手為準，右手當參考/);
+  assert.match(handDiffText(d, { school: 'gender', gender: '女' }), /主要看的右手是「感情線長，尾端上揚到食指下」/);
+  assert.match(handDiffText(d, { school: 'gender', gender: '' }), /選性別/);
+  assert.match(handDiffText(d, { school: 'side', gender: '女' }), /天生（左手）是「感情線停在食指和中指之間」，後天（右手）是「感情線長，尾端上揚到食指下」/);
+  assert.match(handDiffText(d, { school: 'dominant', dominant: 'left' }), /天生（右手）.+後天（左手）/);
+  assert.match(handDiffText(d, { school: 'dominant', dominant: '' }), /選了慣用手/);
 });

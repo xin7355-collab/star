@@ -3,11 +3,14 @@
 // 私密瀏覽或空間不足時給能照做的錯誤訊息，不會讓塔羅壞掉（缺的牌照常用內建牌面）。
 
 import { matchCardFile } from '../core/tarot-deck.js';
+import { DECK } from '../core/tarot.js';
 
 const DB_NAME = 'star-deck';
 const STORE = 'cards';
-const MAX_W = 432;
-const MAX_H = 720;
+// 放大看牌時，iPhone 上的牌約 236 點寬（3 倍螢幕 ≈ 700 像素）：600×1000 夠清楚，一張約 150～250KB
+const MAX_W = 600;
+const MAX_H = 1000;
+const VALID_IDS = new Set([...DECK.map((d) => d.id), 'back']);
 const MAX_FILE = 30 * 1024 * 1024;
 
 let urls = new Map(); // 牌 id（或 back）→ object URL，給牌面用
@@ -99,6 +102,33 @@ export async function importFiles(files, { onProgress } = {}) {
     }
   }
   return { saved, unknown, failed };
+}
+
+/** 逐張換圖：直接指定是哪張牌（不用靠檔名，iPhone 相簿裡的照片改不了檔名） */
+export async function saveCardImage(id, file) {
+  if (!VALID_IDS.has(id)) throw new Error('不認得這張牌');
+  const blob = await shrink(file);
+  const data = await blob.arrayBuffer();
+  await tx('readwrite', (store) => { store.put({ type: blob.type || 'image/jpeg', data }, id); });
+}
+
+/** 拿掉一張牌的自訂圖，改回內建牌面 */
+export async function removeCard(id) {
+  await tx('readwrite', (store) => { store.delete(id); });
+}
+
+/** 匯出用：所有自訂圖的 { id, type, data }（舊格式的 Blob 也一起轉成位元組） */
+export async function readAll() {
+  const entries = await tx('readonly', async (store) => {
+    const [keys, values] = await Promise.all([reqP(store.getAllKeys()), reqP(store.getAll())]);
+    return keys.map((k, i) => [String(k), values[i]]);
+  });
+  const out = [];
+  for (const [id, v] of entries || []) {
+    if (v instanceof Blob) out.push({ id, type: v.type || 'image/jpeg', data: new Uint8Array(await v.arrayBuffer()) });
+    else if (v && v.data instanceof ArrayBuffer) out.push({ id, type: v.type || 'image/jpeg', data: new Uint8Array(v.data) });
+  }
+  return out;
 }
 
 /** 讀出所有牌圖，換成 object URL（舊的先釋放） */

@@ -145,8 +145,9 @@ export function cardFace(card) {
   const el = EL[card.element] || 'air';
   const kids = [];
   if (card.image) {
-    // 自訂牌圖：整張用使用者的圖（他的牌通常自帶框與牌名），只加一圈金邊
+    // 自訂牌圖：整張用使用者的圖，加一圈金邊；下方蓋上牌名（AI 畫的圖請它不要寫字：中文常寫錯，牌名由 App 來寫）
     kids.push(s('image', { href: card.image, x: 0, y: 0, width: 120, height: 200, preserveAspectRatio: 'xMidYMid slice', 'clip-path': 'url(#ta-clip)' }), R(1.5, 1.5, 117, 197, 'ta-frame', 8));
+    if (card.name) kids.push(P('M18 170 H102 L107 179 L102 188 H18 L13 179 Z', 'ta-plate'), s('text', { x: 60, y: 184, 'text-anchor': 'middle', class: `ta-name${[...card.name].length > 4 ? ' long' : ''}`, text: card.name }));
     return s('svg', { viewBox: '0 0 120 200', class: 'ta-face custom', 'aria-hidden': 'true' }, ...kids);
   }
   kids.push(R(0, 0, 120, 200, '', 9), C(60, 98, 50, ''));
@@ -167,9 +168,13 @@ export function cardFace(card) {
   return s('svg', { viewBox: '0 0 120 200', class: `ta-face el-${el}`, 'aria-hidden': 'true' }, ...kids);
 }
 
-/** 牌背：深藍底、金框、中央曼陀羅（八芒星＋同心圓＋十二點），上下弦月 */
-export function cardBack() {
+/** 牌背：深藍底、金框、中央曼陀羅（八芒星＋同心圓＋十二點），上下弦月；有自訂牌背圖就用那張 */
+export function cardBack(image = null) {
   ensureTarotDefs();
+  if (image) {
+    return s('svg', { viewBox: '0 0 120 200', class: 'ta-back custom', 'aria-hidden': 'true' },
+      s('image', { href: image, x: 0, y: 0, width: 120, height: 200, preserveAspectRatio: 'xMidYMid slice', 'clip-path': 'url(#ta-clip)' }), R(1.5, 1.5, 117, 197, 'ta-frame', 8));
+  }
   const bg = R(0, 0, 120, 200, '', 9);
   bg.setAttribute('fill', 'url(#ta-back)');
   return s('svg', { viewBox: '0 0 120 200', class: 'ta-back', 'aria-hidden': 'true' },
@@ -187,10 +192,10 @@ export function cardBack() {
  * 一張可以翻的牌（結果列表用）：背面朝上，翻過來是牌面，翻開時灑星屑；逆位整張牌面倒過來。
  * @param face cardFace() 的參數
  */
-export function tarotCard(face, { reversed = false } = {}) {
+export function tarotCard(face, { reversed = false, back = null } = {}) {
   return h('div', { class: 'tc', 'aria-hidden': 'true' },
     h('div', { class: 'tc-inner' },
-      h('div', { class: 'tc-back' }, cardBack()),
+      h('div', { class: 'tc-back' }, cardBack(back)),
       h('div', { class: `tc-front${reversed ? ' rev' : ''}` }, cardFace(face), h('span', { class: 'tc-sheen' }))),
     h('div', { class: 'tc-dust' }, Array.from({ length: 8 }, (_, i) => h('i', { style: { '--a': `${i * 45 + 20}deg` } }))));
 }

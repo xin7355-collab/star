@@ -9,8 +9,8 @@ import { traitScale } from '../ui/widgets.js';
 import { playWhenVisible } from '../ui/motion.js';
 import { palmDiagram, palmThumb, diagramFields } from '../ui/palm-chart.js';
 import { PALM_CANVAS } from '../ui/palette.js';
-import { activeFields, sanitizePicks, palmFrame, simplifyStroke, suggestPicks, photoAdvice, compareHands, handRole } from '../core/palm.js';
-import { PALM_TEXT, PALM_HOW, ROLE_TEXT, SIMIAN_NOTE, PALM_DISCLAIMER, palmReading, handDiffText } from '../core/palm-texts.js';
+import { activeFields, sanitizePicks, palmFrame, simplifyStroke, suggestPicks, photoAdvice, compareHands, handRole, mainHand, HAND_SCHOOLS } from '../core/palm.js';
+import { PALM_TEXT, PALM_HOW, SIMIAN_NOTE, PALM_DISCLAIMER, palmReading, handDiffText, roleText } from '../core/palm-texts.js';
 
 const HAND_NAME = { left: '左手', right: '右手' };
 const MAX_SIDE = 1280; // iPhone 原圖解開約 48MB：縮到這個大小以內，記憶體才不會被吃光
@@ -40,7 +40,8 @@ const TARGETS = [
 const TRACE_FIELDS = ['life', 'head', 'heart', 'fate', 'simian', 'start'];
 
 // 整個命理分頁會重畫（例如按了儲存），畫到一半的選擇和照片要留著：放在模組層級，只在記憶體裡
-const session = { personId: null, hand: 'right', dominant: '', picks: { left: {}, right: {} }, dirty: false, step: { left: 0, right: 0 }, photos: { left: null, right: null }, target: 'life' };
+const session = { personId: null, hand: 'right', school: 'gender', dominant: '', picks: { left: {}, right: {} }, dirty: false, step: { left: 0, right: 0 }, photos: { left: null, right: null }, target: 'life' };
+const SCHOOL_IDS = HAND_SCHOOLS.map((x) => x.id);
 
 function dropPhoto(hand) {
   const ph = session.photos[hand];
@@ -52,9 +53,9 @@ function dropPhoto(hand) {
 // 暫存在這支手機，回來時接上；按儲存或「放棄修改」就刪掉，放超過 7 天也不接
 const DRAFT_KEY = 'palmDraft';
 const DRAFT_MS = 7 * 86400000;
-const palmJson = (x) => JSON.stringify({ dominant: x.dominant || '', left: sanitizePicks(x.left), right: sanitizePicks(x.right) });
+const palmJson = (x) => JSON.stringify({ school: x.school || 'gender', dominant: x.dominant || '', left: sanitizePicks(x.left), right: sanitizePicks(x.right) });
 function saveDraft() {
-  save(DRAFT_KEY, { personId: session.personId, hand: session.hand, dominant: session.dominant, left: session.picks.left, right: session.picks.right, at: Date.now() });
+  save(DRAFT_KEY, { personId: session.personId, hand: session.hand, school: session.school, dominant: session.dominant, left: session.picks.left, right: session.picks.right, at: Date.now() });
 }
 function takeDraft(p) {
   const d = load(DRAFT_KEY, null);
@@ -63,8 +64,18 @@ function takeDraft(p) {
   return d;
 }
 
+/** 第一次打開先看哪隻手：看法有主要的手就看那隻（除非資料只選在另一隻手），否則看有選的那隻，都沒有就右手 */
+function startHand(p) {
+  const has = (hand) => Object.keys(session.picks[hand]).length > 0;
+  const main = mainHand(session.school, { gender: p.gender || '', dominant: session.dominant });
+  if (main && (has(main) || (!has('left') && !has('right')))) return main;
+  return has('left') && !has('right') ? 'left' : 'right';
+}
+
 function loadSaved(p) {
   const saved = p.palm || {};
+  // 沒選過看法的人預設傳統的「男左女右」（依名單裡的性別決定主要看哪隻手）
+  session.school = SCHOOL_IDS.includes(saved.school) ? saved.school : 'gender';
   session.dominant = saved.dominant || '';
   session.picks = { left: sanitizePicks(saved.left), right: sanitizePicks(saved.right) };
 }
@@ -268,7 +279,7 @@ export function drawPalm(p, { ctx, actions }) {
   if (session.personId !== p.id) {
     session.personId = p.id;
     loadSaved(p);
-    session.hand = Object.keys(session.picks.left).length && !Object.keys(session.picks.right).length ? 'left' : 'right';
+    session.hand = startHand(p);
     session.dirty = false;
     session.restored = false;
     session.step = { left: 0, right: 0 };
@@ -278,6 +289,7 @@ export function drawPalm(p, { ctx, actions }) {
     if (draft) {
       session.picks = { left: sanitizePicks(draft.left), right: sanitizePicks(draft.right) };
       session.dominant = draft.dominant === 'left' || draft.dominant === 'right' ? draft.dominant : '';
+      if (SCHOOL_IDS.includes(draft.school)) session.school = draft.school;
       if (draft.hand === 'left' || draft.hand === 'right') session.hand = draft.hand;
       session.dirty = true;
       session.restored = true;
@@ -290,6 +302,7 @@ export function drawPalm(p, { ctx, actions }) {
   const photoBox = h('div', {});
   const resultBox = h('div', { 'aria-live': 'polite' });
   const roleLine = h('p', { class: 'muted small' });
+  const genderHint = h('div', {});
   let advanceTimer = null;
 
   const picks = () => session.picks[session.hand];
@@ -304,9 +317,14 @@ export function drawPalm(p, { ctx, actions }) {
     saveDraft();
   }
 
+  // 目前的看法（給 handRole、roleText、handDiffText 共用）
+  const view = () => ({ school: session.school, gender: p.gender || '', dominant: session.dominant });
+
   function paintRole() {
-    const role = handRole(session.hand, session.dominant);
-    roleLine.textContent = role ? ROLE_TEXT[role] : '還沒選慣用手：選了之後，會說明這隻手看的是天生還是後天。';
+    const role = handRole(session.hand, view());
+    roleLine.textContent = roleText(session.hand, session.school, view(), role);
+    // 男左女右卻還沒填性別：直接給一個按鈕去補，不只是說明
+    fill(genderHint, session.school === 'gender' && !role ? h('button', { type: 'button', class: 'btn small', text: '到「我的」選性別', onclick: () => ctx.go('me') }) : null);
   }
 
   // ── 看圖自選：一次一題，選完自動跳下一題
@@ -473,7 +491,7 @@ export function drawPalm(p, { ctx, actions }) {
     const cur = picks();
     const items = palmReading(cur);
     const ph = session.photos[hand];
-    const role = handRole(hand, session.dominant);
+    const role = handRole(hand, view());
     const saveRow = h('div', { class: 'actions' },
       h('button', {
         type: 'button',
@@ -481,7 +499,7 @@ export function drawPalm(p, { ctx, actions }) {
         text: `存到${p.name}的資料`,
         disabled: !session.dirty,
         onclick: () => {
-          const saved = ctx.savePerson({ ...p, palm: { dominant: session.dominant, left: session.picks.left, right: session.picks.right } });
+          const saved = ctx.savePerson({ ...p, palm: { school: session.school, dominant: session.dominant, left: session.picks.left, right: session.picks.right } });
           if (saved.ok) {
             session.dirty = false;
             session.restored = false;
@@ -503,11 +521,13 @@ export function drawPalm(p, { ctx, actions }) {
           session.dirty = false;
           session.restored = false;
           domSel.value = session.dominant;
+          schoolSel.value = session.school;
+          domField.hidden = session.school !== 'dominant';
           paintAll();
         },
       }) : null);
     if (!items.length) {
-      fill(resultBox, h('p', { class: 'muted', text: '選了線形之後，這裡會畫出你的掌紋並逐項解讀。' }), session.dominant !== ((p.palm || {}).dominant || '') ? saveRow : null);
+      fill(resultBox, h('p', { class: 'muted', text: '選了線形之後，這裡會畫出你的掌紋並逐項解讀。' }), session.dirty ? saveRow : null);
       return;
     }
     const traces = ph ? uvTraces(ph) : {};
@@ -520,7 +540,7 @@ export function drawPalm(p, { ctx, actions }) {
       h('div', { class: 'palm-figure' },
         playWhenVisible(palmDiagram({ hand, picks: cur, traces, label: `${HAND_NAME[hand]}掌紋示意：${summary}` })),
         h('div', { class: 'palm-legend small' }, present.map((f) => h('span', { class: `pl-key pl-${f}`, text: { life: '生命線', head: '智慧線', heart: '感情線', fate: '事業線', simian: cur.simian === 'full' ? '斷掌線' : '相連處' }[f] })))),
-      role ? h('p', { class: 'muted small', text: ROLE_TEXT[role] }) : null,
+      h('p', { class: 'muted small', text: roleText(hand, session.school, view(), role) }),
       items.map((it) => h('div', { class: 'palm-item' },
         h('h3', {}, h('span', { class: 'badge', text: it.label }), ' ', h('span', { text: it.title })),
         traitScale(it.scale, it.pos),
@@ -531,11 +551,11 @@ export function drawPalm(p, { ctx, actions }) {
           h('li', { class: 'tone-info' }, h('b', { text: '小行動：' }), h('span', { text: it.act }))))),
       cur.simian && cur.simian !== 'none' ? h('p', { class: 'hint', text: SIMIAN_NOTE }) : null,
       bothFilled
-        ? [h('h3', { text: '左右手比較' }), diffs.length ? h('ul', { class: 'reasons' }, diffs.map((d) => h('li', { class: 'tone-info', text: handDiffText(d, session.dominant) }))) : h('p', { text: '兩隻手選的都一樣：天生和後天的傾向一致。' })]
+        ? [h('h3', { text: '左右手比較' }), diffs.length ? h('ul', { class: 'reasons' }, diffs.map((d) => h('li', { class: 'tone-info', text: handDiffText(d, view()) }))) : h('p', { text: session.school === 'gender' ? '兩隻手選的都一樣：主要看的手和參考的手說法一致。' : '兩隻手選的都一樣：天生和後天的傾向一致。' })]
         : h('p', { class: 'hint', text: `也可以切到${HAND_NAME[hand === 'left' ? 'right' : 'left']}選一次，比較兩隻手的差異。` }),
       h('p', { class: 'hint', text: PALM_DISCLAIMER }),
       saveRow,
-      actions(p, 'palm', `掌紋（${HAND_NAME[hand]}）`, summary, { title: `${p.name}的掌紋（${HAND_NAME[hand]}）`, subtitle: role ? ROLE_TEXT[role] : '', lines: items.map((it) => `${it.label}｜${it.title}`) }),
+      actions(p, 'palm', `掌紋（${HAND_NAME[hand]}）`, summary, { title: `${p.name}的掌紋（${HAND_NAME[hand]}）`, subtitle: role ? roleText(hand, session.school, view(), role) : '', lines: items.map((it) => `${it.label}｜${it.title}`) }),
     );
   }
 
@@ -557,6 +577,28 @@ export function drawPalm(p, { ctx, actions }) {
     },
   }, h('option', { value: '', text: '不確定' }), h('option', { value: 'right', text: '右手' }), h('option', { value: 'left', text: '左手' }));
   domSel.value = session.dominant;
+  // 慣用手只有「看慣用手」這一派用得到，其他看法時收起來，免得以為要填
+  const domField = h('div', { class: 'field', hidden: session.school !== 'dominant' }, h('span', { class: 'field-label', text: '慣用手' }), domSel);
+  const handBox = h('div', {});
+  const paintHandSeg = () => fill(handBox, segmented({ name: 'palm-hand', label: '看哪隻手', value: session.hand, options: [{ value: 'right', label: '右手' }, { value: 'left', label: '左手' }], onChange: (v) => { session.hand = v; paintAll(); } }));
+  const schoolSel = h('select', {
+    'aria-label': '看哪隻手的看法',
+    onchange: (e) => {
+      session.school = e.target.value;
+      session.dirty = true;
+      saveDraft();
+      domField.hidden = session.school !== 'dominant';
+      // 換成男左女右時，直接切到主要看的那隻手
+      const main = session.school === 'gender' ? mainHand('gender', view()) : null;
+      if (main && main !== session.hand) {
+        session.hand = main;
+        paintHandSeg();
+      }
+      paintAll();
+    },
+  }, HAND_SCHOOLS.map((x) => h('option', { value: x.id, text: x.label })));
+  schoolSel.value = session.school;
+  paintHandSeg();
   paintAll();
 
   return [
@@ -565,9 +607,11 @@ export function drawPalm(p, { ctx, actions }) {
       { class: 'card' },
       cardHead(h, 'palm', `${p.name}的掌紋`, '看圖選線形，也可以拍照描線'),
       h('div', { class: 'row2' },
-        h('div', { class: 'field' }, h('span', { class: 'field-label', text: '看哪隻手' }), segmented({ name: 'palm-hand', label: '看哪隻手', value: session.hand, options: [{ value: 'right', label: '右手' }, { value: 'left', label: '左手' }], onChange: (v) => { session.hand = v; paintAll(); } })),
-        h('div', { class: 'field' }, h('span', { class: 'field-label', text: '慣用手' }), domSel)),
+        h('div', { class: 'field' }, h('span', { class: 'field-label', text: '看哪隻手' }), handBox),
+        h('div', { class: 'field' }, h('span', { class: 'field-label', text: '看法' }), schoolSel)),
+      domField,
       roleLine,
+      genderHint,
       h('details', { class: 'more' }, h('summary', { text: '看哪隻手？怎麼看？' }), h('p', { class: 'small', text: PALM_HOW.school }), h('p', { class: 'small', text: PALM_HOW.pick })),
     ),
     h('section', { class: 'card' }, h('h2', { text: '看圖選線形' }), pickerBox),

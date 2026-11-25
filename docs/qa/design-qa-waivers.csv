@@ -5,5 +5,7 @@ id,code,reason
 #view-me > section:nth-of-type(3) > details > input,FOCUS_UNVERIFIED,刻意 tabindex=-1：鍵盤使用者用「匯入備份檔」按鈕（焦點已實測）開啟檔案選擇
 section:nth-of-type(3) > div:nth-of-type(2) > div > input,TARGET_TOO_SMALL,WCAG 2.5.8 例外「Equivalent」：掌紋的隱藏照片選擇器，由同區塊 44px 的「拍照或選照片」按鈕觸發
 section:nth-of-type(3) > div:nth-of-type(2) > div > input,FOCUS_UNVERIFIED,刻意 tabindex=-1：鍵盤使用者用「拍照或選照片」按鈕開啟（按鈕焦點已實測）
-details > div > div > input,TARGET_TOO_SMALL,WCAG 2.5.8 例外「Equivalent」：塔羅自訂牌組的隱藏檔案選擇器，由同區塊 44px 的「匯入牌圖」按鈕觸發
-details > div > div > input,FOCUS_UNVERIFIED,刻意 tabindex=-1：鍵盤使用者用「匯入牌圖」按鈕開啟（按鈕焦點已實測）
+details > div > div:nth-of-type(2) > input,TARGET_TOO_SMALL,WCAG 2.5.8 例外「Equivalent」：塔羅自訂牌組的隱藏檔案選擇器（一次匯入很多張），由同區塊 44px 的「匯入牌圖」按鈕觸發
+details > div > div:nth-of-type(2) > input,FOCUS_UNVERIFIED,刻意 tabindex=-1：鍵盤使用者用「匯入牌圖」按鈕開啟（按鈕焦點已實測）
+div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > input,TARGET_TOO_SMALL,WCAG 2.5.8 例外「Equivalent」：逐張換圖的隱藏檔案選擇器，由旁邊 44px 的「選圖」按鈕觸發
+div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > input,FOCUS_UNVERIFIED,刻意 tabindex=-1：鍵盤使用者用「選圖」按鈕開啟（按鈕焦點已實測）

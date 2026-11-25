@@ -927,6 +927,10 @@ path.palm-line.pl-life, path.palm-line.pl-head, path.palm-line.pl-heart, path.pa
 .row-input { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 .row-input input { flex: 1; min-width: 0; }
 .rev-ways { margin-top: 6px; }
+/* 逐張換圖：左邊是這張牌現在的樣子，右邊選牌、選圖 */
+.deck-pick { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 14px; align-items: start; margin: 6px 0 12px; }
+.deck-preview { width: 78px; height: 130px; border-radius: 8px; overflow: hidden; box-shadow: 0 6px 16px var(--shadow); }
+.deck-pick .field { margin-top: 0; }
 .celtic { position: relative; width: 256px; height: 366px; margin: 6px auto 14px; }
 .celtic-card { position: absolute; }
 .celtic-card .tc { width: 52px; height: 87px; }
