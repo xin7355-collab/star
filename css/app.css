@@ -255,8 +255,6 @@ tbody th { font-weight: 600; }
   mask: radial-gradient(farthest-side, transparent calc(100% - 8px), var(--mask-solid) calc(100% - 7px));
 }
 .score-ring b { position: relative; font-size: 28px; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
-/* 生命靈數三段（例如 38／11／2）在 28px 會超出圓環：字縮小、不換行 */
-.score-ring b.long { font-size: 15px; white-space: nowrap; letter-spacing: -1px; }
 .score-ring small { position: relative; font-size: 12px; color: var(--muted); margin-top: 3px; }
 .score-ring.big { width: 118px; height: 118px; }
 .score-ring.big b { font-size: 36px; }

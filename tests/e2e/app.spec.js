@@ -322,7 +322,9 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await expect(dv.locator('.seal-detail h3')).toHaveText('14. 白巫師（Ix）');
   await expect(dv.getByRole('button', { name: '14. 白巫師' })).toHaveAttribute('aria-pressed', 'true');
   await tool.selectOption('numerology');
-  await expect(dv.locator('.score-ring b')).toHaveText('33／6');
+  // 圓環只放主命數（整串放進去在 iPhone 會超出圓環），加總過程寫在旁邊
+  await expect(dv.locator('.score-ring b')).toHaveText('6');
+  await expect(dv.getByText('生日數字加總：33／6')).toBeVisible();
   // 1990-08-15：只有事業線（1-5-9），空缺 2、3、4、6、7；另一派圈進天賦數 3、3 與生命數 6 會多出智慧線
   await expect(dv.locator('.nine-lines line')).toHaveCount(1);
   await expect(dv.getByRole('heading', { name: '空缺數：2、3、4、6、7' })).toBeVisible();
@@ -815,7 +817,7 @@ test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、�
   await seed(page);
   await page.setViewportSize({ width: 320, height: 640 });
   await page.goto('/');
-  const stops = [['today'], ['fortune'], ['destiny'], ['destiny', 'name'], ['destiny', 'career'], ['destiny', 'fengshui'], ['destiny', 'family'], ['destiny', 'bazi'], ['destiny', 'blood'], ['oracle', '解惑'], ['oracle', '塔羅'], ['oracle', '樂透'], ['oracle', '配對'], ['me']];
+  const stops = [['today'], ['fortune'], ['destiny'], ['destiny', 'name'], ['destiny', 'career'], ['destiny', 'fengshui'], ['destiny', 'family'], ['destiny', 'bazi'], ['destiny', 'blood'], ['destiny', 'numerology'], ['destiny', 'maya'], ['oracle', '解惑'], ['oracle', '塔羅'], ['oracle', '樂透'], ['oracle', '配對'], ['me']];
   for (const [view, sub] of stops) {
     if (view === 'oracle') await oracle(page, sub);
     else await tab(page, view);
@@ -825,6 +827,12 @@ test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、�
     await page.waitForTimeout(700);
     const visible = await page.locator(`#view-${view}`).innerText();
     expect(visible, `${view}${sub ? `／${sub}` : ''} 出現程式值`).not.toMatch(/\bnull\b|\bundefined\b|NaN|\[object /);
+    // 圓環裡的數字不能超出圓環（生命靈數「32／5」曾在 iPhone 上超出去）：字寬要小於圓環內徑（扣掉兩邊 8px 的環）
+    const ringOverflow = await page.locator(`#view-${view} .score-ring`).evaluateAll((rings) => rings
+      .filter((r) => r.offsetParent)
+      .map((r) => ({ ring: Math.round(r.getBoundingClientRect().width), text: Math.round(r.querySelector('b')?.getBoundingClientRect().width || 0), label: r.textContent }))
+      .filter((x) => x.text > x.ring - 16));
+    expect(ringOverflow, `${view}${sub ? `／${sub}` : ''} 圓環裡的字超出圓環`).toEqual([]);
     const { overflow, culprits } = await page.evaluate(() => {
       const vw = document.documentElement.clientWidth;
       // 列出超出右邊界最多的元素：CI 的 WebKit 才會溢出時，靠這份清單就知道要修哪裡

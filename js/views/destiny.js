@@ -616,7 +616,9 @@ export function mountDestiny(root, ctx) {
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的生命靈數` }),
-      h('div', { class: 'score-hero' }, ringTo(h('div', { class: 'score-ring lv-mid' }, h('b', { class: lp.chain.length > 2 ? 'long' : null, text: lp.label }), h('small', { text: '主命數' })), 100), h('div', {}, h('h3', { text: lp.title }), h('p', { text: lp.text }))),
+      // 圓環只放主命數（最多兩位數）：整串「32／5」在 iPhone 的字型下比圓環內徑寬，會超出去
+      h('div', { class: 'score-hero' }, ringTo(h('div', { class: 'score-ring lv-mid', role: 'img', 'aria-label': `主命數 ${lp.number}` }, h('b', { text: String(lp.number) }), h('small', { text: '主命數' })), 100),
+        h('div', {}, h('h3', { text: lp.title }), h('p', { class: 'muted small', text: `生日數字加總：${lp.label}` }), h('p', { text: lp.text }))),
       h('ul', { class: 'reasons' },
         h('li', { class: 'tone-info', text: `事業：${LIFEPATH_DETAIL[lp.number].career}` }),
         h('li', { class: 'tone-info', text: `感情：${LIFEPATH_DETAIL[lp.number].love}` }),
