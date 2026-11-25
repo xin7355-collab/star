@@ -10,6 +10,7 @@ import { cardHead } from '../ui/icons.js';
 import { reveal, order, ringTo, playWhenVisible } from '../ui/motion.js';
 import { loadProfile } from './profile.js';
 import { wuxingWheel, loader } from '../ui/charts.js';
+import { shareFile } from '../ui/poster.js';
 
 // 匿名試算的名字：只放在這次開著的 App 記憶體裡，不存檔、不進紀錄，換人也保留（不屬於任何人）；重開 App 就清掉
 const trial = { names: [], bazi: false };
@@ -254,6 +255,91 @@ export function mountDestiny(root, ctx) {
     );
   }
 
+  // ── 加到手機行事曆：打開才計算（重用畫面算好的時間軸和流月，約 30 毫秒）。
+  // 檔案在手機上產生、不上傳，內容只有提醒和原因，不含生日（tests/ics.test.js 會檢查）。
+  function calendarBlock({ p, input, b, L, M, today }) {
+    const body = h('div', { class: 'ics-body' }, h('p', { class: 'muted small', text: '計算中…' }));
+    const box = h('details', { class: 'more ics' }, h('summary', { text: '把要注意的日子加到手機行事曆' }), body);
+    let built = false;
+    box.addEventListener('toggle', async () => {
+      if (!box.open || built) return;
+      built = true;
+      const [{ reminderEvents, REMINDER_KINDS }, { buildIcs }, ics] = await Promise.all([
+        import('../core/reminders.js'), import('../core/ics.js'), import('../ui/ics-export.js')]);
+      const all = reminderEvents({ bazi: b, natal: ctx.natalOf(p), birth: input.date, today, gender: p.gender, personId: p.id, name: p.name, self: p.self, lifeline: L, months: M });
+      const saved = load('icsKinds', null);
+      const kinds = new Set(Array.isArray(saved) ? saved : REMINDER_KINDS.map((k) => k.id));
+      let sel = [];
+      let text = '';
+      let staged = false;
+      let gen = 0;
+      const count = h('p', { class: 'ics-count', 'aria-live': 'polite' });
+      const preview = h('ul', { class: 'plain small ics-list' });
+      const md = (d) => `${d.m}/${d.d}`;
+      const refresh = () => {
+        sel = all.filter((e) => kinds.has(e.kind));
+        text = buildIcs(sel, { calName: p.self ? '星座手帳' : `星座手帳・${p.name}` });
+        count.textContent = sel.length ? `共 ${sel.length} 個提醒，加入後時間到手機會跳通知。` : '沒有勾選任何項目。';
+        fill(preview, ...sel.slice(0, 6).map((e) => h('li', {}, h('b', { text: `${e.date.y}/${md(e.date)}${e.end ? `～${md(e.end)}` : ''}` }), h('span', { text: ` ${e.title}` }))),
+          sel.length > 6 ? h('li', { class: 'muted', text: `……還有 ${sel.length - 6} 個` }) : null);
+        // 先放進快取，按下去時才能在點擊當下直接打開（iPhone 不接受等待之後才開）
+        staged = false;
+        const mine = ++gen;
+        ics.stageIcs(text).then((ok) => { if (mine === gen) staged = ok; });
+      };
+      const checks = REMINDER_KINDS.map((k) => {
+        const n = all.filter((e) => e.kind === k.id).length;
+        return h('label', { class: 'check' },
+          h('input', {
+            type: 'checkbox',
+            checked: kinds.has(k.id) && n > 0,
+            disabled: !n,
+            onchange: (e) => {
+              if (e.target.checked) kinds.add(k.id);
+              else kinds.delete(k.id);
+              save('icsKinds', [...kinds]);
+              refresh();
+            },
+          }),
+          h('span', { text: `${k.label}・${n} 個` }));
+      });
+      const ready = () => {
+        if (sel.length) return true;
+        ctx.toast('請至少勾一項');
+        return false;
+      };
+      fill(body,
+        h('p', { class: 'muted small', text: '要提醒哪些（會記住）：' }),
+        h('div', { class: 'checks' }, checks),
+        count,
+        preview,
+        h('div', { class: 'actions' },
+          h('button', {
+            type: 'button',
+            class: 'btn primary',
+            text: '加到行事曆',
+            onclick: () => {
+              if (!ready()) return;
+              const how = ics.openIcs(text, staged);
+              ctx.toast(how === 'navigate' ? 'iPhone 會問要不要加入：按「加入全部」，再選要放的行事曆' : '已下載行事曆檔：點開它就能加入');
+            },
+          }),
+          h('button', {
+            type: 'button',
+            class: 'btn',
+            text: '分享檔案',
+            onclick: () => {
+              if (ready()) shareFile(new Blob([text], { type: 'text/calendar' }), ics.ICS_NAME, { sheet: ctx.sheet, hint: '存好後點開這個檔，就能把提醒加入行事曆。' });
+            },
+          })),
+        h('p', { class: 'hint', text: 'iPhone：按「加到行事曆」→「加入全部」→ 選要放進哪個行事曆。提醒在當天早上 9 點（水星逆行、交大運是前一天早上 9 點）。' }),
+        h('p', { class: 'hint', text: '按了沒反應（加到主畫面的 App 有時會擋下載）：改按「分享檔案」→ 選「郵件」寄給自己 → 在「郵件」App 點附件 →「加入全部」。' }),
+        h('p', { class: 'hint', text: '檔案在這支手機上產生、不會上傳，內容只有提醒和原因，不含生日。之後想更新，先在行事曆刪掉舊的再加，以免重複。' }));
+      refresh();
+    });
+    return box;
+  }
+
   // ── 流年・大運・太歲
   async function drawLiunian(p, input, opts) {
     const [{ buildBazi, liunian, taiSuiList }, { buildLifeline, monthsAhead, WARN_TAGS, GOOD_TAGS }, { LEVEL_TEXT, LIFELINE_NOTE }] = await Promise.all([
@@ -267,6 +353,7 @@ export function mountDestiny(root, ctx) {
     const barPct = (score) => Math.round(Math.max(6, Math.min(100, ((score + 4) / 7) * 100))); // -4～+3 對到長條長度
     // 注意的年份只講壓力的原因、順的年份只講助力的原因（依重要程度排）；都沒有就講那一年的十神
     const why = (y, keys) => keys.filter((t) => y.tags.includes(t)).slice(0, 2).join('、') || y.tags[0] || y.level;
+    const M = monthsAhead({ bazi: b, today: opts.today });
     const timeline = h('section', { class: 'card feature' },
       cardHead(h, 'calendar', `${p.name}的人生時間軸`, `未來 10 年（${L.years[0].year}～${L.years[L.years.length - 1].year}）每年的重點`),
       h('p', {}, h('b', { text: '最需要注意：' }), h('span', { text: L.watch.length ? L.watch.map((y) => `${y.year}（${why(y, WARN_TAGS)}）`).join('、') : '未來 10 年沒有特別需要小心的年份。' })),
@@ -280,9 +367,9 @@ export function mountDestiny(root, ctx) {
           h('span', { class: 'ly-tags muted small', text: y.tags.slice(0, 4).join('・') })),
         h('p', { class: 'ly-advice', text: LEVEL_TEXT[y.level] }),
         h('ul', { class: 'reasons' }, y.events.map((e) => h('li', { class: `tone-${e.tone}` }, h('span', { class: `sys sys-${e.system}`, text: e.system }), h('span', { text: e.text }))))))),
-      h('p', { class: 'hint', text: `${LIFELINE_NOTE}八字流年從立春（約 2/4）起算，流年印記從生日起算，年齡是當年生日過後的實歲。` }));
+      h('p', { class: 'hint', text: `${LIFELINE_NOTE}八字流年從立春（約 2/4）起算，流年印記從生日起算，年齡是當年生日過後的實歲。` }),
+      calendarBlock({ p, input, b, L, M, today: opts.today }));
     // ── 接下來 12 個月（以節氣換月）
-    const M = monthsAhead({ bazi: b, today: opts.today });
     const monthsCard = h('section', { class: 'card' },
       cardHead(h, 'bell', '接下來 12 個月', '流月、水星逆行、日月食'),
       h('ol', { class: 'months' }, M.map((m) => h('li', { class: 'mo' },

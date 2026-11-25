@@ -1192,3 +1192,8 @@ path.palm-line.pl-life, path.palm-line.pl-head, path.palm-line.pl-heart, path.pa
   }
   body::after { animation: none; }
 }
+
+/* 行事曆提醒：勾選項目一行一個；預覽清單只列最近幾個 */
+details.ics .checks { display: grid; }
+.ics-count { margin: 10px 0 4px; font-weight: 600; }
+.ics-list li { padding: 2px 0; }

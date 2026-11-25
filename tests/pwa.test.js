@@ -82,3 +82,12 @@ test('index.html 的 modulepreload 清單與實際 import 關係同步（改了 
   const { preloadBlock } = await import('../scripts/gen-preload.mjs');
   assert.ok(readFileSync(join(ROOT, 'index.html'), 'utf8').includes(preloadBlock()));
 });
+
+test('行事曆檔的快取名稱與網址：sw.js 和 js/ui/ics-export.js 一致，且換版時不會被清掉', () => {
+  const ui = readFileSync(join(ROOT, 'js/ui/ics-export.js'), 'utf8');
+  const uiCache = /ICS_CACHE = '([^']+)'/.exec(ui)[1];
+  const uiPath = /ICS_PATH = '([^']+)'/.exec(ui)[1];
+  assert.equal(/const ICS_CACHE = '([^']+)'/.exec(sw)[1], uiCache);
+  assert.equal(/const ICS_PATH = '([^']+)'/.exec(sw)[1], `/${uiPath}`);
+  assert.match(sw, /k !== VERSION && k !== ICS_CACHE/);
+});

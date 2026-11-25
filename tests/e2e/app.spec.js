@@ -921,6 +921,64 @@ test('今日：今天的瑪雅印記、和主印記的關係、下次銀河生�
   await expect(page.locator('#today-maya')).not.toContainText('下次銀河生日');
 });
 
+test('人生時間軸：把要注意的日子加到手機行事曆（service worker 回 text/calendar、勾選會記住、內容不含生日、不連外）', async ({ page, browserName, baseURL }) => {
+  await page.clock.setFixedTime(new Date('2026-11-25T10:00:00+08:00'));
+  const requests = [];
+  page.on('request', (r) => requests.push({ url: r.url(), method: r.method() }));
+  await seed(page);
+  await page.goto('/');
+  // 等 service worker 接手這一頁：iPhone 要靠它回 text/calendar 才會問要不要加入行事曆
+  if (browserName === 'chromium') await page.waitForFunction(() => !!(navigator.serviceWorker && navigator.serviceWorker.controller), null, { timeout: 30_000 });
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('liunian');
+  const box = dv.locator('section.card.feature', { hasText: '的人生時間軸' }).locator('details.ics');
+  await box.locator('summary').click();
+  const count = box.locator('.ics-count');
+  await expect(count).toHaveText(/共 \d+ 個提醒/);
+  const total = Number((await count.textContent()).match(/共 (\d+) 個/)[1]);
+  // 1990/8/15 卯時男命、2026/11/25：銀河生日 12/13、交大運 2028/8/10 都在預覽或清單裡
+  await expect(box.locator('label.check')).toHaveCount(5);
+  await expect(box.locator('.ics-list li').first()).toContainText('2026/');
+  const merc = box.locator('label.check', { hasText: '水星逆行' });
+  const nMerc = Number((await merc.textContent()).match(/・(\d+) 個/)[1]);
+  expect(nMerc).toBeGreaterThan(0);
+  await merc.locator('input').uncheck();
+  await expect(count).toHaveText(new RegExp(`共 ${total - nMerc} 個提醒`));
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('star.v1.icsKinds')))).not.toContain('mercury');
+  if (browserName === 'chromium') {
+    // 等放進快取（勾選後非同步寫入），再按：桌機 Chromium 會把 text/calendar 當下載，iPhone Safari 會問要不要加入
+    await page.waitForFunction(async () => {
+      const res = await (await caches.open('star-ics')).match(new URL('cal/reminders.ics', document.baseURI).href);
+      return !!res && !/SUMMARY:水星逆行/.test(await res.text()); // 流月的說明裡也會提到水逆，只看標題
+    });
+    const [dl] = await Promise.all([page.waitForEvent('download'), box.getByRole('button', { name: '加到行事曆' }).click()]);
+    expect(dl.url()).toBe(`${baseURL}/cal/reminders.ics`); // service worker 回的，不是 blob
+    const text = await readFile(await dl.path(), 'utf8');
+    expect(text.startsWith('BEGIN:VCALENDAR\r\n')).toBe(true);
+    expect((text.match(/BEGIN:VEVENT/g) || []).length).toBe(total - nMerc);
+    expect(text).toContain('SUMMARY:銀河生日：KIN 109 超頻紅月');
+    expect(text).toContain('DTSTART;VALUE=DATE:20280810');
+    expect(text).not.toContain('SUMMARY:水星逆行');
+    expect(text).not.toMatch(/1990|0815/);
+    // 頁面留在原地
+    await expect(count).toBeVisible();
+    // 快取被清掉時（換手機、清除資料），那個網址給說明和回 App 的連結，不會去問伺服器
+    await page.evaluate(() => caches.delete('star-ics'));
+    await page.goto('/cal/reminders.ics');
+    await expect(page.getByText('提醒檔已經過期了')).toBeVisible();
+    await expect(page.getByRole('link', { name: '回到 App' })).toBeVisible();
+    // 這一頁本來就回 404（檔案不在了），瀏覽器主控台會記一筆「Failed to load resource」，不算執行期錯誤
+    errors = errors.filter((e) => !/status of 404.*\/cal\/reminders\.ics/.test(e));
+  } else {
+    // 不支援分享檔案時，「分享檔案」改開面板給下載連結
+    await box.getByRole('button', { name: '分享檔案' }).click();
+    await expect(page.locator('#sheet-body a[download="star-reminders.ics"]')).toBeVisible();
+  }
+  expect(requests.filter((r) => !r.url.startsWith(baseURL) && !/^(blob|data):/.test(r.url))).toEqual([]);
+  expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
+});
+
 test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、沒有「null／undefined」字樣', async ({ page }) => {
   await seed(page);
   await page.setViewportSize({ width: 320, height: 640 });

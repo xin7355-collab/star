@@ -3,7 +3,7 @@
 // 發佈新版時 VERSION 要跟 js/version.js 的 APP_VER、version.json 一致（tests/pwa.test.js 會檢查），
 // 舊快取會在新版啟用時清除。
 
-const VERSION = '2026.11.26-8';
+const VERSION = '2026.11.26-9';
 
 const ASSETS = [
   './',
@@ -29,10 +29,13 @@ const ASSETS = [
   './js/core/maya-kin.js',
   './js/core/lifeline.js',
   './js/core/lifeline-texts.js',
+  './js/core/ics.js',
+  './js/core/reminders.js',
   './js/core/emerging.js',
   './js/core/ziwei-summary.js',
   './js/core/speech.js',
   './js/ui/speak.js',
+  './js/ui/ics-export.js',
   './js/core/maya-texts.js',
   './js/core/privacy.js',
   './js/core/numerology.js',
@@ -112,6 +115,18 @@ const ASSETS = [
 // version.json 用來偵測新版，必須每次都問伺服器，不能被快取住
 const NETWORK_ONLY = ['version.json'];
 
+// 行事曆檔：頁面在手機上產生後放進這個快取（js/ui/ics-export.js），這裡用 text/calendar 回給瀏覽器，
+// iPhone 的 Safari 才會問要不要加入行事曆。換版時不能清掉；一律不連網路（伺服器上沒有這個檔，內容只在手機上）。
+const ICS_CACHE = 'star-ics';
+const ICS_PATH = '/cal/reminders.ics';
+const icsMissing = () => new Response(
+  '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+  + '<meta name="robots" content="noindex, nofollow"><title>行事曆提醒</title>'
+  + '<p style="font:17px/1.6 system-ui,sans-serif;padding:24px">提醒檔已經過期了。請回到 App 的「人生時間軸」，再按一次「加到行事曆」。</p>'
+  + '<p style="font:17px/1.6 system-ui,sans-serif;padding:0 24px"><a href="../">回到 App</a></p>',
+  { status: 404, headers: { 'content-type': 'text/html; charset=utf-8' } },
+);
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
@@ -125,7 +140,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== ICS_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -136,6 +151,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (NETWORK_ONLY.some((name) => url.pathname.endsWith(`/${name}`))) return;
+  if (url.pathname.endsWith(ICS_PATH)) {
+    event.respondWith(caches.open(ICS_CACHE).then((c) => c.match(req, { ignoreSearch: true })).then((res) => res || icsMissing()));
+    return;
+  }
 
   event.respondWith(
     caches.open(VERSION).then(async (cache) => {
