@@ -29,7 +29,8 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 安裝瀏覽器偶爾很慢（2026-11-25 連兩次各 12～13 分鐘，平常 30 秒），加上測試約 6 分鐘；留足時間，免得被切成紅燈
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -38,7 +39,14 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       # WebKit 是 Safari 的引擎：雲端工作階段沒有，CI 補跑一次，更接近 iPhone 實機
-      - run: npx playwright install --with-deps chromium webkit
+      # 每次最多 15 分鐘，卡住或失敗重試一次（timeout 會連同底下的 apt-get 一起結束，重試不會卡在套件鎖）
+      - name: 安裝 Chromium、WebKit（卡住會重試）
+        run: |
+          for attempt in 1 2; do
+            timeout --kill-after=30 900 npx playwright install --with-deps chromium webkit && exit 0
+            echo "第 ${attempt} 次安裝失敗或超過 15 分鐘，重試"
+          done
+          exit 1
       - run: npm run test:e2e
         env:
           CI: '1'
