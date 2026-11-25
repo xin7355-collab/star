@@ -88,6 +88,8 @@
   失敗的是 WebKit 的自訂牌組：Playwright 的 WebKit 是無痕狀態，Safari 無痕模式的 IndexedDB 存不了 Blob，匯入整批失敗
   （真的 iPhone 開無痕瀏覽也會這樣）→ 改存 ArrayBuffer，讀出來再組回圖片。不穩的是儀式測試在 78 張牌攤開的過場中途就點，
   點到空處（重試通過）→ 測試先等扇形的過場跑完再點。
+  修正後 CI run 45520863766（main 60350bc）：unit 通過、E2E 46/46（Chromium 23＋WebKit 23，沒有重試）、design-qa 91 張 CLEAN；
+  Pages 部署 run 45520863537 成功（APP_VER 2026.11.25-2）。
 
 ## 4. 腳本量不到的（要人工）
 
