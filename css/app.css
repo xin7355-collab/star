@@ -65,6 +65,9 @@ body[data-view="fortune"] { padding-bottom: calc(var(--tabbar-h) + var(--period-
 .topbar-inner { max-width: 640px; margin: 0 auto; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .topbar h1 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: 0.08em; }
 .topbar .top-sub { color: var(--muted); font-size: 13px; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 頁首的「目前查看的人」：每一頁同一個位置，換人所有頁面一起換 */
+.top-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.topbar select.who { width: auto; max-width: 9.5em; min-height: 36px; padding: 4px 28px 4px 10px; font-size: 15px; border-radius: 999px; background-position: right 10px center; }
 
 main { max-width: 640px; margin: 0 auto; padding: 14px 16px 0; }
 .view { display: flex; flex-direction: column; gap: 14px; }

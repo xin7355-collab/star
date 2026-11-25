@@ -24,7 +24,6 @@
   <link rel="modulepreload" href="js/core/date.js">
   <link rel="modulepreload" href="js/core/places.js">
   <link rel="modulepreload" href="js/core/records.js">
-  <link rel="modulepreload" href="js/core/tz.js">
   <link rel="modulepreload" href="js/core/zodiac.js">
   <link rel="modulepreload" href="js/ui/icons.js">
   <link rel="modulepreload" href="js/ui/palette.js">
@@ -32,6 +31,7 @@
   <link rel="modulepreload" href="js/version.js">
   <link rel="modulepreload" href="js/core/natal.js">
   <link rel="modulepreload" href="js/core/privacy.js">
+  <link rel="modulepreload" href="js/core/tz.js">
   <link rel="modulepreload" href="js/ui/birthform.js">
   <link rel="modulepreload" href="js/ui/dom.js">
   <link rel="modulepreload" href="js/ui/motion.js">
@@ -57,7 +57,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="topbar-inner"><h1 id="page-title">星座手帳</h1><span id="page-sub" class="top-sub"></span></div>
+    <div class="topbar-inner"><h1 id="page-title">星座手帳</h1><div class="top-right"><span id="page-sub" class="top-sub"></span><select id="who" class="who" aria-label="目前查看的人" hidden></select></div></div>
   </header>
 
   <main id="main">

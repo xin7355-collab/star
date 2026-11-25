@@ -1,7 +1,7 @@
 // 主程式：分頁切換、名單／紀錄狀態、提示訊息與分享面板。
 // 五個分頁：今日（預設）、時運、命盤、占卜、我的。時運、命盤、占卜第一次打開才載入，讓開 App 更快。
 
-import { $, clear } from './ui/dom.js';
+import { $, clear, h, fill } from './ui/dom.js';
 import { load, save } from './ui/storage.js';
 import { readRaw } from './ui/birthform.js';
 import { buildNatal } from './core/natal.js';
@@ -12,6 +12,7 @@ import { mountMe } from './views/me.js';
 import { mountToday } from './views/today.js';
 import { startUpdateWatcher } from './ui/update.js';
 import { enterView, applyMotion } from './ui/motion.js';
+import { zoneToday, DEFAULT_TZ } from './core/tz.js';
 
 const VIEWS = ['today', 'fortune', 'destiny', 'oracle', 'me'];
 const TITLES = { today: '今日', fortune: '時運', destiny: '命盤', oracle: '占卜', me: '我的' };
@@ -27,6 +28,8 @@ let state = store.loadAll();
 applyMotion(state.settings.motion);
 const natalCache = new Map();
 const profileListeners = [];
+// 目前顯示的分頁（頁首的切換人、go() 都要看；放在最前面，載入時就呼叫也不會碰到還沒宣告的 let）
+let current = null;
 const historyListeners = [];
 
 // ── 提示訊息
@@ -92,10 +95,22 @@ function activePerson() {
   return state.people.find((p) => p.id === state.settings.activeId) || null;
 }
 
+// 頁首的「目前查看的人」：每一頁同一個位置，改的是全域的 activeId，今日、時運、命盤、占卜一起換。
+// 之前命盤有自己的「看誰」，只換命盤一頁，回到今日還是原本的人。2 人以上才出現；「我的」頁有自己的切換，不重複放。
+function paintWho() {
+  const sel = $('#who');
+  const show = state.people.length >= 2 && current !== 'me';
+  sel.hidden = !show;
+  if (!show) return;
+  fill(sel, ...state.people.map((p) => h('option', { value: p.id, text: p.self ? `${p.name}（我）` : p.name })));
+  sel.value = activePerson()?.id || state.people[0].id;
+}
+
 function commit(kind) {
   if (!store.persist(state)) toast('手機儲存空間不足或被瀏覽器封鎖，資料沒有存成功。請先匯出備份。');
   if (kind === 'profile' || kind === 'all') {
     natalCache.clear();
+    paintWho();
     profileListeners.forEach((fn) => fn());
   }
   if (kind === 'history' || kind === 'all') historyListeners.forEach((fn) => fn());
@@ -130,7 +145,6 @@ async function ensureMounted(view) {
   return viewApis[view];
 }
 
-let current = null;
 async function go(view, opts) {
   if (!VIEWS.includes(view)) view = state.people.length ? 'today' : 'me';
   const changed = view !== current;
@@ -146,6 +160,7 @@ async function go(view, opts) {
   $('#page-title').textContent = TITLES[view];
   $('#page-sub').textContent = view === 'today' ? todayLabel() : '';
   document.body.dataset.view = view;
+  paintWho();
   save('view', view);
   window.scrollTo(0, 0);
   if (changed) enterView($(`#view-${view}`));
@@ -153,10 +168,12 @@ async function go(view, opts) {
   if (opts && api && api.open) api.open(opts);
 }
 document.querySelectorAll('.tabbar [data-view]').forEach((btn) => btn.addEventListener('click', () => go(btn.dataset.view)));
+$('#who').addEventListener('change', (e) => ctx.setActive(e.target.value));
 
+// 頁首日期和「今日」內容用同一個時區（台灣）：用手機本地時間的話，人在國外時頁首和內容會差一天
 function todayLabel() {
-  const d = new Date();
-  return `${d.getMonth() + 1}/${d.getDate()}（${'日一二三四五六'[d.getDay()]}）`;
+  const t = zoneToday(DEFAULT_TZ);
+  return `${t.m}/${t.d}（${'日一二三四五六'[new Date(Date.UTC(t.y, t.m - 1, t.d)).getUTCDay()]}）`;
 }
 
 const ctx = {

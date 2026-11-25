@@ -11,6 +11,11 @@ const ME = {
   raw: { calendar: 'solar', era: 'roc', year: 79, month: 8, day: 15, leap: false, knowTime: true, time: '06:20', placeId: 'taipei', lat: null, lon: null, tz: 'Asia/Taipei', fold: null, solar: null },
 };
 
+const MOM = {
+  id: 'p-fedcba9876543210', name: '媽媽', fullName: '陳美玲', birthOrder: 0, gender: '女', createdAt: '2026-11-24T00:00:00.000Z',
+  raw: { calendar: 'solar', era: 'roc', year: 51, month: 11, day: 20, leap: false, knowTime: true, time: '09:00', placeId: 'taipei', lat: null, lon: null, tz: 'Asia/Taipei', fold: null, solar: null },
+};
+
 /** 預先放一筆名單（只在第一次載入時），讓測試直接從有資料的狀態開始 */
 async function seed(page, people = [ME], settings = {}) {
   await page.addInitScript(([list, extra]) => {
@@ -169,6 +174,30 @@ test('名單：編輯儲存不會洗掉掌紋結果和藝名；「我的」表�
   await expect(row).not.toContainText('王明星');
   expect((await people())[0].altNames).toEqual([{ kind: '筆名', name: '林小筆' }]);
   expect((await people())[0].palm).toEqual(palm);
+});
+
+test('切換查看的人：頁首同一個選單，在命盤換人，今日、我的都跟著換；在我的換回來，命盤也跟著回來', async ({ page }) => {
+  await seed(page, [ME, MOM]);
+  await page.goto('/');
+  const who = page.getByRole('combobox', { name: '目前查看的人' });
+  await expect(who).toHaveValue(ME.id);
+  await tab(page, 'destiny');
+  await who.selectOption(MOM.id);
+  await expect(page.locator('#view-destiny')).toContainText('媽媽的綜合解讀');
+  await tab(page, 'today');
+  await expect(page.locator('#today-hero h2')).toHaveText('媽媽的今天');
+  await expect(who).toHaveValue(MOM.id);
+  // 「我的」頁有自己的切換，頁首不重複放；兩邊是同一個「目前查看的人」
+  await tab(page, 'me');
+  await expect(who).toBeHidden();
+  const meSwitch = page.locator('#view-me .person-switch select');
+  await expect(meSwitch).toHaveValue(MOM.id);
+  await meSwitch.selectOption(ME.id);
+  await tab(page, 'destiny');
+  await expect(who).toHaveValue(ME.id);
+  await expect(page.locator('#view-destiny')).toContainText('我的綜合解讀');
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: '目前查看的人' })).toHaveValue(ME.id);
 });
 
 test('姓名：藝名和本名並排比較（存在手機、可移除）；匿名試算不儲存、可比多個名字', async ({ page }) => {

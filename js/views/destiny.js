@@ -42,7 +42,6 @@ const toneCls = (t) => (!t ? 'tone-info' : t.gan === '忌' && t.zhi === '忌' ? 
 export function mountDestiny(root, ctx) {
   let tool = load('destinyTool', 'reading');
   if (!TOOLS.some((t) => t.id === tool)) tool = 'reading';
-  let personId = null;
   let compareId = null;
   // 瑪雅曆的雙胞胎分流：填了出生順序（多胞胎）就預設打開，手動切換的結果按人記住。
   // 解讀和瑪雅工具共用同一個判斷，避免兩邊結果不一致（之前解讀從來不加時分，雙胞胎的瑪雅一模一樣）。
@@ -51,8 +50,6 @@ export function mountDestiny(root, ctx) {
   let mayaCodeOpen = load('mayaCodeOpen', null);
   const mayaTwinTime = (p, input) => (input.time && (twinOverride.has(p.id) ? twinOverride.get(p.id) : !!p.birthOrder) ? input.time : null);
   let token = 0;
-
-  const person = () => ctx.getPeople().find((p) => p.id === personId) || ctx.getActive();
 
   function render() {
     token += 1;
@@ -63,12 +60,10 @@ export function mountDestiny(root, ctx) {
       root.append(h('div', { class: 'card tip' }, h('p', { text: '先到「我的」輸入生日，就能排八字、紫微、流年。' }), h('button', { type: 'button', class: 'btn small', text: '去填生日', onclick: () => ctx.go('me') })));
       return;
     }
-    const p = person();
-    personId = p.id;
+    // 看誰由頁首的「目前查看的人」決定（全 App 一致），這裡不再自己記一份
+    const p = ctx.getActive() || people[0];
     const settings = ctx.getSettings();
 
-    const personSel = h('select', { 'aria-label': '選擇要看的人', onchange: (e) => { personId = e.target.value; render(); } }, people.map((x) => h('option', { value: x.id, text: x.self ? `${x.name}（我）` : x.name })));
-    personSel.value = p.id;
     const toolSel = h('select', { 'aria-label': '選擇命理工具', onchange: (e) => { tool = e.target.value; save('destinyTool', tool); render(); } }, TOOLS.map((t) => h('option', { value: t.id, text: t.label })));
     toolSel.value = tool;
 
@@ -76,7 +71,7 @@ export function mountDestiny(root, ctx) {
       h(
         'section',
         { class: 'card controls' },
-        h('div', { class: 'row2' }, h('div', { class: 'field' }, h('span', { class: 'field-label', text: '看誰' }), personSel), h('div', { class: 'field' }, h('span', { class: 'field-label', text: '工具' }), toolSel)),
+        h('div', { class: 'field' }, h('span', { class: 'field-label', text: people.length > 1 ? `工具（正在看：${p.name}，換人在右上角）` : '工具' }), toolSel),
         h(
           'details',
           { class: 'more' },
