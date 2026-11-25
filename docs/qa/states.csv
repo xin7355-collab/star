@@ -249,3 +249,31 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 銀河印記合盤,control,focus_visible,DONE,code:css/app.css select:focus 金色外框,
 銀河印記合盤,control,active,DONE,e2e:選了媽媽後顯示兩個圖騰與關係，瑪雅密碼的合盤跟著選同一個人,
 銀河印記合盤,control,disabled,NA,,名單只有一個人時不顯示這張卡
+朗讀今天的重點,action,default,DONE,e2e:今日：朗讀今天的重點（只用內建語音、可以停止），唸的內容和畫面一致,
+朗讀今天的重點,action,hover,NA,,觸控裝置為主
+朗讀今天的重點,action,focus_visible,DONE,code:css/app.css 全站共用的 :focus-visible 金色外框,
+朗讀今天的重點,action,disabled,NA,,瀏覽器不支援朗讀時不顯示這顆按鈕（canSpeak）
+朗讀今天的重點,action,busy,DONE,e2e:朗讀中按鈕變「停止朗讀」（aria-pressed=true），再按一次停止,
+朗讀今天的重點,action,failure,DONE,code:js/ui/speak.js 沒有內建中文語音時說明到「設定→輔助使用→朗讀內容→聲音」下載,
+加到手機行事曆,action,default,DONE,e2e:人生時間軸：把要注意的日子加到手機行事曆（service worker 回 text/calendar、勾選會記住、內容不含生日、不連外）,
+加到手機行事曆,action,hover,NA,,觸控裝置為主
+加到手機行事曆,action,focus_visible,DONE,code:css/app.css 全站共用的 :focus-visible 金色外框,
+加到手機行事曆,action,disabled,DONE,code:js/views/destiny.js 一項都沒勾時按鈕不送出檔案、提示「請至少勾一項」；沒有提醒的類別勾選框停用並寫 0 個,
+加到手機行事曆,action,busy,DONE,code:js/views/destiny.js 展開時先顯示「計算中…」再列出提醒（約 30 毫秒）,
+加到手機行事曆,action,failure,DONE,e2e:快取被清掉時 cal/reminders.ics 顯示說明與「回到 App」；沒有 service worker 時改用一般下載；iPhone 沒反應時說明改用分享→郵件,
+手機羅盤,data_view,loading,DONE,e2e:打開時顯示「等待指南針…」，收到方向才轉,
+手機羅盤,data_view,empty,DONE,e2e:電腦或沒有指南針：4 秒沒資料顯示「收不到指南針的資料」與替代做法（內建指南針 App）,
+手機羅盤,data_view,error,DONE,e2e:沒給「動作與方向」權限：分 iPhone／Android 說怎麼重新允許,
+手機羅盤,data_view,populated,DONE,e2e:手機頭朝的方位與二十四山、往左／右轉幾度、對準時金色並由螢幕閱讀器唸出,
+手機羅盤,data_view,long_content,NA,,羅盤固定大小；目標最多 6 個，圖例自動換行（320px 截圖確認）
+AR 星空,data_view,loading,DONE,code:js/ui/ar-sky.js 等待方向感測器時顯示「等待方向感測器…」，2.5 秒沒資料改拖曳,
+AR 星空,data_view,empty,DONE,e2e:沒有感測器或沒權限：改成手指拖曳並先對著月亮；拖了會換方向,
+AR 星空,data_view,error,DONE,e2e:相機打不開說明「不開相機也能看」；定位失敗繼續用台北；校正時附近沒有亮的天體會說明,
+AR 星空,data_view,populated,DONE,e2e:對準月亮顯示星座、月相、代表什麼；文字版清單列出九顆星的方位與高度,
+AR 星空,data_view,long_content,DONE,code:css/app.css .ar-list-items 最多 28vh 高、可捲動，不蓋掉天空,
+掌紋自動定位,action,default,DONE,e2e:掌紋自動定位（手部辨識模型）：真的模型按了才下載、在手機上跑、沒有外部請求,
+掌紋自動定位,action,hover,NA,,觸控裝置為主
+掌紋自動定位,action,focus_visible,DONE,code:css/app.css 全站共用的 :focus-visible 金色外框,
+掌紋自動定位,action,disabled,DONE,code:js/views/tool-palm.js 辨識中按鈕停用並顯示「辨識中…」；練習用的範例手掌不提供,
+掌紋自動定位,action,busy,DONE,code:js/ui/hand-detect.js 下載百分比（第一次約 22MB）→「辨識中…」,
+掌紋自動定位,action,failure,DONE,e2e:模型下載失敗說明並可再試；沒找到手、角度不對（側面）都請他重拍或手動點,

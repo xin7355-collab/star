@@ -115,4 +115,15 @@
   --mask-solid: #000;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-spring: cubic-bezier(0.2, 1.35, 0.4, 1);
+
+  /* AR 星空：全螢幕的夜空，不跟著主題變（數值和 js/ui/palette.js 的 AR_SKY 對應） */
+  --ar-sky: #050814;
+  --ar-text: #ffffff;
+  --ar-gold: #f5c451;
+  --ar-muted: rgba(255, 255, 255, 0.78);
+  --ar-cross: rgba(245, 196, 81, 0.9);
+  --ar-btn-bg: rgba(8, 12, 28, 0.72);
+  --ar-btn-line: rgba(255, 255, 255, 0.3);
+  --ar-panel: rgba(5, 8, 20, 0.88);
+  --ar-panel-clear: rgba(5, 8, 20, 0);
 }

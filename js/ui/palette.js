@@ -52,3 +52,22 @@ export const PALM_PRACTICE = {
   crease: '#a86f5c',
   line: '#8d5443',
 };
+
+// AR 星空（Canvas）：永遠是夜空，不跟著淺色／深色主題變；天體顏色接近肉眼看到的顏色（火星偏紅、天王星偏青）
+export const AR_SKY = {
+  skyTop: '#050814',
+  skyBottom: '#13203d',
+  ground: 'rgba(14, 30, 22, 0.92)',
+  groundOnCamera: 'rgba(8, 20, 14, 0.35)', // 開相機時地面只淡淡蓋一層，看得到實景
+  horizon: 'rgba(160, 220, 190, 0.8)',
+  direction: '#bfe8d2',
+  ecliptic: 'rgba(245, 196, 81, 0.55)',
+  sign: 'rgba(245, 220, 160, 0.85)',
+  mine: '#f5c451',
+  label: '#ffffff',
+  labelDim: 'rgba(255, 255, 255, 0.6)',
+  outline: 'rgba(0, 0, 0, 0.7)', // 字外框：星空和相機畫面上都看得清楚
+  sunGlow: 'rgba(245, 196, 81, 0.25)',
+  moonGlow: 'rgba(233, 237, 245, 0.18)',
+  body: { Sun: '#f5c451', Moon: '#e9edf5', Mercury: '#b8b2a7', Venus: '#fff1c1', Mars: '#ff7a5c', Jupiter: '#f0d3a2', Saturn: '#e6c98f', Uranus: '#9fe3ef', Neptune: '#7fa8ff' },
+};

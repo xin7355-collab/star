@@ -981,8 +981,10 @@ test('人生時間軸：把要注意的日子加到手機行事曆（service wor
 
 test('開運佈置：手機羅盤（iPhone 要權限、跟著轉、往哪轉、對準提示、換目標、Android 絕對方位；拒絕和沒感測器都有替代做法）', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-25T10:00:00+08:00'));
-  // 模擬 iPhone：第一次按「不允許」、第二次按「允許」
+  // 模擬直拿的 iPhone：第一次按「不允許」、第二次按「允許」。
+  // 螢幕方向固定成直立：Linux 版 WebKit 的虛擬螢幕是橫的（angle 90），程式會照橫拿的手機多轉 90°
   await page.addInitScript(() => {
+    Object.defineProperty(window.screen, 'orientation', { configurable: true, value: { angle: 0, type: 'portrait-primary', addEventListener() {}, removeEventListener() {} } });
     let n = 0;
     if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class extends Event {};
     window.DeviceOrientationEvent.requestPermission = () => Promise.resolve(n++ === 0 ? 'denied' : 'granted');

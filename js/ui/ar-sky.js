@@ -8,11 +8,11 @@ import { screenAngle } from './orientation.js';
 import { skyNow, enu, rotationMatrix, lookMatrix, cameraDirection, iosOffset, project, nearest, describe, separation, SKY_MEANING, phaseName, DEFAULT_PLACE } from '../core/sky.js';
 import { smooth, turn, dirOf } from '../core/compass.js';
 import { SIGNS } from '../core/zodiac.js';
+import { AR_SKY as C } from './palette.js';
 
 const RAD = Math.PI / 180;
 const VFOV = 66; // 直拿手機時畫面上下的視角（度），接近手機主鏡頭直拍的視角
 const BRIGHT = ['Sun', 'Moon', 'Venus', 'Jupiter', 'Mars', 'Saturn']; // 肉眼看得到、可以拿來校正方向
-const COLOR = { Sun: '#f5c451', Moon: '#e9edf5', Mercury: '#b8b2a7', Venus: '#fff1c1', Mars: '#ff7a5c', Jupiter: '#f0d3a2', Saturn: '#e6c98f', Uranus: '#9fe3ef', Neptune: '#7fa8ff' };
 const SIZE = { Sun: 15, Moon: 13, Venus: 7, Jupiter: 7, Mars: 6, Saturn: 6, Mercury: 5, Uranus: 4.5, Neptune: 4.5 };
 
 /**
@@ -259,14 +259,14 @@ export function openArSky({ natalSign = null, orientation = 'granted', toast = (
       }
     }
     if (poly.length >= 3) {
-      g.fillStyle = stream ? 'rgba(8, 20, 14, 0.35)' : 'rgba(14, 30, 22, 0.92)';
+      g.fillStyle = stream ? C.groundOnCamera : C.ground;
       g.beginPath();
       poly.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
       g.closePath();
       g.fill();
     }
     if (cross.length === 2) {
-      g.strokeStyle = 'rgba(160, 220, 190, 0.8)';
+      g.strokeStyle = C.horizon;
       g.lineWidth = 1.5;
       g.beginPath();
       g.moveTo(cross[0][0], cross[0][1]);
@@ -274,11 +274,11 @@ export function openArSky({ natalSign = null, orientation = 'granted', toast = (
       g.stroke();
     }
   }
-  function label(text, x, y, { color = '#fff', size = 13, bold = false, align = 'left' } = {}) {
+  function label(text, x, y, { color = C.label, size = 13, bold = false, align = 'left' } = {}) {
     g.font = `${bold ? '700 ' : ''}${size}px system-ui, -apple-system, "PingFang TC", sans-serif`;
     g.textAlign = align;
     g.lineWidth = 3;
-    g.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    g.strokeStyle = C.outline;
     g.strokeText(text, x, y);
     g.fillStyle = color;
     g.fillText(text, x, y);
@@ -289,8 +289,8 @@ export function openArSky({ natalSign = null, orientation = 'granted', toast = (
     g.clearRect(0, 0, W, H);
     if (!stream) {
       const grad = g.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, '#050814');
-      grad.addColorStop(1, '#13203d');
+      grad.addColorStop(0, C.skyTop);
+      grad.addColorStop(1, C.skyBottom);
       g.fillStyle = grad;
       g.fillRect(0, 0, W, H);
     }
@@ -301,10 +301,10 @@ export function openArSky({ natalSign = null, orientation = 'granted', toast = (
     // 方位：地平線上的八個方向
     ['北', '東北', '東', '東南', '南', '西南', '西', '西北'].forEach((name, i) => {
       const p = project(R, enu(i * 45, 0), view);
-      if (p) label(name, p.x, p.y - 8, { color: '#bfe8d2', size: i % 2 ? 13 : 16, bold: !(i % 2), align: 'center' });
+      if (p) label(name, p.x, p.y - 8, { color: C.direction, size: i % 2 ? 13 : 16, bold: !(i % 2), align: 'center' });
     });
     // 黃道與十二宮
-    g.strokeStyle = 'rgba(245, 196, 81, 0.55)';
+    g.strokeStyle = C.ecliptic;
     g.lineWidth = 1.5;
     g.setLineDash([6, 5]);
     g.beginPath();
@@ -321,7 +321,7 @@ export function openArSky({ natalSign = null, orientation = 'granted', toast = (
       const p = project(R, v, view);
       if (!p) continue;
       const mine = s.index === natalSign;
-      label(`${SIGNS[s.index].glyph} ${mine ? `${s.name}（你的）` : s.name}`, p.x, p.y + 18, { color: mine ? '#f5c451' : 'rgba(245, 220, 160, 0.85)', size: mine ? 15 : 12, bold: mine, align: 'center' });
+      label(`${SIGNS[s.index].glyph} ${mine ? `${s.name}（你的）` : s.name}`, p.x, p.y + 18, { color: mine ? C.mine : C.sign, size: mine ? 15 : 12, bold: mine, align: 'center' });
     }
     // 天體
     for (const { b, v } of vec.bodies) {
@@ -331,25 +331,25 @@ export function openArSky({ natalSign = null, orientation = 'granted', toast = (
       const under = b.alt < 0;
       g.globalAlpha = under ? 0.45 : 1;
       if (b.key === 'Sun' || b.key === 'Moon') {
-        g.fillStyle = b.key === 'Sun' ? 'rgba(245, 196, 81, 0.25)' : 'rgba(233, 237, 245, 0.18)';
+        g.fillStyle = b.key === 'Sun' ? C.sunGlow : C.moonGlow;
         g.beginPath();
         g.arc(p.x, p.y, r * 2, 0, Math.PI * 2);
         g.fill();
       }
-      g.fillStyle = COLOR[b.key];
+      g.fillStyle = C.body[b.key];
       g.beginPath();
       g.arc(p.x, p.y, r, 0, Math.PI * 2);
       g.fill();
       if (under) {
         g.setLineDash([3, 3]);
-        g.strokeStyle = COLOR[b.key];
+        g.strokeStyle = C.body[b.key];
         g.beginPath();
         g.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
         g.stroke();
         g.setLineDash([]);
       }
       g.globalAlpha = 1;
-      label(`${b.name}${under ? '（地平線下）' : ''}`, p.x + r + 6, p.y + 4, { color: under ? 'rgba(255,255,255,0.6)' : '#fff', size: 14, bold: !under });
+      label(`${b.name}${under ? '（地平線下）' : ''}`, p.x + r + 6, p.y + 4, { color: under ? C.labelDim : C.label, size: 14, bold: !under });
     }
     // 中間對準的是什麼
     const cam = cameraDirection(R);
