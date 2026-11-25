@@ -1,11 +1,13 @@
-// 命盤 → 工作與方向：適合的工作性質（多系統投票）、比較順的行業、職場優勢與地雷、未來三年、十年方向。
+// 命盤 → 工作與方向：適合的工作性質（多系統投票）、比較順的行業、新興產業（AI 等）適不適合、職場優勢與地雷、未來三年、十年方向。
 
 import { h } from '../ui/dom.js';
 import { cardHead } from '../ui/icons.js';
 import { partsList } from '../ui/widgets.js';
 import { loadProfile } from './profile.js';
+import { EMERGING_NOTE } from '../core/emerging.js';
 
 const TONE = { good: { cls: 'lv-high', text: '順' }, mid: { cls: 'lv-mid', text: '平' }, hard: { cls: 'lv-poor', text: '要多用心' } };
+const FIT = { 很適合: 'lv-high', 可以試試: 'lv-mid', 要多花力氣: 'lv-low' };
 const chips = (list) => h('div', { class: 'chips' }, list.map((t) => h('span', { class: 'chip', text: t })));
 
 export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
@@ -30,6 +32,22 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
     h('ul', { class: 'reasons' }, y.doList.map((t) => h('li', { class: 'tone-good', text: t })), y.watchList.map((t) => h('li', { class: 'tone-bad', text: t }))),
     h('details', { class: 'more' }, h('summary', { text: '依據' }), partsList(y.points)),
   ));
+
+  // 新興產業：AI 時代的建議放最前面，產業依適配度排序（第一個先打開）
+  const ai = r.emerging.find((e) => e.id === 'ai');
+  const emergingCard = h('section', { class: 'card' },
+    cardHead(h, 'sparkle', '新興產業適不適合你', 'AI、半導體、資安、綠能、長照、內容創作…'),
+    r.aiAdvice ? h('div', { class: 'ai-box' },
+      h('h3', { text: 'AI 時代，你可以這樣做' }),
+      h('p', { text: r.aiAdvice.text }),
+      h('p', { class: 'muted small', text: `依你最強的工作性質「${r.aiAdvice.nature}」。AI 產業本身對你：${ai.level}（${ai.role}）。` })) : null,
+    h('div', { class: 'em-list' }, r.emerging.map((e, i) => h('details', { class: 'em', open: i === 0 },
+      h('summary', {}, h('b', { text: e.name }), h('span', { class: `em-level ${FIT[e.level]}`, text: e.level })),
+      h('p', { class: 'muted small', text: e.desc }),
+      h('ul', { class: 'reasons' }, e.why.map((w) => h('li', { class: e.level === '要多花力氣' ? 'tone-info' : 'tone-good', text: w }))),
+      h('p', {}, h('b', { text: '你可以做的角色：' }), h('span', { text: e.role })),
+      h('p', {}, h('b', { text: '怎麼開始：' }), h('span', { text: e.entry }))))),
+    h('p', { class: 'hint', text: EMERGING_NOTE }));
 
   const decadeLines = [];
   if (f.dayun && f.dayun.current) {
@@ -63,6 +81,7 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
       h('details', { class: 'more' }, h('summary', { text: `各系統怎麼說（${r.points.length}）` }), partsList(r.points)),
       prof.missing.length ? h('p', { class: 'warn', text: `補上這些資料會更準：${prof.missing.join('、')}。` }) : null,
     ),
+    emergingCard,
     h('section', { class: 'card' }, cardHead(h, 'calendar', '未來三年的方向', '每年的重點、適合做的、要小心的'), yearCards),
     h(
       'section',

@@ -763,6 +763,12 @@ test('命盤：工作與方向、開運佈置（財庫、財位、九宮飛星�
   await expect(dv.locator('.trait .count').first()).toHaveText(/[2-9] 個系統/);
   await expect(dv.locator('.year-card')).toHaveCount(3);
   await expect(dv.locator('.year-card').first()).toContainText('2026');
+  // 新興產業：AI 時代的建議＋13 個產業依適配度排序，第一個打開、寫出角色和怎麼開始
+  const em = dv.locator('section.card', { hasText: '新興產業適不適合你' });
+  await expect(em.getByRole('heading', { name: 'AI 時代，你可以這樣做' })).toBeVisible();
+  await expect(em.locator('details.em')).toHaveCount(13);
+  await expect(em.locator('details.em').first()).toContainText('你可以做的角色：');
+  await expect(em.locator('details.em').first()).toContainText('怎麼開始：');
   await expect(dv.getByText(/大運 丁亥/)).toBeVisible();
   await tool.selectOption('fengshui');
   await expect(dv.getByText('怎麼改善：開運佈置重點')).toBeVisible();

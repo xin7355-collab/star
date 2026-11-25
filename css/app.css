@@ -267,6 +267,14 @@ tbody th { font-weight: 600; }
 .lv-low { color: var(--low); }
 .lv-poor { color: var(--poor); }
 .lv-flat { color: var(--muted); }
+/* 新興產業：AI 建議一個框，產業一列一列可以點開 */
+.ai-box { border: 1px solid var(--gold); border-radius: 14px; padding: 4px 12px; margin: 8px 0 12px; background: var(--accent-soft); }
+.ai-box h3 { margin: 8px 0 4px; }
+.em-list { display: flex; flex-direction: column; gap: 6px; }
+.em { border: 1px solid var(--line); border-radius: 14px; background: var(--bg2); padding: 0 12px; }
+.em > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
+.em > summary::-webkit-details-marker { display: none; }
+.em-level { font-weight: 800; font-size: 14px; white-space: nowrap; }
 /* 人生時間軸：每年一列（年份、長條、等級、標籤），點開看那一年的細節 */
 .lifeline { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
 .ly { border: 1px solid var(--line); border-radius: 14px; background: var(--bg2); padding: 0 12px; }

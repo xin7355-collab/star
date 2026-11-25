@@ -8,6 +8,7 @@
 // 全部在手機上計算；文字為本 App 撰寫，命理是參考，不是保證。
 
 import { SIGNS } from './zodiac.js';
+import { emergingFit, AI_ADVICE } from './emerging.js';
 import { positionsAt } from './astro.js';
 import { liunian, yongShen, ganzhiTone } from './bazi.js';
 import { geju } from './geju.js';
@@ -167,7 +168,10 @@ export function buildCareer({ natal = null, bazi = null, ziwei = null, birth, bl
     ? { primary: ys.primary, secondary: ys.secondary, list: [...INDUSTRY[ys.primary], ...INDUSTRY[ys.secondary].slice(0, 3)], reason: `喜用五行是「${ys.primary}」，其次「${ys.secondary}」（${ys.strength}）：這兩類行業比較順，「${ys.avoid.join('、')}」類行業不是不能做，是要花比較多力氣。` }
     : null;
 
-  return { natures, ranked, consensus: consensus.length > 0, points, industries, future: buildFuture({ natal, bazi, ziwei, birth, today, ys }) };
+  // 新興產業（AI、半導體、資安、綠能、長照……）：工作性質票數＋喜用五行；AI 時代的建議看票數最多的工作性質
+  const emerging = emergingFit({ ranked, ys });
+  const aiAdvice = ranked[0] ? { nature: ranked[0].label, text: AI_ADVICE[ranked[0].key] } : null;
+  return { natures, ranked, consensus: consensus.length > 0, points, industries, emerging, aiAdvice, future: buildFuture({ natal, bazi, ziwei, birth, today, ys }) };
 }
 
 function buildFuture({ natal, bazi, ziwei, birth, today, ys }) {
