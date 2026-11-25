@@ -843,6 +843,42 @@ test('占卜：解惑（選困擾、起卦、命盤、好日子、具體做法�
   expect(urls.some((u) => decodeURIComponent(u).includes(q))).toBe(false);
 });
 
+test('今日：朗讀今天的重點（只用內建語音、可以停止），唸的內容和畫面一致', async ({ page }) => {
+  // 換成假的語音引擎：記下要唸的句子，不真的出聲；一個內建的台灣語音、一個雲端語音（不能被選到）
+  await page.addInitScript(() => {
+    window.__spoken = [];
+    window.__voice = null;
+    const voices = [{ name: 'Google 國語', lang: 'zh-TW', localService: false }, { name: 'Mei-Jia', lang: 'zh-TW', localService: true }];
+    const fake = {
+      getVoices: () => voices,
+      speak(u) { window.__spoken.push(u.text); window.__voice = u.voice ? u.voice.name : null; window.__last = u; },
+      cancel() { window.__cancelled = (window.__cancelled || 0) + 1; },
+      addEventListener() {},
+    };
+    Object.defineProperty(window, 'speechSynthesis', { value: fake, configurable: true });
+    window.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) { this.text = text; };
+  });
+  await page.clock.setFixedTime(new Date('2026-11-25T10:00:00+08:00'));
+  await seed(page);
+  await page.goto('/');
+  const btn = page.locator('#today-hero').getByRole('button', { name: '朗讀今天的重點' });
+  await btn.click();
+  await expect(page.locator('#today-hero').getByRole('button', { name: '停止朗讀' })).toHaveAttribute('aria-pressed', 'true');
+  const spoken = (await page.evaluate(() => window.__spoken)).join('');
+  expect(await page.evaluate(() => window.__voice)).toBe('Mei-Jia');
+  const score = await page.locator('#today-hero .score-ring b').textContent();
+  expect(spoken).toContain(`今日指數 ${score} 分`);
+  expect(spoken).toContain('11月25日星期三');
+  expect(spoken).toContain('今天的瑪雅印記是宇宙藍猴');
+  // 唸完（最後一句的 onend）按鈕恢復；唸到一半按停止也會恢復
+  await page.evaluate(() => window.__last.onend());
+  await expect(btn).toHaveAttribute('aria-pressed', 'false');
+  await btn.click();
+  await page.locator('#today-hero').getByRole('button', { name: '停止朗讀' }).click();
+  await expect(btn).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(() => window.__cancelled)).toBeGreaterThan(0);
+});
+
 test('今日：遇到困難直接到解惑，幸運小物直接到財位與開運擺設', async ({ page }) => {
   await seed(page);
   await page.goto('/');

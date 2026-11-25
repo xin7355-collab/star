@@ -8,6 +8,8 @@ import { cardHead } from '../ui/icons.js';
 import { reveal, ringTo, countUp, playWhenVisible } from '../ui/motion.js';
 import { hourTimeline, ballsRow, timelineList, partsList } from '../ui/widgets.js';
 import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
+import { todayScript } from '../core/speech.js';
+import { canSpeak, primeVoices, speak, stopSpeaking, isSpeaking } from '../ui/speak.js';
 import { SIGNS, mainSunSign } from '../core/zodiac.js';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -33,6 +35,9 @@ export function mountToday(root, ctx) {
   async function render() {
     token += 1;
     const my = token;
+    // 換人或資料更新會重畫：舊的朗讀停掉，免得唸的是上一個人的內容
+    if (isSpeaking()) stopSpeaking();
+    primeVoices();
     clear(root);
     root.append(
       h('section', { class: 'card feature' }, h('div', { class: 'skeleton', style: { height: '118px' } }), h('div', { class: 'skeleton', style: { width: '70%' } })),
@@ -76,6 +81,19 @@ export function mountToday(root, ctx) {
     };
     data.hourLines = T.hourSummary(data.hours);
     data.attention = T.attentionSummary(data.items, today);
+    // 朗讀稿要的資料（按下朗讀時才組，畫面上看到什麼就唸什麼）
+    const dayKin = MK.kinOf(today);
+    data.speechInput = () => ({
+      title: person ? heroTitle(person) : '今天',
+      dateLine: dateLine(data),
+      score: data.daily.score,
+      level: data.daily.level,
+      advice: data.daily.advice,
+      attention: attentionLines(data),
+      hours: data.hourLines.filter((l) => l.startsWith('好')),
+      lucky: { color: data.lucky.color ? data.lucky.color.name : '', numbers: data.lucky.numbers ? data.lucky.numbers.join('、') : '', cai: data.lucky.cai },
+      maya: dayKin ? { title: MK.kinInfo(dayKin).title, q: MT.TONE_TEXT[MK.toneOf(dayKin)].q } : null,
+    });
     fill(root, ...reveal([
       person ? heroCard(data) : welcomeCard(data),
       attentionCard(data, T),
@@ -104,6 +122,7 @@ export function mountToday(root, ctx) {
       h('div', { class: 'kicker', text: 'TODAY ・ 今日運勢' }),
       h('p', { class: 'muted small', text: dateLine(data) }),
       h('div', { class: 'score-hero' }, ring, h('div', {}, h('h2', { text: heroTitle(person) }), sign ? h('p', { class: 'muted small', text: `${sign.glyph} ${sign.name}` }) : null, h('p', { class: 'summary', text: daily.advice }))),
+      speakButton(data),
       h(
         'details',
         { class: 'more' },
@@ -142,7 +161,28 @@ export function mountToday(root, ctx) {
     return '晚安';
   }
 
-  function attentionCard(data) {
+  // 朗讀：用手機內建語音唸今天的重點（指數、要注意的、好時辰、幸運色、今天的瑪雅印記）
+  function speakButton(data) {
+    if (!canSpeak()) return null;
+    const btn = h('button', { type: 'button', class: 'btn small ghost', 'aria-pressed': 'false', text: '朗讀今天的重點' });
+    const reset = () => {
+      btn.textContent = '朗讀今天的重點';
+      btn.setAttribute('aria-pressed', 'false');
+    };
+    btn.addEventListener('click', () => {
+      if (isSpeaking()) return stopSpeaking();
+      // 一定要在點擊當下直接呼叫（iOS 規定），不能先 await
+      const r = speak(todayScript(data.speechInput()), { onEnd: reset });
+      if (!r.ok) return ctx.toast(r.error);
+      btn.textContent = '停止朗讀';
+      btn.setAttribute('aria-pressed', 'true');
+      return null;
+    });
+    return h('div', { class: 'actions' }, btn);
+  }
+
+  // 今天要注意的事：卡片和朗讀共用同一份
+  function attentionLines(data) {
     const { daily, alm, attention, hourLines } = data;
     const lines = [];
     const bz = daily.parts.find((p) => p.system === '八字');
@@ -154,11 +194,16 @@ export function mountToday(root, ctx) {
     }
     lines.push(...hourLines.filter((l) => l.startsWith('避開')));
     lines.push(...attention.slice(0, 2));
+    return lines.slice(0, 6);
+  }
+
+  function attentionCard(data) {
+    const lines = attentionLines(data);
     return h(
       'section',
       { class: 'card' },
       cardHead(h, 'bell', '今天要注意', '綜合八字、農民曆、天象與吉時'),
-      h('ul', { class: 'reasons' }, lines.slice(0, 6).map((t) => h('li', { class: /避開|沖|逆行|忌|緩/.test(t) ? 'tone-bad' : 'tone-good', text: t }))),
+      h('ul', { class: 'reasons' }, lines.map((t) => h('li', { class: /避開|沖|逆行|忌|緩/.test(t) ? 'tone-bad' : 'tone-good', text: t }))),
       h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn', text: '遇到困難？問一卦', onclick: () => ctx.go('oracle', { panel: 'jiehuo' }) })),
     );
   }
