@@ -11,6 +11,16 @@
 i18next 以 `overrides` 從 iztro 預設的 23.x 升到 26.7.2，修掉 npm audit 回報的 GHSA-6jcc-5g8w-32mx；
 升級前後 6 組紫微命盤輸出逐字相同。
 
+## 按了才下載的手部辨識（`vendor/mediapipe/`，由 `npm run build:mediapipe` 從固定版本重新產生，逐檔核對 SHA-256）
+
+| 檔案 | 來源 | 授權 |
+|---|---|---|
+| `vendor/mediapipe/vision_bundle.mjs`、`vision_wasm_internal.js`、`vision_wasm_internal.wasm` | [@mediapipe/tasks-vision](https://www.npmjs.com/package/@mediapipe/tasks-vision) 1.2.2（Google）：手部關鍵點辨識的執行環境 | Apache-2.0，`LICENSES/mediapipe-Apache-2.0.txt`；**已修改** `vision_bundle.mjs`：關掉原本一定會開的使用量回報（每 60 秒 POST 到 odml.pa.googleapis.com），檔頭有說明 |
+| `vendor/mediapipe/hand_landmarker.task` | [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker) 模型 float16/1 | Apache-2.0，同上；未修改 |
+
+這組約 22MB，不放進 service worker 的預先快取：使用者在掌紋按「自動找三個位置」才下載，存進獨立快取（App 換版不重抓）。
+照片只在手機上辨識，不上傳（`tests/e2e` 用真的模型跑一次，確認沒有任何外部請求）。
+
 ## 來自 skl 技能庫
 
 | 檔案 | 來源 | 授權 |

@@ -1550,3 +1550,97 @@ test('塔羅：自訂牌組（檔名認牌、對不到的列出來、逐張換�
   expect(requests.filter((r) => !r.url.startsWith(baseURL) && !/^(blob|data):/.test(r.url))).toEqual([]);
   expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
 });
+
+test.describe('掌紋自動定位（手部辨識模型）', () => {
+  // page.route 攔不到 service worker 代抓的請求：這組關掉 service worker，直接看頁面發出的請求
+  test.use({ serviceWorkers: 'block' });
+
+  /** 打開掌紋工具，把 App 畫的範例手掌當成「自己的照片」上傳（不是練習模式，才有自動找的按鈕） */
+  async function openWithPhoto(page, hand) {
+    await seed(page);
+    await page.goto('/');
+    await tab(page, 'destiny');
+    await page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption('palm');
+    const photo = palmCard(page, '拍照描線（選用）');
+    const png = await page.evaluate(async (hd) => (await import('/js/ui/palm-chart.js')).practicePalm(hd).canvas.toDataURL('image/png').split(',')[1], hand);
+    await photo.locator('input[type="file"]').setInputFiles({ name: `${hand}.png`, mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+    await expect(photo.locator('canvas.palm-canvas')).toHaveCount(1);
+    return photo;
+  }
+
+  test('真的模型：按了才下載、在手機上跑、沒有任何外部請求（使用量回報已關）；畫的手掌認不出來就請他手動點', async ({ page, baseURL, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Linux 版 WebKit 沒有 WebGL，跑不了 MediaPipe；iPhone 要實機驗證');
+    test.setTimeout(120_000);
+    const requests = [];
+    page.on('request', (r) => requests.push({ url: r.url(), method: r.method() }));
+    const photo = await openWithPhoto(page, 'left');
+    expect(requests.filter((r) => r.url.includes('/vendor/mediapipe/'))).toEqual([]); // 還沒按：一個位元組都不抓
+    await expect(photo.getByText(/第一次要下載約 22MB/)).toBeVisible();
+    await photo.getByRole('button', { name: '自動找三個位置' }).click();
+    await expect(photo.locator('.palm-note')).toContainText('照片裡沒找到手', { timeout: 90_000 });
+    await expect(photo.getByRole('button', { name: '自動找三個位置' })).toBeEnabled();
+    await expect(photo.locator('.palm-instr')).toContainText('1／3'); // 還在等手動點
+    const mp = requests.filter((r) => r.url.includes('/vendor/mediapipe/')).map((r) => r.url.split('/').pop());
+    expect(mp).toEqual(expect.arrayContaining(['vision_wasm_internal.wasm', 'hand_landmarker.task', 'vision_bundle.mjs', 'vision_wasm_internal.js']));
+    expect(requests.filter((r) => !r.url.startsWith(baseURL) && !/^(blob|data):/.test(r.url))).toEqual([]);
+    expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
+  });
+
+  test('找到手：三個位置自動放好（和手動點的一樣，描線判斷也一樣）、可以復原；下載失敗有說明、可以再試', async ({ page }) => {
+    test.setTimeout(120_000);
+    // 假的辨識模組：直接回傳手部關鍵點。指根的兩個關節放在同一點，換算出來就剛好是範例手掌的校正點
+    await page.route('**/vendor/mediapipe/vision_bundle.mjs', (route) => route.fulfill({
+      contentType: 'text/javascript',
+      body: `export class HandLandmarker {
+        static async createFromOptions() { return new HandLandmarker(); }
+        detect(c) { const f = globalThis.__fakeHand; return f ? { landmarks: [f(c.width, c.height)], handedness: [[{ score: 0.97, categoryName: 'Left' }]] } : { landmarks: [], handedness: [] }; }
+        close() {}
+      }`,
+    }));
+    const photo = await openWithPhoto(page, 'left');
+    await page.evaluate(async () => {
+      const p = (await import('/js/ui/palm-chart.js')).practicePoints('left');
+      globalThis.__fakeHand = (w, hh) => {
+        const n = ([x, y]) => ({ x: x / w, y: y / hh, z: 0 });
+        const lm = Array.from({ length: 21 }, () => n([w / 2, hh / 2]));
+        lm[0] = n(p.wrist);
+        lm[5] = n(p.index);
+        lm[6] = n(p.index);
+        lm[17] = n(p.pinky);
+        lm[18] = n(p.pinky);
+        return lm;
+      };
+    });
+    // 第一次：模型檔下載失敗（網路斷掉）→ 說明，按鈕可以再按
+    await page.route('**/vendor/mediapipe/hand_landmarker.task', (route) => route.abort());
+    await photo.getByRole('button', { name: '自動找三個位置' }).click();
+    await expect(photo.locator('.palm-note')).toContainText('辨識模型載入失敗');
+    await page.unroute('**/vendor/mediapipe/hand_landmarker.task');
+    // 故意讓下載失敗：瀏覽器主控台會記一筆「Failed to load resource」，不算執行期錯誤
+    errors = errors.filter((e) => !/Failed to load resource.*hand_landmarker\.task/.test(e));
+    // 第二次：找到了
+    await photo.getByRole('button', { name: '自動找三個位置' }).click();
+    await expect(photo.locator('.palm-note')).toContainText('已自動放好三個位置');
+    await expect(photo.locator('.palm-instr')).toContainText('描生命線');
+    await expect(photo.getByText('上一步：自動找三個位置')).toBeVisible();
+    await expect(photo.locator('.palm-side')).toHaveCount(0); // 選左手、照片也是左手
+    // 描生命線：判斷結果和手動點三個位置時一樣（長、弧度大），而且填進選項
+    const cv = photo.locator('canvas.palm-canvas');
+    await cv.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    const box = await cv.boundingBox();
+    const pts = await page.evaluate(async () => (await import('/js/ui/palm-chart.js')).practicePoints('left'));
+    const at = ([x, y]) => [box.x + (x / 714) * box.width, box.y + (y / 884) * box.height];
+    const mid = [(pts.index[0] + pts.pinky[0]) / 2, (pts.index[1] + pts.pinky[1]) / 2];
+    const uv = ([u, v]) => [pts.pinky[0] + u * (pts.index[0] - pts.pinky[0]) + v * (pts.wrist[0] - mid[0]), pts.pinky[1] + u * (pts.index[1] - pts.pinky[1]) + v * (pts.wrist[1] - mid[1])];
+    const q = [[1.04, 0.34], [0.86, 0.5], [0.78, 0.7], [0.82, 0.88], [0.9, 1.0]].map(uv).map(at);
+    await page.mouse.move(...q[0]);
+    await page.mouse.down();
+    for (const r of q.slice(1)) await page.mouse.move(...r, { steps: 6 });
+    await page.mouse.up();
+    await expect(palmCard(page, '看圖選線形').locator('.palm-step', { hasText: '生命線' })).toContainText('長、弧度大');
+    // 復原兩次：回到還沒自動找之前（等著點第 1 個位置）
+    await photo.getByRole('button', { name: /^復原/ }).click();
+    await photo.getByRole('button', { name: '復原：自動找三個位置' }).click();
+    await expect(photo.locator('.palm-instr')).toContainText('1／3');
+  });
+});

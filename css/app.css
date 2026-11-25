@@ -1235,3 +1235,7 @@ body.ar-open { overflow: hidden; }
 .ar-list summary { min-height: 44px; display: flex; align-items: center; color: #f5c451; cursor: pointer; }
 .ar-list-items { max-height: 28vh; overflow: auto; margin: 0; padding-left: 18px; }
 .ar-mine { color: #f5c451; }
+
+/* 掌紋：自動找三個位置（按鈕和說明在同一塊，下載進度接在按鈕下面） */
+.palm-auto { margin-top: 8px; }
+.palm-auto p { margin: 4px 0 0; }

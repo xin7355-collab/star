@@ -1,0 +1,3 @@
+# 手部辨識模型與 wasm：二進位檔，不要做文字比對或換行轉換
+vendor/mediapipe/*.wasm binary
+vendor/mediapipe/*.task binary

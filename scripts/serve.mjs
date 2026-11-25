@@ -18,6 +18,9 @@ const TYPES = {
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.txt': 'text/plain; charset=utf-8',
+  // GitHub Pages 對 .wasm 回 application/wasm（瀏覽器才能邊下載邊編譯）；.task 是 MediaPipe 的模型包（zip）
+  '.wasm': 'application/wasm',
+  '.task': 'application/octet-stream',
 };
 const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.css', '.json', '.webmanifest', '.svg', '.txt']);
 

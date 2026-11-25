@@ -16,6 +16,7 @@ import {
   mergeSuggestions, TRACE_LINES,
 } from '../core/palm.js';
 import { createUndo } from '../core/undo.js';
+import { locateHand, TOTAL_MB as MP_MB } from '../ui/hand-detect.js';
 import { PALM_TEXT, PALM_HOW, SIMIAN_NOTE, PALM_DISCLAIMER, palmReading, handDiffText, roleText } from '../core/palm-texts.js';
 
 const HAND_NAME = { left: '左手', right: '右手' };
@@ -325,6 +326,42 @@ export function drawPalm(p, { ctx, actions }) {
     repaintAfter();
   }
 
+  // 自動找三個位置：MediaPipe 手部關鍵點，按了才下載模型（第一次約 22MB）、只在手機上算。
+  // 練習用的範例手掌是畫的，模型認不出來，所以練習時不提供。找的時候換了照片或換手，結果就不套用。
+  let locating = false;
+  const locLine = h('p', { class: 'small muted', role: 'status' });
+  async function autoLocate() {
+    const hand = session.hand;
+    const ph = curPhoto();
+    if (!ph || ph.demo || locating) return;
+    locating = true;
+    locLine.textContent = '準備辨識…';
+    paintPhoto();
+    // 大檔（模型、wasm）在 locateHand 裡面按了才下載；失敗都會回傳說明，不會丟出例外
+    const r = await locateHand(ph.canvas, { onProgress: (t) => { locLine.textContent = t; } });
+    locating = false;
+    locLine.textContent = '';
+    if (session.photos[hand] !== ph) return;
+    if (!r.ok) {
+      session.note = { hand, text: r.error };
+      paintPhoto();
+      return;
+    }
+    // 先檢查再記錄：側面、手指彎著時三個點會擠在一起，不合格就不要留下一筆復原不了什麼的紀錄
+    if (!frameOf({ calib: r.points })) {
+      session.note = { hand, text: '找到手了，但角度不對（像是側面或手指彎著）：手掌攤平、掌心朝鏡頭再拍一張，或手動點三個位置。' };
+      paintPhoto();
+      return;
+    }
+    record('自動找三個位置');
+    ph.calib = { ...r.points };
+    const fr = frameOf(ph);
+    ph.advice = photoAdvice(sampleGray(ph, fr), fr.width / ph.w);
+    applySuggestions(tracedLines(ph));
+    session.note = { hand, text: '已自動放好三個位置：看看三個圈是不是在食指根部、小指根部和手腕中間；不準就按「重新點三個位置」自己點。' };
+    repaintAfter();
+  }
+
   function resetCalib() {
     const ph = curPhoto();
     record('重新點三個位置');
@@ -474,7 +511,10 @@ export function drawPalm(p, { ctx, actions }) {
     const how = next
       ? h('div', { class: 'palm-how' },
         h('p', { class: 'palm-instr' }, h('span', { class: 'badge', text: `${at + 1}／3` }), ' ', h('span', { text: `點照片上的「${next.text}」` })),
-        h('p', { class: 'small muted', text: '照左邊的示範圖點。按住可以滑動微調，放開才算；手指按著時，角落的放大鏡看得到手指底下。' }))
+        h('p', { class: 'small muted', text: '照左邊的示範圖點。按住可以滑動微調，放開才算；手指按著時，角落的放大鏡看得到手指底下。' }),
+        ph.demo ? null : h('div', { class: 'palm-auto' },
+          h('button', { type: 'button', class: 'btn small primary', text: locating ? '辨識中…' : '自動找三個位置', disabled: locating, onclick: autoLocate }),
+          locating ? locLine : h('p', { class: 'small muted', text: `用手部辨識模型在手機上找，照片不會上傳；第一次要下載約 ${MP_MB}MB（建議連 Wi-Fi）。` })))
       : h('div', { class: 'palm-how' },
         h('p', { class: 'palm-instr' }, h('b', { text: `描${LINE_NAME[target]}` })),
         h('p', { class: 'small', text: TRACE_HOW[target] }),

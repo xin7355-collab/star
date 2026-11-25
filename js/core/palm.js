@@ -372,3 +372,17 @@ export function handRole(hand, { school = 'gender', gender = '', dominant = '' }
   return hand === main ? 'main' : 'ref';
 }
 
+
+/**
+ * 手部關鍵點（MediaPipe Hand Landmarker 的 21 點，座標是 0～1 的比例）→ 描線用的三個校正點（照片像素）。
+ * 0＝手腕、5／6＝食指的掌指關節／第一指節、17／18＝小指的掌指關節／第一指節。
+ * 為什麼不直接用 5、17：掌指關節在手掌照片上落在掌心那一側（約在感情線附近），而「指根」是手指和手掌的交界，
+ * 大約在掌指關節往第一指節 3 成的地方；直接用關節會讓掌心框短一截，量出來的線都偏長。
+ * @returns {{index:number[], pinky:number[], wrist:number[]}|null} 關鍵點不完整回傳 null
+ */
+export function calibFromLandmarks(lm, w, h, k = 0.3) {
+  if (!Array.isArray(lm) || lm.length < 21) return null;
+  const P = (i) => [lm[i].x * w, lm[i].y * h];
+  const toward = (a, b) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+  return { index: toward(P(5), P(6)), pinky: toward(P(17), P(18)), wrist: P(0) };
+}

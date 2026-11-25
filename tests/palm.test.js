@@ -233,3 +233,18 @@ test('左右手比較：只列兩手都選了又不同的；說法跟著看法�
   assert.match(handDiffText(d, { school: 'dominant', dominant: 'left' }), /天生（右手）.+後天（左手）/);
   assert.match(handDiffText(d, { school: 'dominant', dominant: '' }), /選了慣用手/);
 });
+
+test('自動定位：手部關鍵點 → 三個校正點（指根取掌指關節往第一指節 3 成、手腕取 0 號點）；不完整回 null；左右手判斷一致', async () => {
+  const { calibFromLandmarks, palmFrame } = await import('../js/core/palm.js');
+  const lm = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5 }));
+  Object.assign(lm, { 0: { x: 0.5, y: 0.9 }, 5: { x: 0.65, y: 0.45 }, 6: { x: 0.68, y: 0.3 }, 17: { x: 0.35, y: 0.5 }, 18: { x: 0.33, y: 0.38 } });
+  const c = calibFromLandmarks(lm, 1000, 800);
+  assert.deepEqual(c.wrist, [500, 720]);
+  assert.ok(Math.abs(c.index[0] - 659) < 1e-9 && Math.abs(c.index[1] - 324) < 1e-9, String(c.index));
+  assert.ok(Math.abs(c.pinky[0] - 344) < 1e-9 && Math.abs(c.pinky[1] - 371.2) < 1e-9, String(c.pinky));
+  assert.equal(palmFrame(c).side, 'right', '掌心朝鏡頭、食指在右邊＝右手');
+  const mirrored = lm.map((p) => ({ x: 1 - p.x, y: p.y }));
+  assert.equal(palmFrame(calibFromLandmarks(mirrored, 1000, 800)).side, 'left');
+  assert.equal(calibFromLandmarks(lm.slice(0, 20), 1000, 800), null);
+  assert.equal(calibFromLandmarks(null, 1000, 800), null);
+});

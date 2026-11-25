@@ -18,10 +18,13 @@ const sw = readFileSync(join(ROOT, 'sw.js'), 'utf8');
 const assetsBlock = sw.slice(sw.indexOf('const ASSETS'), sw.indexOf('];', sw.indexOf('const ASSETS')));
 const listed = [...assetsBlock.matchAll(/'\.\/([^']*)'/g)].map((m) => m[1]).filter(Boolean);
 
+// 掌紋自動定位的辨識模型（約 22MB）故意不預先快取：按了才下載，由 sw.js 存進獨立快取（見下一個測試）
+const LAZY = 'vendor/mediapipe/';
+
 test('所有前端檔案都列在離線快取清單（漏列會造成離線時壞掉）', () => {
   const files = [...walk(join(ROOT, 'js')), ...walk(join(ROOT, 'vendor')), ...walk(join(ROOT, 'css'))]
     .map(rel)
-    .filter((f) => !f.endsWith('.md') && !f.endsWith('.txt'));
+    .filter((f) => !f.endsWith('.md') && !f.endsWith('.txt') && !f.startsWith(LAZY));
   for (const f of files) assert.ok(listed.includes(f), `sw.js 缺少 ${f}`);
 });
 
@@ -90,4 +93,21 @@ test('行事曆檔的快取名稱與網址：sw.js 和 js/ui/ics-export.js 一�
   assert.equal(/const ICS_CACHE = '([^']+)'/.exec(sw)[1], uiCache);
   assert.equal(/const ICS_PATH = '([^']+)'/.exec(sw)[1], `/${uiPath}`);
   assert.match(sw, /k !== VERSION && k !== ICS_CACHE/);
+});
+
+test('辨識模型（vendor/mediapipe）：不預先快取、有獨立快取且換版不清、快取名稱跟著 MediaPipe 版本、已關掉使用量回報、檔案大小和進度計算一致', () => {
+  assert.ok(!listed.some((f) => f.startsWith(LAZY)), '大檔不能放進預先快取，每個人安裝都要多抓 22MB');
+  const mpCache = /const MP_CACHE = '([^']+)'/.exec(sw)[1];
+  assert.match(sw, /k !== VERSION && k !== ICS_CACHE && k !== MP_CACHE/);
+  const bundle = readFileSync(join(ROOT, LAZY, 'vision_bundle.mjs'), 'utf8');
+  const ver = /@mediapipe\/tasks-vision (\d+\.\d+\.\d+)/.exec(bundle)[1];
+  assert.equal(mpCache, `star-mediapipe-${ver}`);
+  // 原版建立任務時會 new 一個記錄器，每 60 秒把統計 POST 到 Google；本專案改成不建立
+  assert.ok(!bundle.includes('new Mh('), '使用量記錄器又被打開了');
+  assert.ok(bundle.includes('t.o=void 0}(t,n)'), '找不到關掉記錄器的那一處修改');
+  const ui = readFileSync(join(ROOT, 'js/ui/hand-detect.js'), 'utf8');
+  for (const [k, file] of [['wasm', 'vision_wasm_internal.wasm'], ['model', 'hand_landmarker.task']]) {
+    const size = Number(new RegExp(`${k}: (\\d+)`).exec(ui)[1]);
+    assert.equal(size, statSync(join(ROOT, LAZY, file)).size, `${file} 的大小和 hand-detect.js 的 SIZES 不一致`);
+  }
 });

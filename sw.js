@@ -3,7 +3,7 @@
 // 發佈新版時 VERSION 要跟 js/version.js 的 APP_VER、version.json 一致（tests/pwa.test.js 會檢查），
 // 舊快取會在新版啟用時清除。
 
-const VERSION = '2026.11.26-11';
+const VERSION = '2026.11.26-12';
 
 const ASSETS = [
   './',
@@ -41,6 +41,7 @@ const ASSETS = [
   './js/ui/compass-live.js',
   './js/ui/orientation.js',
   './js/ui/ar-sky.js',
+  './js/ui/hand-detect.js',
   './js/core/maya-texts.js',
   './js/core/privacy.js',
   './js/core/numerology.js',
@@ -124,6 +125,10 @@ const NETWORK_ONLY = ['version.json'];
 // iPhone 的 Safari 才會問要不要加入行事曆。換版時不能清掉；一律不連網路（伺服器上沒有這個檔，內容只在手機上）。
 const ICS_CACHE = 'star-ics';
 const ICS_PATH = '/cal/reminders.ics';
+// 掌紋自動定位的辨識模型與程式（vendor/mediapipe，約 22MB）：不放進上面的預先快取（每個人安裝都要多抓 22MB），
+// 按了才下載，存進這個獨立快取，App 換版也不重抓；MediaPipe 換版本時改這個名稱，舊的會在啟用時清掉。
+const MP_CACHE = 'star-mediapipe-1.2.2';
+const MP_DIR = '/vendor/mediapipe/';
 const icsMissing = () => new Response(
   '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
   + '<meta name="robots" content="noindex, nofollow"><title>行事曆提醒</title>'
@@ -145,7 +150,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== ICS_CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== ICS_CACHE && k !== MP_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -156,6 +161,16 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (NETWORK_ONLY.some((name) => url.pathname.endsWith(`/${name}`))) return;
+  if (url.pathname.includes(MP_DIR)) {
+    event.respondWith(caches.open(MP_CACHE).then(async (cache) => {
+      const hit = await cache.match(req, { ignoreSearch: true });
+      if (hit) return hit;
+      const res = await fetch(req); // guardrails: ignore（同網域靜態檔，失敗時頁面會說明並讓使用者手動點）
+      if (res.ok && res.type === 'basic') cache.put(req, res.clone());
+      return res;
+    }));
+    return;
+  }
   if (url.pathname.endsWith(ICS_PATH)) {
     event.respondWith(caches.open(ICS_CACHE).then((c) => c.match(req, { ignoreSearch: true })).then((res) => res || icsMissing()));
     return;
