@@ -241,7 +241,8 @@ export function mountMatch(root, ctx) {
       type: 'button',
       class: 'btn',
       text: '存成圖卡',
-      onclick: () => ctx.share({ title, subtitle: '星座配對', big: String(score), bigScore: score, bigLabel: label, lines: lines.filter(Boolean) }, 'match.png'),
+      // multi：匿名時每個人換成 A、B…（只換成「某人」會看不出相位是誰的行星）
+      onclick: () => ctx.share({ title, subtitle: '星座配對', big: String(score), bigScore: score, bigLabel: label, lines: lines.filter(Boolean), multi: true }, 'match.png'),
     }));
   }
 

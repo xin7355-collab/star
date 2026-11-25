@@ -492,6 +492,14 @@ test('名單：新增農曆生日的家人（不搶走「我」）、從名單�
   await expect(mv.locator('.match-result .bar')).toHaveCount(4);
   await expect(mv.getByRole('heading', { name: '兩張星盤的主要相位' })).toBeVisible();
   await expect(mv.locator('.match-result ul.reasons li').first()).toContainText('°');
+  // 配對圖卡勾匿名：兩個人換成 A、B（不是兩個「某人」，相位才看得出是誰的行星）
+  await mv.locator('.match-result').getByRole('button', { name: '存成圖卡' }).click();
+  const sheet = page.locator('.sheet');
+  await expect(sheet.locator('img.sheet-img')).toHaveAttribute('alt', '我 × 媽媽');
+  await sheet.getByRole('checkbox', { name: '匿名：不顯示名字、出生時間和提問' }).check();
+  await expect(sheet.locator('img.sheet-img')).toHaveAttribute('alt', 'A × B');
+  await page.keyboard.press('Escape');
+  await expect(sheet).toBeHidden();
 
   await oracle(page, '塔羅');
   const tv = page.locator('#oracle-tarot');
