@@ -979,6 +979,64 @@ test('人生時間軸：把要注意的日子加到手機行事曆（service wor
   expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
 });
 
+test('開運佈置：手機羅盤（iPhone 要權限、跟著轉、往哪轉、對準提示、換目標、Android 絕對方位；拒絕和沒感測器都有替代做法）', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-25T10:00:00+08:00'));
+  // 模擬 iPhone：第一次按「不允許」、第二次按「允許」
+  await page.addInitScript(() => {
+    let n = 0;
+    if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class extends Event {};
+    window.DeviceOrientationEvent.requestPermission = () => Promise.resolve(n++ === 0 ? 'denied' : 'granted');
+  });
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('fengshui');
+  const btn = dv.getByRole('button', { name: '用手機羅盤找方位' });
+  const sheet = page.locator('#sheet');
+  await btn.click();
+  await expect(sheet).toHaveAttribute('aria-label', '手機羅盤');
+  await expect(page.locator('#sheet-title')).toHaveText('手機羅盤');
+  await expect(sheet).toContainText('沒有拿到「動作與方向」的權限');
+  await expect(sheet).toContainText('跳出詢問時選「允許」');
+  await page.locator('#sheet-close').click();
+  await btn.click();
+  // iPhone 的事件：webkitCompassHeading（一般 Event 加屬性，各瀏覽器都能模擬）
+  const ios = (v) => page.evaluate((hd) => { const e = new Event('deviceorientation'); Object.defineProperty(e, 'webkitCompassHeading', { value: hd }); window.dispatchEvent(e); }, v);
+  const now = page.locator('.cp-now');
+  const guide = page.locator('.cp-guide');
+  await expect(guide).toHaveText('');
+  await ios(100);
+  await expect(now).toHaveText('手機頭朝：東（乙山 100°）');
+  // 2026 年一白入中：九紫在東南、八白在東、五黃在南；太歲（午）也在南
+  await expect(guide).toHaveText('往右轉 35°，就會對準東南的今年財星（九紫）');
+  await expect(page.locator('.lp-rot')).toHaveAttribute('transform', 'rotate(-100.0 150 150)');
+  await expect(page.locator('.lp-mark.on')).toHaveCount(1);
+  await ios(200); // 一次轉超過 60° 直接跳過去
+  await expect(guide).toHaveText('往左轉 65°，就會對準東南的今年財星（九紫）');
+  await ios(135);
+  await expect(guide).toHaveText('✓ 對準了：前面就是東南的今年財星（九紫）');
+  await expect(guide).toHaveClass(/\bon\b/);
+  await expect(page.locator('#sheet-body [aria-live="polite"]')).toHaveText('對準了，前面就是東南的今年財星（九紫）');
+  // 換成要避開的五黃（南）
+  await page.getByRole('combobox', { name: '要找哪個方位' }).selectOption('five');
+  await expect(guide).toHaveText('往右轉 45°，就會對準南的五黃煞（要避開）');
+  await expect(page.locator('.cp-legend')).toContainText('今年財星');
+  await expect(page.locator('.cp-legend')).toContainText('太歲（避開）');
+  await page.locator('#sheet-close').click();
+  // Android：先來一筆全是 null 的絕對事件（沒有磁力計的情況），不能把之後的有效事件擋掉；有效的絕對事件用 360－alpha
+  await btn.click();
+  const android = (alpha) => page.evaluate((a) => { const e = new Event('deviceorientationabsolute'); Object.defineProperty(e, 'alpha', { value: a }); Object.defineProperty(e, 'absolute', { value: true }); window.dispatchEvent(e); }, alpha);
+  await android(null);
+  await android(180);
+  await expect(now).toHaveText('手機頭朝：南（午山 180°）');
+  await page.locator('#sheet-close').click();
+  // 都沒有資料（電腦）：幾秒後說明替代做法
+  await btn.click();
+  await expect(now).toHaveText('收不到指南針的資料', { timeout: 10_000 });
+  await expect(sheet).toContainText('內建的「指南針」App');
+});
+
 test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、沒有「null／undefined」字樣', async ({ page }) => {
   await seed(page);
   await page.setViewportSize({ width: 320, height: 640 });

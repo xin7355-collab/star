@@ -3,15 +3,13 @@
 // 使用者開了「減少動態效果」時，CSS 檔尾會讓動畫瞬間結束，直接顯示畫好的圖。
 
 import { h, s } from './dom.js';
+import { DIR_DEG, MOUNTAINS } from '../core/compass.js';
 
 const RAD = Math.PI / 180;
 /** 角度以「正上方＝0°、順時針」計（北在上，和九宮格、地圖一致） */
 const pt = (cx, cy, r, deg) => [cx + r * Math.sin(deg * RAD), cy - r * Math.cos(deg * RAD)];
 const f = (n) => n.toFixed(1);
 
-const DIR_DEG = { 北: 0, 東北: 45, 東: 90, 東南: 135, 南: 180, 西南: 225, 西: 270, 西北: 315 };
-// 二十四山，從正北（子）開始順時針，每 15°
-const MOUNTAINS = '子癸丑艮寅甲卯乙辰巽巳丙午丁未坤申庚酉辛戌乾亥壬';
 // 後天八卦：方位 → 卦（爻由下往上，1 陽 0 陰）
 const HOUTIAN = { 北: [0, 1, 0], 東北: [0, 0, 1], 東: [1, 0, 0], 東南: [0, 1, 1], 南: [1, 0, 1], 西南: [0, 0, 0], 西: [1, 1, 0], 西北: [1, 1, 1] };
 
@@ -78,6 +76,43 @@ export function luopan(personal) {
     s('circle', { cx: C, cy: C, r: 36, class: 'lp-pool' }),
     needle,
   );
+}
+
+/**
+ * 即時羅盤（手機指南針用）：整個盤面跟著手機轉，盤上的「北」永遠對著真的北方；最上面固定的金色三角形是手機頭朝的方向。
+ * marks 標在盤外圈（財、生、煞、太…），同一個方位有好幾個時左右錯開；記號文字會反向轉，永遠是正的。
+ * 用 setHeading(角度) 轉動（傳連續角度，跨 0° 才不會整圈倒轉）；用 SVG 的 transform 屬性而不是 CSS，舊版 Safari 也一致。
+ * @param personal 同 luopan
+ * @param {{id:string, dir:string, kind:'good'|'bad', label:string}[]} marks
+ */
+export function liveCompass(personal, marks = []) {
+  const el = luopan(personal);
+  const C = 150;
+  const rot = s('g', { class: 'lp-rot' });
+  rot.append(...[...el.childNodes]);
+  const byDir = {};
+  marks.forEach((m) => (byDir[m.dir] ||= []).push(m));
+  const labels = [];
+  for (const list of Object.values(byDir)) {
+    list.forEach((m, i) => {
+      const deg = DIR_DEG[m.dir] + (i - (list.length - 1) / 2) * 13;
+      const [x, y] = pt(C, C, 166, deg);
+      const text = s('text', { x: f(x), y: f(y + 5), 'text-anchor': 'middle', text: m.label });
+      labels.push({ text, x: f(x), y: f(y) });
+      rot.append(s('g', { class: `lp-mark ${m.kind}`, 'data-id': m.id }, s('circle', { cx: f(x), cy: f(y), r: 13 }), text));
+    });
+  }
+  el.setAttribute('viewBox', '-34 -56 368 390');
+  el.classList.add('live');
+  el.append(rot, s('path', { d: `M${C} -30 L${C - 11} -50 L${C + 11} -50Z`, class: 'lp-pointer' }));
+  el.setAttribute('aria-label', '即時羅盤：最上面的金色三角形是手機頭朝的方向');
+  el.setHeading = (deg) => {
+    rot.setAttribute('transform', `rotate(${f(-deg)} ${C} ${C})`);
+    for (const l of labels) l.text.setAttribute('transform', `rotate(${f(deg)} ${l.x} ${l.y})`);
+  };
+  /** 標出現在要找的目標 */
+  el.focusMark = (id) => rot.querySelectorAll('.lp-mark').forEach((g) => g.classList.toggle('on', g.dataset.id === id));
+  return el;
 }
 
 // 九宮格（上北下南）裡每個方位的欄、列

@@ -50,9 +50,12 @@ let onSheetClose = null;
 let sheetOpener = null;
 const sheet = {
   body: $('#sheet-body'),
-  open(onClose) {
+  /** title：面板標題（同時是對話框的名稱）；以前寫死「分享圖卡」，羅盤、下載檔案也顯示成分享圖卡 */
+  open(onClose, title = '分享圖卡') {
     onSheetClose = onClose;
     sheetOpener = document.activeElement;
+    $('#sheet-title').textContent = title;
+    sheetEl.setAttribute('aria-label', title);
     sheetEl.hidden = false;
     $('#sheet-close').focus();
   },

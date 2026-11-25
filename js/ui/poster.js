@@ -226,6 +226,6 @@ export async function shareFile(blob, filename, { sheet, previewAlt = '', hint =
   if (hint) parts.push(h('p', { class: 'hint center', text: hint }));
   parts.push(h('div', { class: 'actions' }, link));
   fill(sheet.body, ...parts);
-  sheet.open(() => URL.revokeObjectURL(url));
+  sheet.open(() => URL.revokeObjectURL(url), blob.type.startsWith('image/') ? '分享圖卡' : '儲存檔案');
   return 'sheet';
 }

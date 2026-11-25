@@ -1197,3 +1197,21 @@ path.palm-line.pl-life, path.palm-line.pl-head, path.palm-line.pl-heart, path.pa
 details.ics .checks { display: grid; }
 .ics-count { margin: 10px 0 4px; font-weight: 600; }
 .ics-list li { padding: 2px 0; }
+
+/* 手機羅盤（即時）：最上面的三角形固定是手機頭，盤面跟著轉；現在要找的記號加金框，對準時提示變金色 */
+.actions.center { justify-content: center; }
+.luopan.live { max-width: 320px; margin-top: 4px; }
+.lp-pointer { fill: var(--gold); }
+.lp-mark circle { stroke-width: 1.5; }
+.lp-mark.good circle { fill: var(--good-bg); stroke: var(--good); }
+.lp-mark.bad circle { fill: var(--danger-bg); stroke: var(--poor); }
+.lp-mark text { fill: var(--text); font-size: 13px; font-weight: 700; }
+.lp-mark.on circle { stroke: var(--gold); stroke-width: 3.5; }
+.cp-now { font-size: 18px; font-weight: 700; text-align: center; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.cp-guide { text-align: center; min-height: 1.6em; color: var(--muted); margin: 0 0 6px; }
+.cp-guide.on { color: var(--gold); font-weight: 700; }
+.cp-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; font-size: 13px; color: var(--muted); margin: 6px 0; }
+.cp-key { display: inline-flex; align-items: center; gap: 4px; }
+.cp-key b { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; color: var(--text); }
+.cp-key.good b { background: var(--good-bg); border: 1px solid var(--good); }
+.cp-key.bad b { background: var(--danger-bg); border: 1px solid var(--poor); }

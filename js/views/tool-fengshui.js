@@ -8,6 +8,8 @@ import { order, playWhenVisible } from '../ui/motion.js';
 import { AREAS, ISSUES, PRINCIPLE, tailor, pickIssues, STAR_CURE_WHY } from '../core/fengshui-fix.js';
 import { loadProfile } from './profile.js';
 import { luopan, flightPath, FLY_ORDER } from '../ui/charts.js';
+import { askOrientation, openCompass, compassDenied } from '../ui/compass-live.js';
+import { DIR_DEG } from '../core/compass.js';
 
 const STEP = [['move', '能改就改'], ['block', '改不了：擋'], ['cure', '擋不了：化']];
 
@@ -119,6 +121,24 @@ export async function drawFengshui(p, input, opts, { ctx, actions, mayaTime }) {
     return h('div', { class: `ls-cell ${s.kind}`, style: { '--i': String(FLY_ORDER.indexOf(dir)) } }, h('small', { text: F.place(dir) }), h('b', { text: s.name.slice(0, 2) }), h('span', { class: 'small', text: s.theme.split('，')[0].split('（')[0] }), h('span', { class: `ls-month ${ms.kind}`, text: `本月${ms.name.slice(0, 2)}` }));
   });
 
+  // 手機羅盤要找的方位：第一個是預設（今年的當運財星）；落在房子中央的星沒有方向可指，不列
+  const starAt = (n) => fs.stars.find((x) => x.star === n);
+  const compassTargets = [
+    { id: 'nine', label: '今年財星（九紫）', name: '今年財星（九紫）', legend: '今年財星', mark: '財', dir: starAt(9).dir, kind: 'good' },
+    { id: 'eight', label: '今年財星（八白）', name: '今年財星（八白）', legend: '今年財星', mark: '財', dir: starAt(8).dir, kind: 'good' },
+    r.personal ? { id: 'sheng', label: '你的生氣方（個人財位）', name: '生氣方', legend: '你的生氣方', mark: '生', dir: r.personal.stars.find((x) => x.key === '生氣').dir, kind: 'good' } : null,
+    items ? { id: 'ys', label: `喜用「${ys.primary}」的方位`, name: `喜用${ys.primary}方位`, legend: `喜用${ys.primary}的方位`, mark: ys.primary, dir: items.primary.direction.split('、').find((d) => d in DIR_DEG), kind: 'good' } : null,
+    { id: 'five', label: '要避開：五黃', name: '五黃煞（要避開）', legend: '五黃煞（避開）', mark: '煞', dir: starAt(5).dir, kind: 'bad' },
+    { id: 'taisui', label: '要避開：太歲', name: '太歲（要避開）', legend: '太歲（避開）', mark: '太', dir: fs.taisui.dir, kind: 'bad' },
+  ].filter((t) => t && t.dir in DIR_DEG);
+  const compassBtn = h('button', {
+    type: 'button',
+    class: 'btn primary',
+    text: '用手機羅盤找方位',
+    // iPhone 的方向權限要在點擊當下要，所以先呼叫 askOrientation，拿到結果才開面板
+    onclick: () => askOrientation().then((st) => (st === 'granted' ? openCompass({ sheet: ctx.sheet, personal: r.personal, targets: compassTargets }) : compassDenied(ctx.sheet))),
+  });
+
   const cards = [
     h(
       'section',
@@ -152,6 +172,8 @@ export async function drawFengshui(p, input, opts, { ctx, actions, mayaTime }) {
       playWhenVisible(luopan(r.personal)),
       r.personal ? h('div', { class: 'lp-legend', 'aria-hidden': 'true' }, h('span', { class: 'good', text: '你的吉方' }), h('span', { class: 'bad', text: '你的凶方' })) : null,
       h('p', { class: 'muted small center', text: '羅盤北在上：外圈是二十四山，中圈是八個方位（有填性別會標出你的八宅吉凶），內圈是後天八卦。' }),
+      h('div', { class: 'actions center' }, compassBtn),
+      h('p', { class: 'muted small center', text: '站在家裡中心點打開，手機指南針會直接指出今年財星、你的生氣方和要避開的五黃、太歲在哪個方向。' }),
       r.personal ? h('h3', { text: '你的吉方與凶方（八宅）' }) : null,
       r.personal ? h('p', { class: 'muted small', text: '每個方位有一顆「遊年星」。吉方放同五行的東西加強；床、座位剛好在凶方又搬不動時，用「洩」的五行化解（比硬剋溫和，是八宅派常見作法）。' }) : null,
       r.personal
