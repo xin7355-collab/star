@@ -2,9 +2,11 @@
 // 這裡是純邏輯（不碰 localStorage／畫面），方便在 Node 測試；讀寫由 js/ui/records-store.js 負責。
 // 匯入的備份檔視為不受信任的輸入：只收白名單欄位、檢查型別與長度、限制筆數，其餘一律丟棄。
 
+import { sanitizePalm } from './palm.js';
+
 export const SCHEMA = 1;
 export const LIMITS = { people: 50, history: 300, name: 20, title: 60, summary: 400, detailBytes: 4000 };
-export const HISTORY_TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu', 'name', 'reading', 'lottery', 'blood', 'career', 'fengshui', 'jiehuo', 'family'];
+export const HISTORY_TYPES = ['fortune', 'match', 'tarot', 'bazi', 'liunian', 'ziwei', 'maya', 'numerology', 'chenggu', 'name', 'reading', 'lottery', 'blood', 'career', 'fengshui', 'jiehuo', 'family', 'palm'];
 
 // 和「我」的關係：只存代碼，顯示時再配性別（父母＋男＝父親）。空字串＝沒填
 export const RELATIONS = [
@@ -98,6 +100,11 @@ export function sanitizePerson(p) {
     bloodType: ['A', 'B', 'O', 'AB'].includes(p.bloodType) ? p.bloodType : '',
     // 和「我」的關係（家人關係用）；「我」自己沒有這一欄
     relation: p.self !== true && RELATIONS.some((x) => x.id === p.relation) ? p.relation : '',
+    // 掌紋選了哪些線形（只有選項代碼，照片從不儲存）；沒選就不多存這一欄
+    ...(() => {
+      const palm = sanitizePalm(p.palm);
+      return palm ? { palm } : {};
+    })(),
     raw,
     createdAt: isoTime(p.createdAt) || new Date().toISOString(),
   };

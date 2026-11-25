@@ -23,6 +23,7 @@ const TOOLS = [
   { id: 'maya', label: '瑪雅密碼' },
   { id: 'numerology', label: '生命靈數' },
   { id: 'chenggu', label: '袁天罡稱骨' },
+  { id: 'palm', label: '掌紋（含斷掌）' },
 ];
 // 紫微某一宮要看星曜的哪一段白話
 const PALACE_FIELD = { 命宮: 'ming', 官祿: 'career', 夫妻: 'love', 財帛: 'wealth' };
@@ -100,6 +101,7 @@ export function mountDestiny(root, ctx) {
       fengshui: () => import('./tool-fengshui.js').then((m) => m.drawFengshui(p, input, opts, kit)),
       family: () => import('./tool-family.js').then((m) => m.drawFamily(p, input, opts, kit)),
       blood: () => import('./tool-blood.js').then((m) => m.drawBlood(p, kit)),
+      palm: () => import('./tool-palm.js').then((m) => m.drawPalm(p, kit)),
       name: () => drawName(p, input, opts),
       bazi: () => drawBazi(p, input, opts),
       liunian: () => drawLiunian(p, input, opts),

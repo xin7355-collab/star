@@ -99,3 +99,19 @@ export function heatGrid(days, onPick) {
   const head = ['日', '一', '二', '三', '四', '五', '六'].map((w) => h('span', { class: 'heat-head', 'aria-hidden': 'true', text: w }));
   return h('div', { class: 'heat', role: 'group', 'aria-label': '每天適合程度' }, head, pads, cells);
 }
+
+/**
+ * 兩端刻度：一條軌道，兩端是兩種特質，圓點的位置表示偏哪一邊。不顯示分數、不分好壞（掌紋這類「傾向」用）。
+ * @param {[string, string]} ends 左端、右端的特質
+ * @param {number} pos 0（最靠左）～ 4（最靠右）
+ */
+export function traitScale([left, right], pos) {
+  const p = Math.max(0, Math.min(4, pos));
+  const lean = p < 1.5 ? `偏「${left}」` : p > 2.5 ? `偏「${right}」` : '兩邊差不多';
+  return h(
+    'div',
+    { class: 'trait-scale', role: 'img', 'aria-label': `介於「${left}」和「${right}」之間，${lean}` },
+    h('div', { class: 'ts-track' }, h('span', { class: 'ts-dot', style: { left: `${(p / 4) * 100}%` } })),
+    h('div', { class: 'ts-ends', 'aria-hidden': 'true' }, h('span', { text: left }), h('span', { text: right })),
+  );
+}

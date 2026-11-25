@@ -23,6 +23,14 @@
   --sf-decadal-bg: #363d5c;
   /* 格局印章的朱砂色（在卡片底色上對比 6:1 以上） */
   --seal: #ff8f7a;
+  /* 掌紋的線色（圖、照片描線共用；畫在深色手掌和照片上都要看得清楚） */
+  --pl-life: #5fe0b5;
+  --pl-head: #7cc4ff;
+  --pl-heart: #ff8fa3;
+  --pl-fate: #f6c453;
+  --pl-simian: #c9a6ff;
+  --palm-skin: #2b3566;
+  --palm-skin-2: #222a55;
   --seal-bg: rgba(255, 143, 122, 0.08);
   --on-accent: #17120a;
   --radius: 20px;

@@ -636,3 +636,104 @@ test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、�
     expect(overflow, `${view}${sub ? `／${sub}` : ''} 不應水平捲動；超出的元素：${culprits.join('；') || '無'}`).toBeLessThanOrEqual(0);
   }
 });
+
+test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左右手比較、存進名單；照片不上傳', async ({ page, baseURL }) => {
+  await seed(page);
+  const requests = [];
+  page.on('request', (r) => requests.push({ url: r.url(), method: r.method() }));
+  await page.goto('/');
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('palm');
+  const opts = dv.locator('.palm-options');
+  // 看圖自選：第一題是斷掌，選完自動跳到下一題
+  await expect(dv.getByRole('heading', { name: /感情線和智慧線是分開的/ })).toBeVisible();
+  await opts.getByRole('button', { name: '半斷掌', exact: true }).click();
+  await expect(dv.getByRole('heading', { name: /生命線（繞著拇指根部的弧線）/ })).toBeVisible();
+  await opts.getByRole('button', { name: '短（到掌中）', exact: true }).click();
+  await expect(dv.locator('.palm-item')).toHaveCount(2);
+  await expect(dv.getByText(/和壽命長短無關/)).toBeVisible();
+  await expect(dv.getByText(/這些說法沒有根據/)).toBeVisible();
+  await expect(dv.locator('.trait-scale')).toHaveCount(2);
+
+  // 拍照描線：用程式畫一張手掌圖當照片（測試不用真人照片）
+  const png = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 600;
+    c.height = 800;
+    const g = c.getContext('2d');
+    g.fillStyle = '#6f6a73';
+    g.fillRect(0, 0, 600, 800);
+    g.fillStyle = '#e2b59c';
+    g.beginPath();
+    g.ellipse(300, 520, 170, 230, 0, 0, Math.PI * 2);
+    g.fill();
+    for (const [x, w] of [[200, 36], [260, 40], [325, 40], [390, 38]]) g.fillRect(x - w / 2, 120, w, 260);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  await dv.locator('input[type="file"]').setInputFiles({ name: 'palm.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  const cv = dv.locator('canvas.palm-canvas');
+  await expect(cv).toBeVisible();
+  await expect(dv.getByText('點照片上的「食指根部的中間」')).toBeVisible();
+  // 畫布要整個在畫面裡（下緣會被分頁列蓋住）；點完校正點版面會變，之後要重新量位置
+  let box;
+  const center = async () => {
+    await cv.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    box = await cv.boundingBox();
+  };
+  const at = ([x, y]) => [box.x + (x / 600) * box.width, box.y + (y / 800) * box.height];
+  const IDX = [390, 300];
+  const PNK = [190, 330];
+  const WRS = [300, 720];
+  await center();
+  await page.mouse.click(...at(IDX));
+  await expect(dv.getByText('點照片上的「小指根部的中間」')).toBeVisible();
+  await page.mouse.click(...at(PNK));
+  await expect(dv.getByText('點照片上的「手腕橫紋的中間」')).toBeVisible();
+  await page.mouse.click(...at(WRS));
+  await expect(dv.getByText(/用手指沿著選好的那條線描一次/)).toBeVisible();
+  // 掌心框座標 → 照片座標（和 App 用同一個定義：小指根部＝0、食指根部＝1、手腕＝v 1）
+  const mid = [(IDX[0] + PNK[0]) / 2, (IDX[1] + PNK[1]) / 2];
+  const uv = ([u, v]) => [PNK[0] + u * (IDX[0] - PNK[0]) + v * (WRS[0] - mid[0]), PNK[1] + u * (IDX[1] - PNK[1]) + v * (WRS[1] - mid[1])];
+  async function trace(points) {
+    const pts = points.map(uv).map(at);
+    await page.mouse.move(...pts[0]);
+    await page.mouse.down();
+    for (const q of pts.slice(1)) await page.mouse.move(...q, { steps: 6 });
+    await page.mouse.up();
+  }
+  await dv.locator('.seg label', { hasText: '感情線' }).click();
+  await center();
+  await trace([[-0.12, 0.22], [0.2, 0.2], [0.5, 0.18], [0.78, 0.11], [0.95, 0.02]]);
+  await expect(dv.getByText(/依你描的線推測：感情線「長、尾端上揚」/)).toBeVisible();
+  await dv.locator('.seg label', { hasText: '生命線' }).click();
+  await center();
+  await trace([[1.04, 0.34], [0.86, 0.5], [0.78, 0.7], [0.82, 0.88], [0.9, 1.0]]);
+  // 描的線覆蓋掉剛才手選的「短」，選項列也跟著更新
+  await expect(dv.locator('.palm-step', { hasText: '生命線' }).first()).toContainText('長、弧度大');
+  await expect(dv.locator('.palm-diagram .palm-line.traced')).toHaveCount(2);
+
+  // 存進名單：重開 App 還在；名單裡只有選項代碼，沒有照片
+  await dv.getByRole('button', { name: '存到我的資料' }).click();
+  await expect(page.locator('#toast')).toContainText('照片沒有儲存');
+  const saved = await page.evaluate(() => localStorage.getItem('star.v1.people'));
+  expect(saved).not.toContain('data:image');
+  expect(JSON.parse(saved)[0].palm.right).toMatchObject({ simian: 'half', life: 'long-wide', heart: 'long-curve' });
+  await page.reload();
+  await tab(page, 'destiny');
+  await expect(dv.locator('.palm-step', { hasText: '感情線' })).toContainText('長、尾端上揚');
+  await expect(dv.locator('canvas.palm-canvas')).toHaveCount(0); // 照片重開就沒了
+
+  // 左手選真斷掌：感情線、智慧線的題目拿掉；兩手不同時比較，選了慣用手講天生和後天
+  await dv.locator('.seg label', { hasText: '左手' }).click();
+  await opts.getByRole('button', { name: '真斷掌', exact: true }).click();
+  await expect(dv.locator('.palm-step')).toHaveCount(5);
+  await expect(dv.getByRole('heading', { name: '左右手比較' })).toBeVisible();
+  await expect(dv.getByText(/選了慣用手，就能看出哪一邊是後天的發展/)).toBeVisible();
+  await dv.getByRole('combobox', { name: '慣用手' }).selectOption('right');
+  await expect(dv.getByText(/斷掌：天生（左手）是「真斷掌：一條橫線貫穿手掌」，後天（右手）是「半斷掌：兩線有一段接在一起」/)).toBeVisible();
+
+  // 隱私：照片和選項都沒有送出去
+  expect(requests.filter((r) => !r.url.startsWith(baseURL) && !/^(blob|data):/.test(r.url))).toEqual([]);
+  expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
+});
