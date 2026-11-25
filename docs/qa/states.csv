@@ -224,3 +224,28 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 藝名欄（我的表單）,form,submitting,DONE,code:js/views/me.js 和生日表單同一顆「計算並儲存」（計算中…並停用）,
 藝名欄（我的表單）,form,success,DONE,e2e:儲存後名單列表顯示「藝名 王明星・筆名 林小筆」，掌紋結果還在,
 藝名欄（我的表單）,form,server_error,NA,,沒有網路請求，只存在這支手機
+頁首切換人,control,default,DONE,e2e:切換查看的人：頁首同一個選單，在命盤換人，今日、我的都跟著換；在我的換回來，命盤也跟著回來,
+頁首切換人,control,hover,NA,,觸控裝置為主
+頁首切換人,control,focus_visible,DONE,code:css/app.css select:focus 金色外框（頁首選單沿用）,
+頁首切換人,control,active,DONE,e2e:選了媽媽之後各頁都顯示媽媽，重整後仍記得,
+頁首切換人,control,disabled,NA,,名單只有一個人時不顯示，不是停用
+人生時間軸,data_view,loading,NA,,純計算（約 0.1 秒），沿用命盤的載入中提示
+人生時間軸,data_view,empty,NA,,一定有生日才會進到命盤；沒有生日時命盤整頁引導先填
+人生時間軸,data_view,error,DONE,code:js/views/destiny.js 八字算不出來時顯示原因（warnCard）,
+人生時間軸,data_view,populated,DONE,e2e:命盤：流年工具有 10 年、點開有工作與生命靈數、12 個月,
+人生時間軸,data_view,long_content,DONE,e2e:版面：320px 巡到人生時間軸，沒有水平捲動,
+新興產業,data_view,loading,NA,,純計算，沿用命盤的載入中提示
+新興產業,data_view,empty,NA,,一定有生日才會進到命盤
+新興產業,data_view,error,DONE,code:js/core/emerging.js 沒有喜用神時只看工作性質（單元測試）,
+新興產業,data_view,populated,DONE,e2e:命盤：工作與方向有 AI 建議、13 個產業、角色與怎麼開始,
+新興產業,data_view,long_content,DONE,e2e:版面：320px 巡到工作與方向，沒有水平捲動,
+紫微重點,data_view,loading,NA,,純計算，沿用命盤的載入中提示
+紫微重點,data_view,empty,NA,,紫微需要出生時間和性別，沒有時命盤顯示要補什麼
+紫微重點,data_view,error,DONE,code:js/views/destiny.js 紫微排盤失敗時顯示原因（warnCard）,
+紫微重點,data_view,populated,DONE,e2e:命盤：紫微重點有命宮、身宮、天同化忌在財帛、只有一步大限是現在,
+紫微重點,data_view,long_content,DONE,e2e:版面：320px 巡到紫微，沒有水平捲動,
+銀河印記合盤,control,default,DONE,e2e:瑪雅合盤：選一個人看彼此落在對方五大神諭的位置,
+銀河印記合盤,control,hover,NA,,觸控裝置為主
+銀河印記合盤,control,focus_visible,DONE,code:css/app.css select:focus 金色外框,
+銀河印記合盤,control,active,DONE,e2e:選了媽媽後顯示兩個圖騰與關係，瑪雅密碼的合盤跟著選同一個人,
+銀河印記合盤,control,disabled,NA,,名單只有一個人時不顯示這張卡
