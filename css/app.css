@@ -688,7 +688,10 @@ blockquote.poem { margin: 12px 0; padding: 12px 14px; border-left: 3px solid var
 table.compare tr.same td, table.compare tr.same th { background: var(--accent-soft); }
 /* 名字比較表：分數最高的一列淡淡標出；名字底下的小按鈕（看完整分析、移除）要夠大好點 */
 table.name-cmp tr.best td, table.name-cmp tr.best th { background: var(--accent-soft); }
-table.name-cmp tbody th { white-space: normal; min-width: 92px; }
+table.name-cmp tbody th { white-space: normal; min-width: 76px; }
+/* 手機上盡量一眼看完五欄：數值可以換行（「19・凶」斷在・後面），不用一直左右滑 */
+table.name-cmp th, table.name-cmp td { padding: 8px 4px; }
+table.name-cmp td { white-space: normal; word-break: keep-all; }
 .cmp-tools { display: flex; flex-wrap: wrap; gap: 0 10px; }
 .cmp-tools .link { min-height: 32px; font-size: 13px; padding: 0; }
 .nine-grid { display: grid; grid-template-columns: repeat(3, 64px); gap: 8px; justify-content: center; margin: 8px 0; }
