@@ -89,3 +89,32 @@ test('審查修正：借來的星不算殺破狼、巨門化忌不是石中隱�
   // 三合宮是空宮時不借對宮的星：天同太陰在午（不在辰的三方四正），不能湊成機月同梁
   assert.deepEqual(names(fakeZ('辰', { 辰: { major: ['天機', '天梁'] }, 午: { major: ['天同', '太陰'] } })), []);
 });
+
+test('紫微重點：命宮、身宮、命主身主、生年四化、強弱宮、大限、今年流年都整理出來', async () => {
+  const { buildZiwei } = await import('../js/core/ziwei.js');
+  const { ziweiSummary, BODY_PALACE_TEXT, SOUL_STAR_TEXT, BODY_STAR_TEXT } = await import('../js/core/ziwei-summary.js');
+  const input = { date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: { lon: 121.5, lat: 25.04 }, fold: null };
+  const z = buildZiwei(input, { gender: '男', at: { y: 2026, m: 11, d: 25 } });
+  const s = ziweiSummary(z);
+  assert.deepEqual(s.ming.stars, ['天機', '天梁']);
+  assert.ok(s.ming.text.length > 10);
+  assert.equal(s.body.palace, '遷移');
+  assert.equal(s.soul.star, '廉貞');
+  assert.equal(s.bodyStar.star, '火星');
+  assert.ok(s.soul.text && s.bodyStar.text);
+  // 庚年生：太陽化祿、武曲化權、太陰化科、天同化忌（依祿權科忌排）
+  assert.deepEqual(s.mutagens.map((m) => `${m.star}${m.mutagen}`), ['太陽化祿', '武曲化權', '太陰化科', '天同化忌']);
+  assert.ok(s.mutagens.every((m) => m.text.startsWith(`${m.star}${m.mutagen}在${m.palace}`)));
+  // 強弱宮不重疊；大限由小到大、只有一步是「現在」（2026 年虛歲 37：34–43 田宅）
+  assert.ok(s.strong.every((p) => !s.weak.includes(p)));
+  for (let i = 1; i < s.decades.length; i += 1) assert.ok(s.decades[i].from > s.decades[i - 1].from);
+  assert.deepEqual(s.decades.filter((d) => d.current).map((d) => `${d.from}-${d.to}${d.palace}`), ['34-43田宅']);
+  assert.ok(s.decades.every((d) => d.focus));
+  // 2026 丙午年：天同化祿、天機化權、文昌化科、廉貞化忌
+  assert.deepEqual(s.year.mutagens.map((m) => `${m.star}${m.mutagen}`), ['天同化祿', '天機化權', '文昌化科', '廉貞化忌']);
+  assert.ok(s.year.palace && s.year.domain);
+  // 文字涵蓋：身宮只會在六個宮；命主七顆、身主七顆
+  assert.deepEqual(Object.keys(BODY_PALACE_TEXT).sort(), ['命宮', '夫妻', '官祿', '福德', '財帛', '遷移'].sort());
+  assert.equal(Object.keys(SOUL_STAR_TEXT).length, 7);
+  assert.equal(Object.keys(BODY_STAR_TEXT).length, 7);
+});

@@ -338,7 +338,7 @@ export function mountDestiny(root, ctx) {
 
   // ── 紫微命盤
   async function drawZiwei(p, input, opts) {
-    const [{ buildZiwei, STAR_TEXT }, { rotateZiwei, twinsInfo }, { PALACE_TEXT, ZIWEI_STARS, PALACE_DOMAIN, BRIGHTNESS_TEXT, mutagenIn }, { pairText, sanFang, mingPatterns }] = await Promise.all([import('../core/ziwei.js'), import('../core/reading.js'), import('../core/reading-texts.js'), import('../core/ziwei-pattern.js')]);
+    const [{ buildZiwei, STAR_TEXT }, { rotateZiwei, twinsInfo }, { PALACE_TEXT, ZIWEI_STARS, PALACE_DOMAIN, BRIGHTNESS_TEXT, mutagenIn }, { pairText, sanFang, mingPatterns }, { ziweiSummary }] = await Promise.all([import('../core/ziwei.js'), import('../core/reading.js'), import('../core/reading-texts.js'), import('../core/ziwei-pattern.js'), import('../core/ziwei-summary.js')]);
     const z0 = buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today });
     if (!z0.ok) return warnCard(z0.error, true);
     const twins = p.birthOrder ? twinsInfo({ birthOrder: p.birthOrder, hasTime: true, method: ctx.getSettings().twinMethod }) : null;
@@ -448,7 +448,34 @@ export function mountDestiny(root, ctx) {
     grid.append(center);
     // 一打開就先看命宮（不捲動畫面）：連線、雙星與三方四正都先示範一次
     showPalace(z.palaces.find((q) => q.name === '命宮') || z.palaces[0], { scroll: false });
-    return h(
+    // 紫微重點：先給一頁看得懂的總結（命宮、身宮、四化、強弱宮、大限、今年），再點命盤看細節
+    const S = ziweiSummary(z);
+    const TONE_CLS = { good: 'lv-high', mid: 'lv-flat', bad: 'lv-poor' };
+    const TONE_WORD = { good: '順', mid: '平', bad: '辛苦' };
+    const summaryCard = h('section', { class: 'card feature' },
+      cardHead(h, 'star', `${p.name}的紫微重點`, '先看這張，再點下面命盤的宮看細節'),
+      h('ul', { class: 'reasons' },
+        h('li', { class: 'tone-good' }, h('b', { text: `命宮${S.ming.borrowed ? '（無主星，借對宮）' : ''}${S.ming.stars.join('、')}：` }), h('span', { text: S.ming.text })),
+        S.body ? h('li', { class: 'tone-info' }, h('b', { text: '身宮（中年以後的重心）：' }), h('span', { text: S.body.text })) : null,
+        S.soul.text || S.bodyStar.text ? h('li', { class: 'tone-info' }, h('b', { text: `命主${S.soul.star}・身主${S.bodyStar.star}：` }), h('span', { text: `${S.soul.text}${S.bodyStar.text}` })) : null),
+      h('h3', { text: '生年四化：一生的福氣、主導權、名聲和功課' }),
+      h('ul', { class: 'reasons' }, S.mutagens.map((m) => h('li', { class: m.mutagen === '化忌' ? 'tone-bad' : 'tone-good' }, h('b', { text: `${m.role}｜` }), h('span', { text: m.text })))),
+      h('h3', { text: '十二宮：強項和要多花心力的地方' }),
+      h('p', {}, h('b', { text: '強項：' }), h('span', { text: S.strong.length ? S.strong.join('、') : '沒有特別突出的宮，各方面平均' })),
+      h('p', {}, h('b', { text: '要多花心力：' }), h('span', { text: S.weak.length ? S.weak.join('、') : '沒有特別弱的宮' })),
+      h('p', { class: 'muted small', text: '每一宮都看三方四正（本宮、對宮、兩個三合宮）的吉星、煞星和四化加總。' }),
+      h('h3', { text: '大限：十年一步的走勢' }),
+      h('ol', { class: 'decades' }, S.decades.map((d) => h('li', { class: d.current ? 'now' : '' },
+        h('div', { class: 'dc-head' }, h('b', { text: `${d.from}–${d.to} 歲` }), h('span', { text: `${d.palace}大限` }), d.current ? h('span', { class: 'badge', text: '現在' }) : null, h('span', { class: `ly-level ${TONE_CLS[d.tone]}`, text: TONE_WORD[d.tone] })),
+        h('div', { class: 'muted small', text: d.focus })))),
+      h('p', { class: 'muted small', text: '歲數是虛歲；順或辛苦看那一宮的三方四正。更細的逐年重點在「人生時間軸」。' }),
+      S.year ? [
+        h('h3', { text: `${opts.today.y} 年的紫微流年` }),
+        h('p', { text: `流年命宮走到「${S.year.palace}」：今年最受影響的是${S.year.domain}。` }),
+        h('ul', { class: 'reasons' }, S.year.mutagens.map((m) => h('li', { class: m.mutagen === '化忌' ? 'tone-bad' : 'tone-good', text: `流年${m.mutagen}（${m.star}）在${m.palace || '盤外'}：${m.mutagen === '化忌' ? '這方面今年要多花心力。' : m.mutagen === '化祿' ? '這方面今年有收穫、比較順。' : m.mutagen === '化權' ? '這方面今年你比較有主導權。' : '這方面今年有好名聲、遇得到貴人。'}` }))),
+      ] : null);
+
+    return [summaryCard, h(
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的紫微命盤` }),
@@ -470,7 +497,7 @@ export function mountDestiny(root, ctx) {
       h('p', { class: 'hint', text: '格局取各派共通、條件明確的說法；同一張盤常同時有吉格和凶格，兩邊都要看。' }),
       h('p', { class: 'hint', text: '排盤由 iztro 計算；星曜簡介為本 App 撰寫的一般性描述，僅供參考。' }),
       actions(p, 'ziwei', '紫微命盤', `命宮${z.soulBranch}・${z.fiveElementsClass}・命主${z.soul}`),
-    );
+    )];
   }
 
   // ── 瑪雅曆：上面是 13 月亮曆銀河印記，下面是瑪雅密碼 A～E（另一套算法，預設收起）

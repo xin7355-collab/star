@@ -299,6 +299,12 @@ tbody th { font-weight: 600; }
 .ly-tags { grid-column: 1 / -1; }
 .ly[open] > summary { border-bottom: 1px solid var(--line); }
 .ly-advice { font-weight: 700; margin: 10px 0 4px; }
+/* 紫微大限：十年一步，現在這一步金框 */
+ol.decades { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+ol.decades > li { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; background: var(--bg2); }
+ol.decades > li.now { border-color: var(--gold); }
+.dc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.dc-head .ly-level { margin-left: auto; }
 ol.months { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .mo { border-bottom: 1px solid var(--line); padding-bottom: 8px; }
 .mo-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }

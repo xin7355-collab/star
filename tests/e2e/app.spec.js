@@ -343,6 +343,12 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await expect(dv.locator('ol.months > li')).toHaveCount(12);
   await tool.selectOption('ziwei');
   await expect(dv.locator('.ziwei-grid .palace')).toHaveCount(12);
+  // 紫微重點：命宮、身宮、生年四化（庚年：太陽祿、武曲權、太陰科、天同忌）、大限只有一步是「現在」
+  const zs = dv.locator('section.card.feature', { hasText: '的紫微重點' });
+  await expect(zs).toContainText('命宮天機、天梁');
+  await expect(zs).toContainText('身宮在遷移宮');
+  await expect(zs).toContainText('天同化忌在財帛');
+  await expect(zs.locator('ol.decades > li.now')).toHaveCount(1);
   // 一打開就示範命宮的三方四正：連線、三個被照會的宮；命宮格局列出機月同梁
   await expect(dv.locator('.sf-lines polygon')).toHaveCount(1);
   await expect(dv.locator('.palace.sf-on')).toHaveCount(3);
@@ -883,7 +889,7 @@ test('版面：320px 寬的手機，各分頁與面板都沒有水平捲動、�
   await seed(page);
   await page.setViewportSize({ width: 320, height: 640 });
   await page.goto('/');
-  const stops = [['today'], ['fortune'], ['destiny'], ['destiny', 'name'], ['destiny', 'career'], ['destiny', 'fengshui'], ['destiny', 'family'], ['destiny', 'bazi'], ['destiny', 'blood'], ['destiny', 'numerology'], ['destiny', 'maya'], ['oracle', '解惑'], ['oracle', '塔羅'], ['oracle', '樂透'], ['oracle', '配對'], ['me']];
+  const stops = [['today'], ['fortune'], ['destiny'], ['destiny', 'name'], ['destiny', 'career'], ['destiny', 'fengshui'], ['destiny', 'family'], ['destiny', 'bazi'], ['destiny', 'blood'], ['destiny', 'numerology'], ['destiny', 'maya'], ['destiny', 'ziwei'], ['destiny', 'liunian'], ['destiny', 'chenggu'], ['oracle', '解惑'], ['oracle', '塔羅'], ['oracle', '樂透'], ['oracle', '配對'], ['me']];
   for (const [view, sub] of stops) {
     if (view === 'oracle') await oracle(page, sub);
     else await tab(page, view);

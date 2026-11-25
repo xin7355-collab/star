@@ -13,7 +13,7 @@ import { positionsAt } from './astro.js';
 import { liunian, yongShen, ganzhiTone } from './bazi.js';
 import { geju } from './geju.js';
 import { dominantShishen, personalYearNumber, PERSONAL_YEAR } from './reading.js';
-import { SHISHEN_GROUPS, ZIWEI_STARS, LIFEPATH_DETAIL, SIGN_DETAIL } from './reading-texts.js';
+import { SHISHEN_GROUPS, ZIWEI_STARS, LIFEPATH_DETAIL, SIGN_DETAIL, DECADE_FOCUS } from './reading-texts.js';
 import { BLOOD } from './blood.js';
 
 export const NATURES = {
@@ -76,20 +76,6 @@ const SHISHEN_CAREER = {
 const HOUSE_AREA = ['自我與形象', '收入與價值觀', '學習與溝通', '家庭與居住', '創作與戀愛', '日常工作與健康', '合作與伴侶', '共同資源與投資', '進修與遠行', '事業與名聲', '朋友與團體', '沉澱與幕後'];
 
 // 紫微大限走到的宮位，十年的重點
-const DECADE_FOCUS = {
-  命宮: '自我定位與個人發展：適合確立方向、建立個人品牌。',
-  兄弟: '合作夥伴與同儕：團隊、合夥、手足的事影響最大。',
-  夫妻: '感情與重要合作：伴侶與關鍵合約是重點。',
-  子女: '作品、部屬與投資：帶人、創作、投資的成果。',
-  財帛: '賺錢與理財：收入方式與現金流是主題。',
-  疾厄: '身體與壓力管理：工作節奏要配合健康，打好底子。',
-  遷移: '外出與環境變動：出差、外派、搬家、換跑道的機會多。',
-  僕役: '人脈與團隊：朋友、客戶、下屬的品質決定成果。',
-  官祿: '事業衝刺：升遷、創業、專業成就是主軸。',
-  田宅: '家庭與資產：買房置產、家庭責任、累積財庫。',
-  福德: '心靈與生活品質：興趣、精神生活與情緒平衡。',
-  父母: '長輩、上司與文書：考試證照、和主管與制度打交道。',
-};
 
 const GAN_WX = { 甲: '木', 乙: '木', 丙: '火', 丁: '火', 戊: '土', 己: '土', 庚: '金', 辛: '金', 壬: '水', 癸: '水' };
 
