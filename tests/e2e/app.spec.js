@@ -81,9 +81,39 @@ test('第一次使用：輸入生日 → 星盤、農曆生日、今日運勢、
   const fv = page.locator('#view-fortune');
   await expect(fv.locator('.sign-btn.selected')).toContainText('獅子');
   await expect(fv.locator('.chip-row.yi .chip').first()).toBeVisible();
-  await fv.locator('.period-bar label', { hasText: '今年' }).click();
+  await page.locator('.period-bar label', { hasText: '今年' }).click();
   await expect(fv.locator('ol.days li').first()).toBeVisible();
   await expect(fv.locator('.card').first().locator('ol.days li')).toHaveCount(12);
+});
+
+test('時運：期間列貼在分頁列正上方（不會浮在內容中間）；往下捲收起、往上捲再出現', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'fortune');
+  await expect(page.locator('#view-fortune .chip-row.yi .chip').first()).toBeVisible();
+  const bar = page.locator('.period-bar');
+  await expect(bar).toBeVisible();
+  // 捲動後等兩格畫面，讓捲動事件處理完（連續捲兩次在同一格裡只看得到最後的位置）
+  const scrollTo = async (y) => {
+    await page.evaluate((top) => window.scrollTo(0, top === 'end' ? document.documentElement.scrollHeight : top), y);
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  };
+  // 捲到底：期間列下緣接在分頁列上緣。iPhone Safari 曾把它定位在「時運」內容的底部，浮在畫面中間擋住字
+  await scrollTo('end');
+  await expect(bar).toBeVisible();
+  const [b, t] = [await bar.boundingBox(), await page.locator('.tabbar').boundingBox()];
+  expect(Math.abs(b.y + b.height - t.y)).toBeLessThanOrEqual(1);
+  // 往上捲一段、再往下捲：收到分頁列後面；再往上捲：出現
+  await scrollTo(400);
+  await scrollTo(900);
+  await expect(bar).toHaveClass(/tucked/);
+  await expect(bar).toBeHidden();
+  await scrollTo(700);
+  await expect(bar).not.toHaveClass(/tucked/);
+  await expect(bar).toBeVisible();
+  // 其他分頁看不到期間列
+  await tab(page, 'today');
+  await expect(bar).toBeHidden();
 });
 
 test('今日：綜合指數有依據、吉時表可點、偏財與幸運號碼可再換一組', async ({ page }) => {
