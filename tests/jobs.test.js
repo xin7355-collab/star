@@ -2,8 +2,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JOB_GROUPS, NATURES, jobOf, jobFit, sanitizeCareer, careerPlan, careerMaster, changeTiming, suggestJobs, MAX_TARGETS, TENURES } from '../js/core/jobs.js';
-import { NATURES as CAREER_NATURES, buildCareer } from '../js/core/career.js';
+import { JOB_GROUPS, NATURES, jobOf, jobFit, sanitizeCareer, careerPlan, careerMaster, changeTiming, suggestJobs, MAX_TARGETS, TENURES, PRIORITIES, RUNWAYS, TRAIT_KEYS, fitPct, aiNoteOf } from '../js/core/jobs.js';
+import { NATURES as CAREER_NATURES, buildCareer, careerTimeline, TIMELINE_MODE } from '../js/core/career.js';
+import { EMERGING } from '../js/core/emerging.js';
 import { sanitizePerson } from '../js/core/records.js';
 import { buildBazi, yongShen } from '../js/core/bazi.js';
 import { buildLifeline } from '../js/core/lifeline.js';
@@ -44,20 +45,47 @@ test('工作選單：代碼不重複；每個工作都有 1～2 種工作性質�
   assert.equal(CAREER_NATURES, NATURES);
 });
 
-test('存檔白名單：只收選單裡的代碼、最多 3 個想做的、不重複、不收現在的工作和狀態類，什麼都沒選就不存', () => {
+test('存檔白名單：只收選單裡的代碼、最多 3 個想做的、不重複、不收現在的工作和狀態類；最在意的、能撐多久只收選項；什麼都沒選就不存', () => {
   assert.equal(sanitizeCareer(null), null);
   assert.equal(sanitizeCareer({ current: '', targets: [] }), null);
-  assert.deepEqual(sanitizeCareer({ current: 'accountant', tenure: '5-10', targets: ['ai_eng', 'ai_eng', 'accountant', 'student', 'xxx', 'uiux', 'data', 'swe'] }),
-    { current: 'accountant', tenure: '5-10', targets: ['ai_eng', 'uiux', 'data'] });
-  assert.equal(sanitizeCareer({ current: '<script>', tenure: 'forever', targets: ['swe'] }).current, '');
-  assert.equal(sanitizeCareer({ current: 'swe', tenure: 'forever' }).tenure, '');
+  assert.deepEqual(sanitizeCareer({ current: 'accountant', tenure: '5-10', priority: 'stable', runway: 'half', targets: ['ai_eng', 'ai_eng', 'accountant', 'student', 'xxx', 'uiux', 'data', 'swe'] }),
+    { current: 'accountant', tenure: '5-10', priority: 'stable', runway: 'half', targets: ['ai_eng', 'uiux', 'data'] });
+  assert.deepEqual(sanitizeCareer({ current: '<script>', tenure: 'forever', priority: 'money!!', runway: 'never', targets: ['swe'] }), { current: '', tenure: '', priority: '', runway: '', targets: ['swe'] });
+  // 只填了最在意的事也算有填（之後才選工作）
+  assert.deepEqual(sanitizeCareer({ priority: 'income' }), { current: '', tenure: '', priority: 'income', runway: '', targets: [] });
   assert.equal(MAX_TARGETS, 3);
   assert.ok(TENURES.some((t) => t.value === 'gt10'));
+  assert.deepEqual(PRIORITIES.map((x) => x.value), ['', 'fit', 'income', 'stable', 'freedom', 'balance']);
+  assert.deepEqual(RUNWAYS.map((x) => x.value), ['', 'none', 'half', 'year']);
   // 名單存檔帶著工作資料；亂填的欄位丟掉
   const raw = { calendar: 'solar', era: 'ad', year: 1990, month: 8, day: 15, leap: false, knowTime: false, time: '', placeId: 'taipei', lat: null, lon: null, tz: 'Asia/Taipei', fold: null, solar: null };
-  const p = sanitizePerson({ name: '我', raw, career: { current: 'swe', targets: ['product', 'nope'] } });
-  assert.deepEqual(p.career, { current: 'swe', tenure: '', targets: ['product'] });
+  const p = sanitizePerson({ name: '我', raw, career: { current: 'swe', priority: 'balance', targets: ['product', 'nope'] } });
+  assert.deepEqual(p.career, { current: 'swe', tenure: '', priority: 'balance', runway: '', targets: ['product'] });
   assert.equal('career' in sanitizePerson({ name: '我', raw, career: { current: 'nope' } }), false);
+});
+
+test('每個工作都有收入、穩定、自由、生活平衡的傾向（1～3）和趨勢產業代碼（對得上新興產業）', () => {
+  const trends = new Set(EMERGING.map((e) => e.id));
+  for (const g of JOB_GROUPS) {
+    for (const x of g.jobs) {
+      if (x.status) continue;
+      const j = jobOf(x.id);
+      for (const t of TRAIT_KEYS) assert.ok([1, 2, 3].includes(j[t.key]), `${x.id} ${t.key}`);
+      assert.ok(j.trend === null || trends.has(j.trend), `${x.id} ${j.trend}`);
+      assert.ok(aiNoteOf(j).length > 10);
+    }
+  }
+  // 幾個常識：公務員穩定、自由接案自由、業務收入起伏大
+  assert.equal(jobOf('civil').stab, 3);
+  assert.equal(jobOf('freelancer').free, 3);
+  assert.equal(jobOf('sales').stab, 1);
+});
+
+test('適合度 0～100：不從 0 起（很不適合顯示 5 分會嚇到人）；三個等級對照 50、66', () => {
+  assert.equal(fitPct(-1), 22);
+  assert.equal(fitPct(2.5), 50);
+  assert.equal(fitPct(4.5), 66);
+  assert.ok(fitPct(20) <= 98 && fitPct(-20) >= 15);
 });
 
 test('適合程度：工作性質對上命盤最強的類型、行業五行是喜用就高；狀態類不打分', () => {
@@ -100,21 +128,54 @@ test('會計想轉 AI 工程師（跨很大）：先經過跳板工作（資料�
   assert.ok(it.delta > 0);
   assert.ok(r.notes.some((n) => n.tone === 'good' && /方向是對的/.test(n.text)));
   assert.ok(r.notes.some((n) => /2026.*不建議裸辭.*2027 年再轉/.test(n.text)));
-  const m = careerMaster(r, [{ label: '專業技術型', desc: '把一門技術做深', edge: '專精、可靠', trap: '只顧技術' }]);
-  assert.match(m.verdict, /^老師看你的工作：想換到「AI 工程師」，方向是對的/);
-  assert.match(m.verdict, /2027 年比較適合轉換/);
-  assert.deepEqual(m.remedies.map((x) => x.title), ['怎麼轉到「AI 工程師」（跨很大）', '這幾年先別裸辭']);
+  // 沒填最在意的事、能撐多久：準備好再換；總評一段話講完天賦、現況、路線、時機
+  assert.equal(r.path.id, 'prep');
+  assert.equal(r.path.year, 2027);
+  const m = careerMaster(r, [{ label: '專業技術型', desc: '把一門技術做深。', edge: '專精、可靠', trap: '只顧技術' }]);
+  assert.match(m.verdict, /^老師看你：天賦偏「專業技術型」/);
+  assert.match(m.verdict, /現在的「會計」適合度 \d+（要多花力氣）/);
+  assert.match(m.verdict, /建議：準備好再換到「AI 工程師」。2027 年是比較好的時機。/);
+  assert.equal(m.badge, '準備好再換');
+  assert.deepEqual(m.remedies.map((x) => x.title), ['建議路線：準備好再換到「AI 工程師」', '這幾年先別裸辭']);
+  assert.ok(m.remedies[0].steps.some((t) => /先到「.+」累積經驗/.test(t)), '跨很大要有跳板');
   assert.ok(m.combos.every((c) => Array.isArray(c.go) && c.go.length === 2));
 });
 
-test('想換的沒有比現在適合：直說，建議先換公司或部門；想換的對你都要多花力氣：推薦更適合的工作', () => {
-  const worse = careerPlan({ current: 'swe', targets: ['admin'], ranked: RANKED, ys: YS, age: 36 });
+test('建議路線看你最在意的事和能撐多久：收入不能變少→副業先行；能撐一年→全力轉換；最在意穩定卻想去自媒體→副業先行', () => {
+  const base = { current: 'accountant', targets: ['ai_eng'], ranked: RANKED, ys: YS, years: YEARS, age: 36 };
+  assert.equal(careerPlan({ ...base, runway: 'none' }).path.id, 'side');
+  assert.equal(careerPlan({ ...base, runway: 'year' }).path.id, 'switch');
+  assert.equal(careerPlan({ ...base, runway: 'half' }).path.id, 'prep');
+  // 自媒體的穩定偏低：最在意穩定的人，除非存款撐得了一年，都先當副業；還會直說這一項偏低
+  const creator = careerPlan({ current: 'accountant', targets: ['creator'], priority: 'stable', runway: 'half', ranked: [{ key: 'create', label: '創意表達型', count: 3 }, { key: 'public', label: '公眾溝通型', count: 2 }], ys: YS, years: YEARS, age: 30 });
+  assert.equal(creator.path.id, 'side');
+  assert.ok(creator.notes.some((n) => n.tone === 'bad' && /你最在意「穩定」，但「內容創作者／自媒體」的穩定偏低/.test(n.text)));
+  // 最在意收入、想去的收入也高：講出來
+  const income = careerPlan({ ...base, priority: 'income' });
+  assert.ok(income.notes.some((n) => n.tone === 'good' && /正好符合你最在意的「收入」/.test(n.text)));
+  // 最在意的那一項變差：也講
+  const worse = careerPlan({ current: 'civil', targets: ['freelancer'], priority: 'stable', ranked: RANKED, ys: YS, years: YEARS, age: 30 });
+  assert.ok(worse.notes.some((n) => /你最在意「穩定」，但「自由接案」的穩定偏低/.test(n.text)));
+});
+
+test('沒有想做的工作：留下往上走（衝的年份爭取升遷加薪）；還沒選任何東西：總評請他先填', () => {
+  const stay = careerPlan({ current: 'swe', ranked: RANKED, ys: YS, years: YEARS, age: 30 });
+  assert.equal(stay.path.id, 'stay');
+  assert.equal(stay.path.year, 2027); // 2027 小順以上又有傷官（轉換）的訊號
+  assert.ok(stay.path.steps.some((t) => /2027 年：衝的年份，爭取升遷、加薪/.test(t)));
+  assert.match(careerMaster(stay, []).verdict, /2027 年是衝的年份/);
+  const none = careerPlan({ ranked: RANKED, ys: YS, years: YEARS });
+  assert.equal(none.path, null);
+  assert.match(careerMaster(none, [{ label: '專業技術型', desc: '把一門技術做深。', edge: '專精', trap: '' }]).verdict, /先在上面填你的狀況/);
+});
+
+test('想換的沒有比現在適合：直說，路線是「先換環境，不急著換行」；想換的對你都要多花力氣：不說方向對', () => {
+  const worse = careerPlan({ current: 'swe', targets: ['admin'], ranked: RANKED, ys: YS, years: YEARS, age: 36 });
   assert.ok(worse.notes.some((n) => n.tone === 'bad' && /換公司、換部門/.test(n.text)));
-  assert.match(careerMaster(worse, []).verdict, /直說：想換的「行政／助理」沒有比現在的「軟體工程師」更適合你/);
-  assert.ok(!/老師看你的工作：老師/.test(careerMaster(worse, []).verdict));
+  assert.equal(worse.path.id, 'move');
+  assert.match(careerMaster(worse, []).verdict, /建議：先換環境，不急著換行/);
   const both = careerPlan({ current: 'accountant', targets: ['admin'], ranked: RANKED, ys: YS, age: 36 });
   assert.ok(!both.notes.some((n) => /方向是對的/.test(n.text)), '兩個都不適合時，比現在稍好不等於方向對');
-  assert.match(careerMaster(both, []).verdict, /你選的工作對你都要多花力氣/);
   assert.ok(both.notes.some((n) => /例行的部分容易被 AI 自動化/.test(n.text))); // 行政 AI 影響高
 });
 
@@ -155,7 +216,13 @@ test('用實際的命盤跑一次：每一行都是真的文字', () => {
   const bazi = buildBazi(input, { gender: '男', today });
   const r = buildCareer({ bazi, birth: input.date, today, lifePathNumber: 5 });
   const L = buildLifeline({ bazi, birth: input.date, today, gender: '男' });
-  const plan = careerPlan({ current: 'sales', tenure: '3-5', targets: ['product', 'creator', 'civil'], ranked: r.ranked, ys: yongShen(bazi), years: L.years, age: 36 });
+  const plan = careerPlan({ current: 'sales', tenure: '3-5', priority: 'balance', runway: 'half', targets: ['product', 'creator', 'civil'], ranked: r.ranked, ys: yongShen(bazi), years: L.years, age: 36 });
+  // 工作運時間軸：10 年、每年衝穩守其中一個；前三年接上未來三年的做什麼、小心什麼
+  const tl = careerTimeline(L.years, r.future);
+  assert.equal(tl.length, 10);
+  assert.ok(tl.every((y) => TIMELINE_MODE[y.mode] && y.focus));
+  assert.ok(tl.slice(0, 3).every((y) => y.detail && y.detail.doList.length));
+  assert.ok(tl.every((y) => (y.mode === 'hold') === (y.level === '注意' || y.level === '小心')));
   const m = careerMaster(plan, r.natures);
   const lines = [m.verdict, ...m.why.map((w) => w.text), ...m.remedies.flatMap((x) => [x.title, ...x.steps]), ...m.boosts,
     ...plan.items.flatMap((it) => [...it.fit.why, ...it.plan, it.ai.note]), ...plan.suggest.flatMap((s) => s.fit.why)];

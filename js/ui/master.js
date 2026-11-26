@@ -9,21 +9,22 @@ const TONE = { good: 'tone-good', bad: 'tone-bad', info: 'tone-info' };
 
 /**
  * lead：斷語上面要先放的東西（例如配對的「你們現在的關係」切換：斷語和建議都跟著它變，要先選）
+ * whyTitle、remedyTitle：小標題（工作的總評講的是「修正你的想法」「怎麼做」，不是化解）
  * @param {{title?:string, sub?:string, badge?:{text:string, cls?:string}|null, verdict:string, lead?:Node[], why?:{tone:string,text:string}[],
  *   remedies?:{title:string, steps:string[], note?:string}[], boosts?:string[], extra?:Node[], combos?:{label:string, why:string, go:any[]}[],
  *   onGo?:(view:string, opts:object)=>void}} o
  */
-export function masterCard({ title = '老師怎麼看', sub = '斷語、原因、化解，一次講清楚', badge = null, verdict, lead = [], why = [], remedies = [], boosts = [], extra = [], combos = [], onGo = null }) {
+export function masterCard({ title = '老師怎麼看', sub = '斷語、原因、化解，一次講清楚', badge = null, verdict, lead = [], why = [], remedies = [], boosts = [], extra = [], combos = [], onGo = null, whyTitle = '為什麼這樣說', remedyTitle = '怎麼化解' }) {
   return h(
     'section',
     { class: 'card master' },
     cardHead(h, 'sparkle', title, sub),
     lead,
     h('p', { class: 'master-verdict' }, badge ? h('span', { class: `badge ${badge.cls || ''}`, text: badge.text }) : null, badge ? ' ' : null, verdict),
-    why.length ? [h('h3', { text: '為什麼這樣說' }), h('ul', { class: 'reasons' }, why.map((w) => h('li', { class: TONE[w.tone] || 'tone-info', text: w.text })))] : null,
+    why.length ? [h('h3', { text: whyTitle }), h('ul', { class: 'reasons' }, why.map((w) => h('li', { class: TONE[w.tone] || 'tone-info', text: w.text })))] : null,
     // 化解一項一項收起來（第一項打開）：手機上一張卡太長會找不到後面的「下一步」
     remedies.length ? [
-      h('h3', { text: '怎麼化解' }),
+      h('h3', { text: remedyTitle }),
       remedies.map((r, k) => h('details', { class: 'remedy', open: k === 0 },
         h('summary', { text: r.title }),
         h('ol', { class: 'plan' }, r.steps.map((t, i) => h('li', { style: { '--i': String(i) }, text: t }))),

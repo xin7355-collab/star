@@ -8,7 +8,7 @@
 // 全部在手機上計算；文字為本 App 撰寫，命理是參考，不是保證。
 
 import { SIGNS } from './zodiac.js';
-import { NATURES } from './jobs.js';
+import { NATURES, GO_TAGS } from './jobs.js';
 import { emergingFit, AI_ADVICE } from './emerging.js';
 import { positionsAt } from './astro.js';
 import { liunian, yongShen, ganzhiTone } from './bazi.js';
@@ -216,3 +216,34 @@ function toneFromGz(t) {
 function toneOf(y) {
   return toneFromGz(y.tone);
 }
+
+/**
+ * 工作運時間軸（10 年）：把「未來三年」「十年大方向」「換跑道時機」三個地方合成一條。
+ * 每一年標「衝」（順或小順，而且有升遷、轉換的訊號）、「守」（注意、小心：先準備，不要裸辭）、其他是「穩」；
+ * 重點照那一年的流年十神（正官＝升遷與責任、傷官＝改變與表現……）。前三年接上 buildFuture 的做什麼、小心什麼與依據。
+ * @param lifeYears lifeline.buildLifeline(...).years；future：buildCareer(...).future
+ */
+export function careerTimeline(lifeYears = [], future = null) {
+  const detail = new Map(((future && future.years) || []).map((y) => [y.year, y]));
+  return lifeYears.map((y) => {
+    const ssTag = y.tags.find((t) => t.endsWith('年') && SHISHEN_CAREER[t.slice(0, -1)]);
+    const sc = ssTag ? SHISHEN_CAREER[ssTag.slice(0, -1)] : null;
+    const go = (y.level === '順' || y.level === '小順') && y.tags.some((t) => GO_TAGS.includes(t));
+    const hold = y.level === '注意' || y.level === '小心';
+    return {
+      year: y.year,
+      age: y.age,
+      level: y.level,
+      mode: go ? 'go' : hold ? 'hold' : 'steady',
+      focus: sc ? sc.focus : '',
+      do: sc ? sc.do : '',
+      watch: sc ? sc.watch : '',
+      detail: detail.get(y.year) || null,
+    };
+  });
+}
+export const TIMELINE_MODE = {
+  go: { label: '衝', text: '適合升遷、加薪、轉換、開新局' },
+  steady: { label: '穩', text: '照計畫走，累積實力' },
+  hold: { label: '守', text: '先準備、進修、存錢，不要裸辭' },
+};

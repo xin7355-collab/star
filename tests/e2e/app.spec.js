@@ -659,46 +659,55 @@ test('配對：老師怎麼看——星盤＋八字合婚一起看，依關係�
   await expect(page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' })).toHaveValue('fengshui');
 });
 
-test('工作與未來：選目前的工作和想做的工作（下拉選單）→ 適合程度、轉換難度、怎麼轉、什麼時候換、推薦；老師怎麼看；存進名單、編輯資料不會洗掉', async ({ page }) => {
+test('工作與未來：照問題排——你的狀況（含最在意的、能撐多久）→ 老師總評（建議路線）→ 選項比一比 → 你的天賦（一份推薦）→ 工作運 10 年；存檔、編輯資料不會洗掉', async ({ page }) => {
   await seed(page);
   await page.goto('/');
   await tab(page, 'destiny');
   await page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption('career');
-  const card = page.locator('#job-plan');
-  await expect(card.getByRole('heading', { name: '你的工作與換跑道' })).toBeVisible();
-  // 還沒選：已經有「可能沒想到、但很適合的工作」
-  await expect(card.getByRole('heading', { name: '你可能沒想到、但很適合的工作' })).toBeVisible();
-  await card.getByRole('combobox', { name: '目前的工作' }).selectOption('accountant');
-  await card.getByRole('combobox', { name: '做了多久' }).selectOption('5-10');
-  await card.getByRole('combobox', { name: '想做的工作 1' }).selectOption('ai_eng');
-  await expect(card.getByRole('heading', { name: '現在的「會計」' })).toBeVisible();
-  const item = card.locator('details.job-item').first();
-  await expect(item.locator('summary')).toContainText('AI 工程師');
-  await expect(item).toContainText('轉換難度：');
-  await expect(item).toContainText('怎麼入行：');
-  await expect(item).toContainText('AI 的影響');
-  await expect(item.locator('ol.plan li').first()).toBeVisible();
-  await expect(card.getByRole('heading', { name: '什麼時候換最好' })).toBeVisible();
-  // 推薦的工作可以一鍵加到想做的工作
-  const suggestion = card.locator('h3', { hasText: '可能沒想到' }).locator('xpath=following-sibling::ul[1]/li').first();
-  const suggestedName = await suggestion.locator('b').textContent();
-  await suggestion.getByRole('button', { name: '加到想做的工作' }).click();
-  await expect(card.getByRole('combobox', { name: '想做的工作 2' }).locator('option:checked')).toHaveText(suggestedName);
-  // 老師怎麼看你的工作
-  const master = page.locator('#view-destiny section.master').filter({ has: page.getByRole('heading', { name: '老師怎麼看你的工作' }) });
-  await expect(master.locator('.master-verdict')).toContainText('老師看你的工作：');
-  await expect(master.getByRole('button', { name: '人生時間軸' })).toBeVisible();
-  // 還沒存：提示；存了以後重新整理還在
-  await expect(card.getByText('有變更還沒儲存')).toBeVisible();
-  await card.getByRole('button', { name: '存到我的資料' }).click();
+  const form = page.locator('#job-plan');
+  await expect(form.getByRole('heading', { name: '你的狀況' })).toBeVisible();
+  await expect(form.locator('.job-summary')).toHaveText('還沒填：先選現在的工作，老師才能幫你比。');
+  await form.getByRole('combobox', { name: '目前的工作' }).selectOption('accountant');
+  await form.getByRole('combobox', { name: '做了多久' }).selectOption('5-10');
+  await form.getByRole('combobox', { name: '你最在意的' }).selectOption('stable');
+  await form.getByRole('combobox', { name: '收入變少能撐多久' }).selectOption('none');
+  await form.getByRole('combobox', { name: '想做的工作 1' }).selectOption('ai_eng');
+  await expect(form.locator('.job-summary')).toHaveText('現在：會計（5～10 年）・最在意：穩定・收入：不能變少・想做：AI 工程師');
+  // 老師總評：收入不能變少 → 副業先行
+  const master = page.locator('#view-destiny section.master').filter({ has: page.getByRole('heading', { name: '老師總評' }) });
+  await expect(master.locator('.master-verdict')).toContainText('建議：留著現職，「AI 工程師」先當副業');
+  await expect(master.locator('.master-verdict .badge')).toHaveText('副業先行');
+  await expect(master.locator('details.remedy summary').first()).toHaveText('建議路線：留著現職，「AI 工程師」先當副業');
+  // 選項比一比：現在和想做的並排，適合度 0～100 和現實面的傾向
+  const opts = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '你的選項比一比' }) });
+  await expect(opts.locator('.opt')).toHaveCount(2);
+  await expect(opts.locator('.opt').first()).toContainText('會計');
+  await expect(opts.locator('.opt').first()).toContainText('現在');
+  await expect(opts.locator('.opt').nth(1)).toContainText('想做');
+  await expect(opts.locator('.opt .bar-head').first()).toContainText('適合度');
+  await expect(opts.locator('.opt').nth(1).locator('.chip', { hasText: '收入 高' })).toBeVisible();
+  await expect(opts.locator('.opt').nth(1)).toContainText('轉換：跨很大');
+  // 你的天賦：一份推薦，可以一鍵加到想做的工作
+  const talent = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '你的天賦' }) });
+  await expect(talent.getByRole('heading', { name: '最適合你的職位' })).toBeVisible();
+  const rec = talent.locator('.job-recs li').first();
+  const recName = await rec.locator('b').textContent();
+  await rec.getByRole('button', { name: '加到想做的工作' }).click();
+  await expect(form.getByRole('combobox', { name: '想做的工作 2' }).locator('option:checked')).toHaveText(recName);
+  await expect(talent.locator('summary', { hasText: '新興產業適不適合你' })).toBeVisible();
+  // 工作運：10 年、衝穩守，標出建議轉換的那一年
+  const tl = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '工作運：未來 10 年' }) });
+  await expect(tl.locator('.career-years .cy')).toHaveCount(10);
+  await expect(tl.locator('.cy .badge', { hasText: /^(衝|穩|守)$/ })).toHaveCount(10);
+  await expect(tl.locator('.badge', { hasText: '建議轉換' })).toHaveCount(1);
+  // 存檔：重新整理還在；到「我的」編輯、儲存不會洗掉
+  await expect(form.getByText('有變更還沒儲存')).toBeVisible();
+  await form.getByRole('button', { name: '存到我的資料' }).click();
   await expect(page.locator('#toast')).toContainText('已存在這支手機');
   const people = () => page.evaluate(() => JSON.parse(localStorage.getItem('star.v1.people')));
   const saved = (await people())[0].career;
-  expect(saved.current).toBe('accountant');
-  expect(saved.tenure).toBe('5-10');
-  expect(saved.targets[0]).toBe('ai_eng');
+  expect(saved).toMatchObject({ current: 'accountant', tenure: '5-10', priority: 'stable', runway: 'none' });
   expect(saved.targets).toHaveLength(2);
-  // 到「我的」編輯、儲存：名單整筆覆蓋儲存，工作資料要留著
   await tab(page, 'me');
   const me = page.locator('#view-me');
   await me.locator('ul.people li').first().getByRole('button', { name: '編輯' }).click();
@@ -707,9 +716,12 @@ test('工作與未來：選目前的工作和想做的工作（下拉選單）�
   expect((await people())[0].career).toEqual(saved);
   await page.reload();
   await tab(page, 'destiny');
-  await expect(page.locator('#job-plan').getByRole('combobox', { name: '目前的工作' })).toHaveValue('accountant');
-  await expect(page.locator('#job-plan').getByRole('combobox', { name: '想做的工作 1' })).toHaveValue('ai_eng');
-  await expect(page.locator('#job-plan').getByText('已存在這支手機。')).toBeVisible();
+  const form2 = page.locator('#job-plan');
+  await expect(form2.locator('.job-summary')).toContainText('現在：會計（5～10 年）・最在意：穩定');
+  // 存過了：表單收起來，只留一行現況和「修改」
+  await expect(form2.locator('details.job-form')).not.toHaveAttribute('open', '');
+  await form2.locator('summary', { hasText: '修改' }).click();
+  await expect(form2.getByRole('combobox', { name: '想做的工作 1' })).toHaveValue('ai_eng');
 });
 
 test('占卜：樂透選號（今日固定、隨機一組、機率表、存紀錄）', async ({ page }) => {
@@ -865,14 +877,15 @@ test('命盤：工作與方向、開運佈置（財庫、財位、九宮飛星�
   await tool.selectOption('career');
   await expect(dv.getByRole('heading', { name: '最適合的工作性質' })).toBeVisible();
   await expect(dv.locator('.trait .count').first()).toHaveText(/[2-9] 個系統/);
-  await expect(dv.locator('.year-card')).toHaveCount(3);
-  await expect(dv.locator('.year-card').first()).toContainText('2026');
-  // 新興產業：AI 時代的建議＋13 個產業依適配度排序，第一個打開、寫出角色和怎麼開始
-  const em = dv.locator('section.card', { hasText: '新興產業適不適合你' });
-  await expect(em.getByRole('heading', { name: 'AI 時代，你可以這樣做' })).toBeVisible();
-  await expect(em.locator('details.em')).toHaveCount(13);
-  await expect(em.locator('details.em').first()).toContainText('你可以做的角色：');
-  await expect(em.locator('details.em').first()).toContainText('怎麼開始：');
+  // 工作運：10 年一條時間軸（以前分成未來三年、十年兩張卡）
+  await expect(dv.locator('.career-years .cy')).toHaveCount(10);
+  await expect(dv.locator('.career-years .cy').first()).toContainText('2026');
+  // 新興產業：收在天賦卡的摺疊裡，13 個產業依適配度排序、寫出角色和怎麼開始；AI 時代的建議放在外面
+  await expect(dv.getByText('AI 時代，你可以這樣做：')).toBeVisible();
+  await dv.locator('summary', { hasText: '新興產業適不適合你' }).click();
+  await expect(dv.locator('details.em')).toHaveCount(13);
+  await expect(dv.locator('details.em').first()).toContainText('你可以做的角色：');
+  await expect(dv.locator('details.em').first()).toContainText('怎麼開始：');
   await expect(dv.getByText(/大運 丁亥/)).toBeVisible();
   await tool.selectOption('fengshui');
   await expect(dv.getByText('怎麼改善：開運佈置重點')).toBeVisible();

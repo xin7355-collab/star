@@ -33,6 +33,9 @@ const AI_NOTE = [
   '例行的部分容易被 AI 自動化：要在這行長久，往需要判斷、溝通、客製的那一端走，或成為設計自動化流程的人。',
 ];
 
+/** 這份工作和 AI 的關係（給畫面用） */
+export const aiNoteOf = (job) => AI_NOTE[job.ai];
+
 const j = (id, name, natures, wx, skills, entry, ai, status = false) => ({ id, name, natures, wx, skills, entry, ai, status, long: LONG_TRAINING.has(id) });
 // 要相關科系加國考（或教師甄試）、養成期好幾年的工作：30 歲以上不放進「你可能沒想到的」推薦；自己選了就提醒養成期
 const LONG_TRAINING = new Set(['doctor', 'nurse', 'pharmacist', 'therapist', 'nutritionist', 'psych', 'lawyer', 'teacher', 'medtech']);
@@ -160,7 +163,43 @@ export const JOB_GROUPS = [
   ] },
 ];
 
-const ALL = JOB_GROUPS.flatMap((g) => g.jobs.map((x) => ({ ...x, group: g.id, groupName: g.name })));
+// 每個工作的大致傾向（台灣 2026 的一般情況，實際看公司和個人）：收入、穩定、自由彈性、生活平衡（3＝高、2＝中、1＝低），
+// 以及屬於哪個趨勢產業（emerging.js 的代碼）。用來對照「你最在意的事」：只看命盤適不適合，
+// 會叫最在意穩定的人去自由接案、叫最在意收入的人去做起薪偏低的工作（上一版的設計缺口）
+const TRAITS = {
+  swe: [3, 2, 2, 2, 'ai'], data: [2, 2, 2, 2, 'ai'], ai_eng: [3, 2, 2, 2, 'ai'], security: [3, 3, 2, 2, 'security'], it_admin: [2, 3, 1, 2, null],
+  product: [3, 2, 2, 1, 'ai'], tester: [2, 2, 1, 2, null], uiux: [2, 2, 2, 2, null],
+  process: [3, 3, 1, 1, 'semi'], qa: [2, 3, 1, 2, 'semi'], pmc: [2, 3, 1, 2, null], operator: [1, 2, 1, 1, 'semi'], hw_rd: [3, 3, 1, 1, 'semi'],
+  owner: [3, 1, 3, 1, null], manager: [3, 2, 1, 1, null], project: [2, 2, 1, 1, null], admin: [1, 3, 1, 3, null], cs: [1, 2, 1, 2, null], hr: [2, 3, 1, 2, null], purchase: [2, 3, 1, 2, null],
+  sales: [3, 1, 2, 1, null], marketing: [2, 2, 2, 2, 'ecommerce'], ecom: [2, 1, 3, 2, 'ecommerce'], pr: [2, 2, 2, 1, null], retail: [1, 2, 1, 1, null], realestate: [3, 1, 2, 1, null], insurance: [2, 1, 3, 2, 'silver'],
+  accountant: [2, 3, 1, 2, null], finance_mgr: [3, 3, 1, 2, 'fintech'], tax: [2, 3, 2, 2, null], banker: [2, 3, 1, 2, 'fintech'], advisor: [2, 1, 2, 2, 'fintech'], analyst: [3, 2, 2, 1, 'fintech'],
+  graphic: [1, 1, 2, 2, null], interior: [2, 2, 2, 1, null], video: [1, 1, 3, 2, 'content'], illustrator: [1, 1, 3, 2, 'content'], game: [2, 2, 2, 1, 'game'],
+  photographer: [1, 1, 3, 2, 'content'], creator: [1, 1, 3, 2, 'content'], editor: [1, 2, 2, 2, 'content'],
+  teacher: [2, 3, 1, 2, 'edtech'], tutor: [1, 1, 3, 2, 'edtech'], trainer: [2, 2, 3, 2, 'edtech'], researcher: [2, 2, 2, 2, null], preschool: [1, 2, 1, 2, null],
+  doctor: [3, 3, 1, 1, 'health'], nurse: [2, 3, 1, 1, 'silver'], pharmacist: [3, 3, 1, 2, 'health'], therapist: [2, 3, 1, 2, 'silver'], medtech: [2, 3, 1, 2, 'health'],
+  caregiver: [1, 3, 1, 1, 'silver'], nutritionist: [2, 3, 1, 2, 'health'],
+  psych: [2, 2, 2, 2, null], social: [1, 3, 1, 1, 'silver'],
+  civil: [2, 3, 1, 3, null], translator: [2, 1, 3, 2, null], lawyer: [3, 2, 2, 1, null], police: [2, 3, 1, 1, null],
+  chef: [1, 2, 1, 1, null], barista: [1, 2, 1, 2, null], event: [2, 1, 2, 1, null], restaurant: [2, 1, 3, 1, null], hotel: [1, 2, 1, 1, null], beauty: [2, 2, 3, 2, null], fitness: [2, 1, 3, 2, 'silver'],
+  civil_eng: [3, 3, 1, 1, null], electrician: [2, 2, 3, 2, 'green'], mechanic: [2, 3, 2, 2, 'ev'], machinist: [2, 3, 1, 2, 'robot'],
+  logistics: [1, 3, 1, 2, null], trade: [2, 2, 2, 2, 'ecommerce'], driver: [1, 1, 3, 2, null], aviation: [2, 3, 1, 1, null],
+  performer: [1, 1, 3, 1, 'content'], musician: [1, 1, 3, 2, null], writer: [1, 1, 3, 3, 'content'],
+  farmer: [1, 2, 3, 2, null], pet: [1, 2, 2, 2, null],
+  freelancer: [2, 1, 3, 2, null], startup: [3, 1, 3, 1, null], shop: [2, 1, 3, 1, null],
+};
+export const TRAIT_KEYS = [
+  { key: 'pay', label: '收入' },
+  { key: 'stab', label: '穩定' },
+  { key: 'free', label: '自由' },
+  { key: 'bal', label: '生活平衡' },
+];
+export const TRAIT_LEVEL = ['', '低', '中', '高'];
+const traitsOf = (id) => {
+  const t = TRAITS[id];
+  return t ? { pay: t[0], stab: t[1], free: t[2], bal: t[3], trend: t[4] } : { pay: 0, stab: 0, free: 0, bal: 0, trend: null };
+};
+
+const ALL = JOB_GROUPS.flatMap((g) => g.jobs.map((x) => ({ ...x, ...traitsOf(x.id), group: g.id, groupName: g.name })));
 const BY_ID = new Map(ALL.map((x) => [x.id, x]));
 export const jobOf = (id) => BY_ID.get(id) || null;
 
@@ -175,18 +214,45 @@ export const TENURES = [
 ];
 export const MAX_TARGETS = 3;
 
-/** 存進名單前的白名單：只收選單裡有的工作代碼、最多 3 個想做的，不收自由輸入的文字 */
+/** 你最在意的事：換不換、怎麼換，要和這個對照（attr：工作的哪一個傾向） */
+export const PRIORITIES = [
+  { value: '', label: '（不填）', attr: null },
+  { value: 'fit', label: '做適合自己的事', attr: null },
+  { value: 'income', label: '收入', attr: 'pay' },
+  { value: 'stable', label: '穩定', attr: 'stab' },
+  { value: 'freedom', label: '自由彈性', attr: 'free' },
+  { value: 'balance', label: '生活平衡', attr: 'bal' },
+];
+/** 換工作時收入變少，能撐多久：決定要「先做副業」還是「準備好就跳」 */
+export const RUNWAYS = [
+  { value: '', label: '（不填）' },
+  { value: 'none', label: '不能變少' },
+  { value: 'half', label: '可以撐 3～6 個月' },
+  { value: 'year', label: '可以撐 1 年以上' },
+];
+
+/** 存進名單前的白名單：只收選單裡有的代碼、最多 3 個想做的，不收自由輸入的文字 */
 export function sanitizeCareer(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const current = typeof raw.current === 'string' && BY_ID.has(raw.current) ? raw.current : '';
-  const tenure = TENURES.some((t) => t.value && t.value === raw.tenure) ? raw.tenure : '';
+  const pick = (list, v) => (list.some((t) => t.value && t.value === v) ? v : '');
+  const tenure = pick(TENURES, raw.tenure);
+  const priority = pick(PRIORITIES, raw.priority);
+  const runway = pick(RUNWAYS, raw.runway);
   const targets = [];
   for (const t of Array.isArray(raw.targets) ? raw.targets : []) {
     if (typeof t === 'string' && BY_ID.has(t) && !BY_ID.get(t).status && t !== current && !targets.includes(t)) targets.push(t);
     if (targets.length >= MAX_TARGETS) break;
   }
-  return current || targets.length ? { current, tenure, targets } : null;
+  return current || targets.length || priority || runway ? { current, tenure, priority, runway, targets } : null;
 }
+
+/**
+ * 適合分數（約 −1～8）換成 0～100 的適合度：上一版直接顯示「−1」「高 5.5」，看不懂。
+ * 換算刻意不從 0 起：很不適合的工作顯示「5 分」會嚇到人，實際上只是「要多花力氣」。
+ * 對照：要多花力氣 50 以下、可以 50～66、很適合 66 以上
+ */
+export const fitPct = (score) => Math.max(15, Math.min(98, Math.round(30 + score * 8.1)));
 
 // 和新興產業同一套給分：工作性質的前 4 名依排名給分，加上行業五行和喜用的關係
 const RANK_POINTS = [3, 2, 1, 0.5];
@@ -320,7 +386,7 @@ export function changeTiming(years = []) {
  * @param {{current?:string, tenure?:string, targets?:string[], ranked:object[], ys?:object|null, years?:object[], name?:string}} o
  *   current、targets 是工作代碼；years 是人生時間軸的 10 年（buildLifeline）
  */
-export function careerPlan({ current = '', tenure = '', targets = [], ranked = [], ys = null, years = [], name = '你', age = null }) {
+export function careerPlan({ current = '', tenure = '', priority = '', runway = '', targets = [], ranked = [], ys = null, years = [], name = '你', age = null }) {
   const W = name && name !== '你' ? name : '你';
   const from = jobOf(current);
   const curFit = from && !from.status ? jobFit(from, { ranked, ys }) : null;
@@ -371,67 +437,125 @@ export function careerPlan({ current = '', tenure = '', targets = [], ranked = [
     notes.push({ tone: 'info', text: `今年（${thisYear.year}）是「${thisYear.level}」的年份，不建議裸辭；今年先準備（上課、做作品、存錢）${next ? `，${next.year} 年再轉比較順` : ''}。` });
   }
 
-  const suggest = suggestJobs({ ranked, ys, exclude: [current, ...targets], n: 3, age });
-  return { from, curFit, tenure, items, notes, timing, suggest, name: W };
+  // 和「你最在意的事」對照：想去的工作在這一項偏低，直接講；現在的工作在這一項明顯比較好，也講
+  const pr = PRIORITIES.find((x) => x.value === priority) || null;
+  if (pr && pr.attr) {
+    const label = pr.label;
+    for (const it of items) {
+      if (it.job[pr.attr] === 1) notes.push({ tone: 'bad', text: `你最在意「${label}」，但「${it.job.name}」的${label}偏低：${LOW_TRAIT[pr.attr]}` });
+      else if (from && !from.status && from[pr.attr] - it.job[pr.attr] >= 1) notes.push({ tone: 'info', text: `論「${label}」，現在的「${from.name}」比「${it.job.name}」好，換過去這一項會變差。` });
+      else if (it.job[pr.attr] === 3) notes.push({ tone: 'good', text: `「${it.job.name}」正好符合你最在意的「${label}」。` });
+    }
+  }
+
+  const suggest = suggestJobs({ ranked, ys, exclude: [current, ...targets], n: 6, age });
+  const path = choosePath({ from, curFit, items, priority: pr, runway, timing, years });
+  return { from, curFit, tenure, priority: pr && pr.value ? pr : null, runway, items, notes, timing, suggest, path, name: W };
+}
+
+const LOW_TRAIT = {
+  pay: '起薪偏低，靠經驗和口碑慢慢往上，前兩三年收入要有心理準備。',
+  stab: '收入起伏大，至少準備 6 個月生活費，或先兼職試水溫。',
+  free: '制度和上班時間比較固定，自由度不高。',
+  bal: '常加班或要輪班，先和家人談好作息。',
+};
+
+/** 衝的年份（升遷、加薪、轉換）：順或小順，而且有變動或升遷的訊號 */
+export const GO_TAGS = [...CHANGE_TAGS, '正官年', '正財年'];
+const goYearOf = (years) => {
+  const y = years.find((x) => LEVEL_RANK[x.level] >= 3 && x.tags.some((t) => GO_TAGS.includes(t)));
+  return y ? y.year : null;
+};
+
+/**
+ * 建議路線（現實不是只有「換」和「不換」）：
+ * 留下往上走／先換環境不換行／副業先行／準備好再換／全力轉換／從頭開始。
+ * 依適合度（加上你最在意的那一項）決定要不要換；依收入能撐多久決定怎麼換；依人生時間軸決定哪一年做。
+ */
+function choosePath({ from, curFit, items, priority, runway, timing, years }) {
+  const thisYear = years[0] ? years[0].year : null;
+  const soon = timing.soon && timing.soon.year !== thisYear ? timing.soon.year : null;
+  const when = soon || (thisYear !== null ? thisYear + 1 : null);
+  const at = (y, text) => (y !== null && y !== undefined ? `${y} 年：${text}` : text);
+  const attr = priority && priority.attr;
+  // 你最在意的那一項：想去的比現在高就加分、低就扣分（沒有現職時和「中」比）
+  const adj = (job, fit) => fit.score + (attr ? (job[attr] - (from && !from.status ? from[attr] : 2)) * 0.8 : 0);
+  if (!from) {
+    if (!items.length) return null;
+  }
+  if (!from || from.status) {
+    const best = items.length ? [...items].sort((a, b) => adj(b.job, b.fit) - adj(a.job, a.fit))[0] : null;
+    if (!best) return { id: 'explore', label: '先找方向', title: '先從推薦的職位挑一個試', target: null, year: null, steps: ['看下面「最適合你的職位」，挑一兩個加到想做的工作。', '每個方向用 3 個月的課程、實習或兼職試看看，再決定要不要投入。'] };
+    return { id: 'start', label: '從頭開始', title: `從「${best.job.name}」開始`, target: best.job, year: when,
+      steps: [at(thisYear, `用實習、兼職或短期課程試「${best.job.name}」，確定喜歡再投入。`), ...best.plan.slice(1), at(when, '正式投入，給自己一年站穩。')] };
+  }
+  const best = items.length ? [...items].sort((a, b) => adj(b.job, b.fit) - adj(a.job, a.fit))[0] : null;
+  const goYear = goYearOf(years);
+  if (!best) {
+    const steps = [`把你最強的工作性質用進現在的工作：多接你擅長的那一類任務，讓主管看到。`];
+    if (curFit && curFit.level === '要多花力氣') steps.push('現在的工作對你比較吃力：先在公司內找更適合的部門或專案；也可以看下面「最適合你的職位」。');
+    steps.push(goYear ? at(goYear, '衝的年份，爭取升遷、加薪或更好的位子。') : '每年檢查一次：能力、收入、成就感有沒有在進步。');
+    if (from.ai === 2) steps.push('你的工作例行的部分容易被 AI 自動化：今年開始學會用 AI 做事，往需要判斷、溝通的內容靠。');
+    return { id: 'stay', label: '留下往上走', title: `留在「${from.name}」，往上走`, target: null, year: goYear, steps };
+  }
+  if (adj(best.job, best.fit) <= adj(from, curFit) + 0.5) {
+    return { id: 'move', label: '先換環境', title: '先換環境，不急著換行', target: best.job, year: when,
+      steps: ['先寫下想離開的原因：主管、薪水、工時，還是這一行本身。', at(when, `同行換公司或換部門，帶著「${from.name}」的經驗去更好的環境。`), `「${best.job.name}」可以先當興趣或副業接觸，真的更喜歡再說。`] };
+  }
+  const bridge = best.bridge ? `跨很大：先到「${best.bridge.name}」累積經驗，再到「${best.job.name}」，比直接跳成功率高。` : null;
+  // 你最在意的那一項，想去的工作偏低（最在意穩定卻想去自媒體）：除非存款撐得了一年，都先當副業
+  const risky = attr && best.job[attr] === 1;
+  if (runway === 'none' || (risky && runway !== 'year')) {
+    return { id: 'side', label: '副業先行', title: `留著現職，「${best.job.name}」先當副業`, target: best.job, year: when,
+      steps: [at(thisYear, `下班時間上課、做「${best.job.name}」的小專案，3 個月內做出能拿給人看的作品。`), bridge, at(when, '副業每個月有穩定收入（大約現在收入的三成）再談轉換。')].filter(Boolean) };
+  }
+  if (runway === 'year') {
+    return { id: 'switch', label: '全力轉換', title: `全力轉到「${best.job.name}」`, target: best.job, year: when,
+      steps: [at(thisYear, `存款撐得住：可以全職投入學習（${best.job.skills}）。`), bridge, at(when, `正式轉換，給自己一年在「${best.job.name}」站穩。`)].filter(Boolean) };
+  }
+  return { id: 'prep', label: '準備好再換', title: `準備好再換到「${best.job.name}」`, target: best.job, year: when,
+    steps: [at(thisYear, `準備：補能力（${best.job.skills}）、做作品、存 6 個月生活費。`), bridge, at(when, `正式轉換到「${best.job.name}」。`)].filter(Boolean) };
 }
 
 /**
- * 「老師怎麼看你的工作」：careerPlan 的結果＋各系統投票的工作性質，給斷語、補充或修正你的想法、整體做法、搭配工具。
+ * 老師總評（工作）：一段話講完天賦、現況、建議路線和時機；下面是修正你的想法、路線的步驟、你的優勢。
+ * 細節（每個選項的比較、怎麼入行、十年工作運）在畫面上其他卡片，這裡不重複。
  * @param plan careerPlan 的結果；natures：buildCareer 的 natures（最強的工作性質，含優勢與地雷）
  */
 export function careerMaster(plan, natures = []) {
   const W = plan.name;
   const top = natures[0] || null;
-  const best = plan.items[0] || null;
-  const nextYear = plan.timing.soon || null;
-  const bestYear = plan.timing.best[0] || null;
-  const why = [];
+  const talent = top ? `天賦偏「${top.label}」，${top.desc}` : '';
+  const path = plan.path;
+  const why = plan.notes.slice(0, 5);
   const remedies = [];
   const boosts = [];
   let verdict;
-  let badge = null;
-  if (!plan.from && !best) {
-    verdict = `老師看${W}的工作：先在上面選現在的工作和想做的工作，老師才幫你比。${top ? `你命盤裡最強的是「${top.label}」：${top.desc}` : ''}`;
-  } else if (!best) {
-    const lv = plan.curFit ? plan.curFit.level : null;
-    badge = lv;
-    verdict = plan.from.status
-      ? `老師看${W}的工作：現在是「${plan.from.name}」。下面挑一到三個想做的工作，老師幫你看哪個最適合、怎麼開始。`
-      : lv === '很適合'
-        ? `老師看${W}的工作：「${plan.from.name}」對你很適合，你在對的位置上。深耕、往上爬就是最好的策略，不用羨慕別人換跑道。`
-        : lv === '可以'
-          ? `老師看${W}的工作：「${plan.from.name}」對你是「可以」：方向沒錯，把你最強的「${top ? top.label : '能力'}」用進工作，會越做越順。`
-          : `老師看${W}的工作：「${plan.from.name}」對你要多花力氣，不是不能做，是比別人累。可以把工作內容往你擅長的那一端調，或參考下面推薦的工作。`;
-    if (lv === '要多花力氣' && top) remedies.push({ title: '不換工作也能調整的地方', steps: [`在現在的工作裡多接「${top.label}」的事：${top.desc}`, `發揮你的優勢：${top.edge}；同時小心${top.trap}。`, '先在公司內部找機會（換部門、換專案），比直接換行風險小。'] });
+  if (!plan.from && !plan.items.length) {
+    verdict = `老師看${W}：${talent}先在上面填你的狀況（現在的工作、最在意的事、想做的工作），老師再幫你比、幫你排時間。`;
   } else {
-    badge = best.fit.level;
-    const d = best.delta;
-    const alt = plan.suggest[0] ? plan.suggest[0].job.name : null;
-    // 順序有意義：現在的工作明顯比較適合時，先講這一點（比「都要多花力氣」重要）
-    let head;
-    if (d !== null && d <= -1.5) head = `直說：想換的「${best.job.name}」沒有比現在的「${plan.from.name}」更適合你。先想清楚想離開的是「這一行」還是「這個環境」。`;
-    else if (best.fit.level === '要多花力氣') head = `你選的工作對你都要多花力氣。不是不能做，但${alt ? `下面推薦的「${alt}」這類工作` : '其他類型的工作'}可能更適合你，可以一起比比看。`;
-    else if (d === null) head = `想做的工作裡，「${best.job.name}」對你最適合（${best.fit.level}）。`;
-    else if (d >= 1.5) head = `想換到「${best.job.name}」，方向是對的：它比現在的「${plan.from.name}」更適合你。`;
-    else head = `「${best.job.name}」和現在的「${plan.from.name}」對你差不多適合，換不換看你更想做哪一件事。`;
-    const when = nextYear
-      ? `時機上，${nextYear.year} 年比較適合轉換${bestYear && bestYear.year !== nextYear.year ? `（十年裡最好的是 ${bestYear.year} 年）` : ''}。`
-      : bestYear ? `近三年沒有特別好的轉換年份，照步驟穩穩準備就好，不用硬等（十年裡最好的是 ${bestYear.year} 年）。` : '';
-    verdict = `老師看${W}的工作：${head}${when}`;
-    remedies.push({ title: `怎麼轉到「${best.job.name}」（${DISTANCE[best.distance]}）`, steps: best.plan });
-    if (plan.timing.avoid.length) remedies.push({ title: '這幾年先別裸辭', steps: [`${plan.timing.avoid.join('、')} 年是最要小心的年份：可以準備、上課、做副業，正式離職放到順的年份。`] });
+    const now = plan.from && !plan.from.status && plan.curFit
+      ? `現在的「${plan.from.name}」適合度 ${fitPct(plan.curFit.score)}（${plan.curFit.level}）。`
+      : plan.from ? `現在是「${plan.from.name}」。` : '';
+    const route = path ? `建議：${path.title}。` : '';
+    const time = path && path.year ? (path.id === 'stay' ? `${path.year} 年是衝的年份。` : `${path.year} 年是比較好的時機。`) : '';
+    verdict = `老師看${W}：${talent}${now}${route}${time}`;
   }
-  for (const n of plan.notes) why.push(n);
-  if (top) boosts.push(`你的優勢：${top.edge}（${top.label}）。面試、寫履歷時把這點講具體。`);
+  if (path) remedies.push({ title: `建議路線：${path.title}`, steps: path.steps });
+  if (path && ['prep', 'switch', 'side'].includes(path.id) && plan.timing.avoid.length) {
+    remedies.push({ title: '這幾年先別裸辭', steps: [`${plan.timing.avoid.join('、')} 年是最要小心的年份：可以準備、上課、做副業，正式離職放到順的年份。`] });
+  }
+  if (top) boosts.push(`你的優勢：${top.edge}。面試、寫履歷、談升遷時，把這點講具體。`);
+  const bestYear = plan.timing.best[0];
   if (bestYear) boosts.push(`${bestYear.year} 年（${bestYear.level}，${bestYear.signals.join('、')}）是十年裡轉換、升遷、開新局最好的時機。`);
   return {
-    badge,
+    badge: path ? path.label : null,
     verdict,
-    why: why.slice(0, 5),
-    remedies: remedies.slice(0, 3),
+    why,
+    remedies,
     boosts,
     combos: [
-      { label: '人生時間軸', why: '看每一年的工作運和要注意的月份', go: ['destiny', { tool: 'liunian' }] },
+      { label: '人生時間軸', why: '每一年的運勢和要注意的月份', go: ['destiny', { tool: 'liunian' }] },
       { label: '擇日', why: '面試、簽約、遞辭呈挑順的日子', go: ['fortune', {}] },
       { label: '開運佈置', why: '書桌、辦公桌照喜用方位擺', go: ['destiny', { tool: 'fengshui' }] },
       { label: '解惑', why: '卡在「要不要換」時起一卦，看趨勢和做法', go: ['oracle', { panel: 'jiehuo' }] },

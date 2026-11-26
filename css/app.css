@@ -1259,8 +1259,17 @@ body.ar-open { overflow: hidden; }
 .master ul.combos .btn { width: 100%; }
 .master details.red-flags summary { color: var(--poor); }
 
-/* 工作與換跑道（js/views/tool-career.js） */
+/* 工作與未來方向（js/views/tool-career.js） */
 .job-targets { display: grid; gap: 8px; }
-.job-analysis h3 { margin-top: 14px; }
-.job-item summary { flex-wrap: wrap; gap: 4px; }
-.job-analysis .reasons li .btn.small { margin-top: 6px; }
+.job-summary { margin: 6px 0 2px; color: var(--text); }
+.job-options .opt { padding: 12px 0; border-top: 1px solid var(--divider); }
+.job-options .opt:first-of-type { border-top: 0; }
+.opt-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+.opt-head b { font-size: 16px; }
+.job-recs .reasons li .btn.small { margin-top: 6px; }
+.job-recs .chips, .job-options .chips { margin-top: 6px; }
+.career-years { list-style: none; margin: 8px 0; padding: 0; }
+.career-years .cy { padding: 8px 0; border-top: 1px solid var(--divider); }
+.cy-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cy-head b { font-size: 16px; }
+.cy-focus { color: var(--muted); }
