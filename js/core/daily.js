@@ -38,10 +38,12 @@ const LEVELS = [
 
 /**
  * @param {{date:{y,m,d}, bazi?:object, signIndex?:number|null, birth?:{y,m,d}|null, tz?:string}} input
- * @returns {{score:number, level:string, advice:string, parts:Array<{system,delta,text}>}}
+ * @returns {{score:number, level:string, advice:string, parts:Array<{system,delta,text}>, factors:object}}
  */
 export function dailyIndex({ date, bazi = null, signIndex = null, birth = null, tz = DEFAULT_TZ }) {
   const parts = [];
+  // 「老師怎麼看今天」要用的結構化原因（js/core/master-texts.js 依這些給化解）：沖、忌神、黑道、十神……
+  const factors = { clash: [], harmony: [], avoid: null, favor: null, shishen: null, black: false, tianShen: '', animal: null };
   let score = 55;
   if (signIndex !== null && signIndex !== undefined) {
     const s = dayScores(signIndex, date, tz).scores.overall;
@@ -57,6 +59,10 @@ export function dailyIndex({ date, bazi = null, signIndex = null, birth = null, 
     if (ys && wx === ys.primary) [d, role] = [d + 6, `，日干屬${wx}正是你的喜用`];
     else if (ys && wx === ys.secondary) [d, role] = [d + 3, `，日干屬${wx}是你的次要喜用`];
     else if (ys && ys.avoid.includes(wx)) [d, role] = [d - 6, `，日干屬${wx}是你的忌神（${avoidReason(ys)}）`];
+    Object.assign(factors, {
+      clash: p.clash, harmony: p.harmony, shishen: p.shishen, animal: bazi.zodiac.name, zodiacIndex: bazi.zodiac.index,
+      favor: ys && (wx === ys.primary || wx === ys.secondary) ? wx : null, avoid: ys && ys.avoid.includes(wx) ? wx : null, primary: ys ? ys.primary : null,
+    });
     if (p.clash.includes('生肖')) d -= 12;
     if (p.clash.includes('日支')) d -= 8;
     if (p.harmony.length) d += 5;
@@ -68,6 +74,8 @@ export function dailyIndex({ date, bazi = null, signIndex = null, birth = null, 
   const luck = tw(lunar.getDayTianShenLuck());
   const tianShen = tw(lunar.getDayTianShen());
   const dl = luck === '吉' ? 4 : -4;
+  factors.black = luck !== '吉';
+  factors.tianShen = tianShen;
   score += dl;
   parts.push({ system: '農民曆', delta: dl, text: `${tianShen}${luck === '吉' ? '黃道吉日' : '黑道日'}，${luck === '吉' ? '傳統上適合辦事' : '傳統上重要的事宜低調'}。` });
   if (birth) {
@@ -78,7 +86,7 @@ export function dailyIndex({ date, bazi = null, signIndex = null, birth = null, 
   }
   score = Math.max(5, Math.min(95, Math.round(score)));
   const [, level, advice] = LEVELS.find(([min]) => score >= min);
-  return { score, level, advice, parts };
+  return { score, level, advice, parts, factors };
 }
 
 /** 幸運色、幸運數字、喜神與財神方位 */

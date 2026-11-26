@@ -11,6 +11,7 @@ import { zoneToday, DEFAULT_TZ } from '../core/tz.js';
 import { todayScript } from '../core/speech.js';
 import { canSpeak, primeVoices, speak, stopSpeaking, isSpeaking } from '../ui/speak.js';
 import { SIGNS, mainSunSign } from '../core/zodiac.js';
+import { masterCard } from '../ui/master.js';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 const LEVEL_CLASS = { 大吉: 'lv-high', 小吉: 'lv-mid', 平: 'lv-low', 宜守: 'lv-poor', 偏財旺: 'lv-high', 小有偏財: 'lv-mid', 平穩: 'lv-low', 保守為宜: 'lv-poor' };
@@ -26,6 +27,7 @@ function loadModules() {
     import('../core/maya-kin.js'),
     import('../core/maya-texts.js'),
     import('../ui/maya-glyphs.js'),
+    import('../core/master-texts.js'),
   ]);
 }
 
@@ -52,7 +54,7 @@ export function mountToday(root, ctx) {
       return;
     }
     if (my !== token) return;
-    const [{ buildBazi }, T, W, D, CAL, NUM, MK, MT, MG] = mods;
+    const [{ buildBazi }, T, W, D, CAL, NUM, MK, MT, MG, MS] = mods;
     const person = ctx.getActive();
     const natal = ctx.getNatal();
     const input = person ? ctx.inputOf(person) : null;
@@ -96,6 +98,8 @@ export function mountToday(root, ctx) {
     });
     fill(root, ...reveal([
       person ? heroCard(data) : welcomeCard(data),
+      // 老師怎麼看今天：有生日才有（八字流日、沖、忌神）；只有星座時分數的原因太少，講不出化解
+      person && bazi ? masterOfDay(data, MS) : null,
       attentionCard(data, T),
       hoursCard(data),
       luckCard(data, W),
@@ -103,6 +107,21 @@ export function mountToday(root, ctx) {
       mayaCard(data, MK, MT, MG),
       upcomingCard(data),
     ]));
+  }
+
+  function masterOfDay(data, MS) {
+    const m = MS.dailyMaster(data.daily, { name: data.person.self ? '你' : data.person.name, lucky: data.lucky, hours: data.hours });
+    return masterCard({
+      title: '老師怎麼看今天',
+      sub: '今天哪裡順、哪裡卡，卡的地方怎麼化解',
+      badge: { text: m.badge, cls: data.daily.level === '大吉' || data.daily.level === '小吉' ? 'good' : data.daily.level === '宜守' ? 'danger' : 'alt' },
+      verdict: m.verdict,
+      why: m.why,
+      remedies: m.remedies,
+      boosts: m.boosts,
+      combos: m.combos,
+      onGo: (view, opts) => ctx.go(view, opts),
+    });
   }
 
   function dateLine({ today, alm }) {

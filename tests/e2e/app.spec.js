@@ -591,7 +591,7 @@ test('名單：新增農曆生日的家人（不搶走「我」）、從名單�
   const mv = page.locator('#oracle-match');
   await mv.locator('.seg label', { hasText: '精準' }).click();
   await mv.getByRole('button', { name: '開始配對' }).click();
-  await expect(mv.locator('.match-result h2')).toHaveText('我 × 媽媽');
+  await expect(mv.locator('.match-result h2').first()).toHaveText('我 × 媽媽'); // 第二個標題是「老師怎麼看」
   // 精準配對看兩張星盤的度數相位：四項分類、主要相位附度數差
   await expect(mv.locator('.match-result .bar')).toHaveCount(4);
   await expect(mv.getByRole('heading', { name: '兩張星盤的主要相位' })).toBeVisible();
@@ -617,6 +617,46 @@ test('名單：新增農曆生日的家人（不搶走「我」）、從名單�
 
   await tab(page, 'me');
   await expect(page.locator('#view-me summary', { hasText: '查詢紀錄（2）' })).toBeVisible();
+});
+
+test('配對：老師怎麼看——星盤＋八字合婚一起看，依關係（還在認識／交往中／已婚）換建議，有化解、兩人都順的日子、紅燈專線、搭配工具', async ({ page }) => {
+  const WIFE = {
+    id: 'p-fedcba9876543210', name: '小美', gender: '女', birthOrder: 0, self: false, relation: 'spouse', createdAt: '2026-11-24T00:00:00.000Z',
+    raw: { calendar: 'solar', era: 'roc', year: 80, month: 12, day: 1, leap: false, knowTime: true, time: '22:10', placeId: 'taipei', lat: null, lon: null, tz: 'Asia/Taipei', fold: null, solar: null },
+  };
+  await seed(page, [ME, WIFE]);
+  await page.goto('/');
+  await oracle(page, '配對');
+  const mv = page.locator('#oracle-match');
+  await mv.locator('.seg label', { hasText: '精準' }).click();
+  await mv.getByRole('button', { name: '開始配對' }).click();
+  const card = mv.locator('section.master');
+  await expect(card.getByRole('heading', { name: '老師怎麼看' })).toBeVisible();
+  await expect(card.locator('.sub')).toHaveText('星盤合盤＋八字合婚一起看');
+  await expect(card.locator('.master-verdict')).toContainText('老師看我和小美這一對：');
+  await expect(card.locator('ul.reasons li').filter({ hasText: '八字合婚：' })).toHaveCount(1);
+  await expect(card.getByRole('heading', { name: '兩個人都順的日子（約會、告白、重要的談話）' })).toBeVisible();
+  // 關係狀態：換了就換建議（記在這支手機）
+  const status = card.getByRole('radiogroup', { name: '你們現在的關係' });
+  await status.locator('label', { hasText: '已婚／同居' }).click();
+  await expect(card.getByRole('heading', { name: '已經結婚：老師不談分，談怎麼過得更好' })).toBeVisible();
+  await expect(card.getByText(/412-8185/)).toBeVisible();
+  await status.locator('label', { hasText: '還在認識' }).click();
+  await expect(card.getByRole('heading', { name: '還在認識：要不要繼續？' })).toBeVisible();
+  await expect(card.getByText(/及早放手/)).toBeVisible();
+  // 紅燈：收在摺疊裡，打開有 113、1925
+  await card.locator('summary', { hasText: '不管命盤怎麼說，先保護自己' }).click();
+  await expect(card.getByText(/113 保護專線/)).toBeVisible();
+  await expect(card.getByText(/1925 安心專線/)).toBeVisible();
+  // 重新整理後記得上次選的關係
+  await page.reload();
+  await oracle(page, '配對');
+  await mv.getByRole('button', { name: '開始配對' }).click();
+  await expect(mv.locator('section.master').getByRole('heading', { name: '還在認識：要不要繼續？' })).toBeVisible();
+  // 搭配工具：開運佈置 → 命盤分頁的開運佈置
+  await mv.locator('section.master').getByRole('button', { name: '開運佈置' }).click();
+  await expect(page.locator('#view-destiny')).toBeVisible();
+  await expect(page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' })).toHaveValue('fengshui');
 });
 
 test('占卜：樂透選號（今日固定、隨機一組、機率表、存紀錄）', async ({ page }) => {

@@ -289,3 +289,13 @@ AR 星空,data_view,long_content,DONE,code:css/app.css .ar-list-items 最多 28v
 點一下重描掌紋,action,disabled,DONE,code:js/views/tool-palm.js 練習用的範例手掌、斷掌線不重描，還是請他用手指描,
 點一下重描掌紋,action,busy,NA,,在手機上同步計算（約 0.05 秒），沒有等待畫面
 點一下重描掌紋,action,failure,DONE,e2e:點在沒有紋路的地方說「看不到明顯的事業線：點在紋路正上方再試一次，或直接用手指描」；tests/palm-lines.test.js 空白處不亂描,
+配對老師怎麼看,data_view,loading,DONE,code:js/views/match.js paintMaster 先畫只用星盤的版本，八字合婚算好再重畫,
+配對老師怎麼看,data_view,empty,NA,,一定有星盤或太陽星座可以講；多人合盤不顯示這張
+配對老師怎麼看,data_view,error,DONE,code:js/views/match.js 八字算不出來時說「先只看星盤」並請他確認生日,
+配對老師怎麼看,data_view,populated,DONE,e2e:配對：老師怎麼看——星盤＋八字合婚一起看，依關係（還在認識／交往中／已婚）換建議，有化解、兩人都順的日子、紅燈專線、搭配工具,
+配對關係切換,action,default,DONE,e2e:配對：老師怎麼看——星盤＋八字合婚一起看，依關係（還在認識／交往中／已婚）換建議，有化解、兩人都順的日子、紅燈專線、搭配工具,切換後記在這支手機
+配對關係切換,action,focus_visible,DONE,code:js/ui/dom.js segmented（和其他分段切換同一元件）,
+各工具老師怎麼看,data_view,populated,DONE,unit:tests/master-texts.test.js；截圖：今日、時運、八字、紫微、人生時間軸,今日只有填生日（有八字）時顯示
+各工具老師怎麼看,data_view,empty,NA,,沒有不好的地方時「怎麼化解」整段不出現，只留斷語與好的地方怎麼用
+搭配看按鈕,action,default,DONE,e2e:配對：老師怎麼看——（開運佈置按鈕切到命盤的開運佈置）,
+搭配看按鈕,action,focus_visible,DONE,code:按鈕用共用的 .btn 樣式,

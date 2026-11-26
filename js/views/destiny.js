@@ -11,6 +11,8 @@ import { reveal, order, ringTo, playWhenVisible } from '../ui/motion.js';
 import { loadProfile } from './profile.js';
 import { wuxingWheel, loader } from '../ui/charts.js';
 import { shareFile } from '../ui/poster.js';
+import { masterCard } from '../ui/master.js';
+import { baziMaster, ziweiMaster, yearMaster } from '../core/master-texts.js';
 
 // 匿名試算的名字：只放在這次開著的 App 記憶體裡，不存檔、不進紀錄，換人也保留（不屬於任何人）；重開 App 就清掉
 const trial = { names: [], bazi: false };
@@ -176,6 +178,9 @@ export function mountDestiny(root, ctx) {
     if (!b.ok) return warnCard(b.error, true);
     const dom = dominantShishen(b);
     const ys = yongShen(b);
+    const g = geju(b);
+    const curYun = b.yun ? b.yun.list.find((d) => d.current) : null;
+    const bm = ys ? baziMaster({ name: p.self ? '你' : p.name, ys, gejuStatus: g ? g.status : null, dayun: curYun ? { ganzhi: curYun.ganzhi, tone: ganzhiTone(b, curYun.ganzhi) } : null }) : null;
     const cols = b.pillars;
     const cell = (fn) => cols.map((c) => h('td', {}, c ? fn(c) : '—'));
     const table = h(
@@ -212,7 +217,7 @@ export function mountDestiny(root, ctx) {
       )
       : h('p', { class: 'hint', text: '在「我的」幫這個人選性別，就能排大運。' });
     const gz = cols.filter(Boolean).map((c) => c.gan + c.zhi).join(' ');
-    return h(
+    return [bm ? masterOf(bm) : null, h(
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的八字命盤` }),
@@ -235,7 +240,7 @@ export function mountDestiny(root, ctx) {
       ys ? h('p', { class: 'muted small center', text: '外圈箭頭是相生、內圈的線是相剋；圈越大，這個五行在命盤裡的份量越重（月令加三倍）。綠底是喜用，紅底是忌神。' }) : null,
       ys ? h('ul', { class: 'reasons' }, [...ys.reasons, ys.tiaohou].filter(Boolean).map((t) => h('li', { class: 'tone-info', text: t }))) : null,
       h('p', { class: 'hint', text: '字面上缺的五行不一定要補；喜用神看的是日主強弱（扶抑法），開運佈置、幸運色、姓名搭配都用這個結果。' }),
-      gejuBlock(geju(b)),
+      gejuBlock(g),
       h('h3', { text: '命盤上的其他記號' }),
       h('ul', { class: 'plain' },
         h('li', { text: `空亡（日柱旬空）：${b.extra.kong}${b.extra.kongPillars.length ? `，落在${b.extra.kongPillars.join('、')}：這一柱代表的人事力量比較虛，常是「看得到、抓不牢」` : '，其他柱沒有落空'}。` }),
@@ -252,7 +257,29 @@ export function mountDestiny(root, ctx) {
       })(),
       yunBlock,
       actions(p, 'bazi', '八字命盤', `${gz}；日主${b.dayMaster.gan}${b.dayMaster.wx}`, { title: `${p.name}的八字`, subtitle: b.clockText || '未填時間', private: ['subtitle'], lines: [gz, `日主 ${b.dayMaster.gan}${b.dayMaster.wx}`, b.wuxing.missing.length ? `缺 ${b.wuxing.missing.join('、')}` : '五行俱全'] }),
-    );
+    )];
+  }
+
+  /** master-texts 的結果 → 「老師怎麼看」卡片（搭配工具的按鈕切到命盤的其他工具或其他分頁） */
+  function masterOf(m, { title = '老師怎麼看', sub } = {}) {
+    return masterCard({
+      title,
+      sub,
+      badge: m.badge ? { text: m.badge, cls: /順|成格/.test(m.badge) ? 'good' : /小心|注意/.test(m.badge) ? 'danger' : 'alt' } : null,
+      verdict: m.verdict,
+      why: m.why,
+      remedies: m.remedies,
+      boosts: m.boosts,
+      combos: m.combos,
+      onGo: (view, opts) => {
+        if (view === 'destiny' && opts && opts.tool) {
+          tool = opts.tool;
+          save('destinyTool', tool);
+          render();
+          window.scrollTo(0, 0);
+        } else ctx.go(view, opts);
+      },
+    });
   }
 
   // ── 加到手機行事曆：打開才計算（重用畫面算好的時間軸和流月，約 30 毫秒）。
@@ -342,7 +369,7 @@ export function mountDestiny(root, ctx) {
 
   // ── 流年・大運・太歲
   async function drawLiunian(p, input, opts) {
-    const [{ buildBazi, liunian, taiSuiList }, { buildLifeline, monthsAhead, WARN_TAGS, GOOD_TAGS }, { LEVEL_TEXT, LIFELINE_NOTE }] = await Promise.all([
+    const [{ buildBazi, liunian, taiSuiList, ZHI }, { buildLifeline, monthsAhead, WARN_TAGS, GOOD_TAGS }, { LEVEL_TEXT, LIFELINE_NOTE }] = await Promise.all([
       import('../core/bazi.js'), import('../core/lifeline.js'), import('../core/lifeline-texts.js')]);
     const b = buildBazi(input, opts);
     if (!b.ok) return warnCard(b.error, true);
@@ -420,7 +447,17 @@ export function mountDestiny(root, ctx) {
       h('p', { class: 'hint', text: `${p.name}的生肖：${mine}（以農曆正月初一為界）。犯太歲為民俗說法，可依習俗安太歲祈福，不必過度擔心。` }),
       h('p', { class: 'hint', text: '星座的今年運勢在「運勢」分頁選「今年」。' }),
     );
-    return [timeline, monthsCard, yearCard, taiSuiCard];
+    const ym = yearMaster({
+      name: p.self ? '你' : p.name,
+      year: L.years[0].year,
+      animal: b.zodiac.name,
+      zodiacZhi: ZHI[b.zodiac.index],
+      taisui: years[0].taisui,
+      level: L.years[0].level,
+      goodYears: L.good.map((y) => y.year),
+      hardMonths: M.filter((m) => m.level === '小心').map((m) => `${m.start.m}/${m.start.d}～${m.end.m}/${m.end.d}`),
+    });
+    return [timeline, masterOf(ym, { title: `老師怎麼看 ${L.years[0].year} 年`, sub: '今年哪裡要小心、怎麼化解、哪幾年可以衝' }), monthsCard, yearCard, taiSuiCard];
   }
 
   // ── 紫微命盤
@@ -562,7 +599,13 @@ export function mountDestiny(root, ctx) {
         h('ul', { class: 'reasons' }, S.year.mutagens.map((m) => h('li', { class: m.mutagen === '化忌' ? 'tone-bad' : 'tone-good', text: `流年${m.mutagen}（${m.star}）在${m.palace || '盤外'}：${m.mutagen === '化忌' ? '這方面今年要多花心力。' : m.mutagen === '化祿' ? '這方面今年有收穫、比較順。' : m.mutagen === '化權' ? '這方面今年你比較有主導權。' : '這方面今年有好名聲、遇得到貴人。'}` }))),
       ] : null);
 
-    return [summaryCard, h(
+    const palaceKey = (x) => (x && x !== '命宮' ? x.replace(/宮$/, '') : x);
+    const jiOf = (list) => {
+      const m = (list || []).find((x) => x.mutagen === '化忌');
+      return m ? { star: m.star, palace: palaceKey(m.palace) } : null;
+    };
+    const zm = ziweiMaster({ name: p.self ? '你' : p.name, natalJi: jiOf(S.mutagens), yearJi: S.year ? jiOf(S.year.mutagens) : null, year: opts.today.y });
+    return [masterOf(zm), summaryCard, h(
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的紫微命盤` }),

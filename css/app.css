@@ -1248,3 +1248,13 @@ body.ar-open { overflow: hidden; }
 .pl-name.pl-fate { color: var(--pl-fate); }
 .pl-name.pl-simian { color: var(--pl-simian); }
 .palm-step b.pl-name::before { content: ''; display: inline-block; width: 12px; height: 3px; margin-right: 5px; border-radius: 2px; background: currentColor; vertical-align: middle; }
+
+/* 「老師怎麼看」：各工具共用的講解區塊（js/ui/master.js） */
+.master .master-verdict { margin: 8px 0 4px; padding: 10px 12px; border-left: 3px solid var(--gold); border-radius: var(--radius-s); background: var(--track); font-size: 16px; line-height: 1.75; }
+.master details.remedy { margin-top: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-s); }
+.master details.remedy summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--gold); font-size: 15px; font-weight: 600; }
+.master details.remedy[open] { padding-bottom: 6px; }
+.master ul.combos { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 8px; }
+.master ul.combos li { display: grid; grid-template-columns: 8.5em 1fr; align-items: center; gap: 10px; }
+.master ul.combos .btn { width: 100%; }
+.master details.red-flags summary { color: var(--poor); }

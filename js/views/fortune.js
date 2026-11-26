@@ -12,6 +12,8 @@ import { load, save } from '../ui/storage.js';
 import { cardHead } from '../ui/icons.js';
 import { ringTo } from '../ui/motion.js';
 import { hourTimeline, timelineList, heatGrid } from '../ui/widgets.js';
+import { masterCard } from '../ui/master.js';
+import { periodMaster, FIXED_DATE_FIX } from '../core/master-texts.js';
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -163,6 +165,19 @@ export function mountFortune(root, ctx) {
       ),
     );
 
+    // 老師怎麼看這段時間：弱的領域逐項化解、不順的行星角度怎麼應對、強的地方怎麼用
+    const pm = periodMaster(f, { label: PERIODS.find((x) => x.id === period).label, name: mine.includes(selected) ? (active?.self ? '你' : active?.name || '你') : sign.name });
+    root.append(masterCard({
+      title: '老師怎麼看',
+      sub: `${sign.name}・${periodLabel(period, f.dates)}：弱的地方怎麼補、強的地方怎麼用`,
+      badge: { text: pm.badge, cls: pm.badge === '順' ? 'good' : pm.badge === '宜守' ? 'danger' : 'alt' },
+      verdict: pm.verdict,
+      why: pm.why,
+      remedies: pm.remedies,
+      boosts: pm.boosts,
+      combos: pm.combos,
+      onGo: (view, opts) => ctx.go(view, opts),
+    }));
     if (aiEnabled()) root.append(renderAi(sign, token));
     root.append(...renderTiming(token), renderAlmanac(token));
     fill(periodSlot, periodBar());
@@ -205,6 +220,8 @@ export function mountFortune(root, ctx) {
           r.excluded ? h('p', { class: 'muted small', text: `30 天裡有 ${r.excluded} 天是歲破、月破或四離四絕日，傳統上不用來辦這件事，已排除在推薦之外（格子裡點開可以看原因）。` }) : null,
           heatGrid(r.days, pick),
           detail,
+          // 日子不能挑的時候（開刀、考試、對方指定的日子）也要有做法，不能只說「能改期就改期」
+          h('details', { class: 'more' }, h('summary', { text: FIXED_DATE_FIX.title }), h('ol', { class: 'plan' }, FIXED_DATE_FIX.steps.map((t) => h('li', { text: t })))),
           h('p', { class: 'hint', text: '分數＝農民曆宜忌＋這天和你八字的沖合與十神＋當天星座分數；歲破、月破、四離四絕日另外排除或扣分。同分時取日期較早的。傳統與占星的推算規則，重要的事仍以實際狀況為準。' }),
         );
       })
