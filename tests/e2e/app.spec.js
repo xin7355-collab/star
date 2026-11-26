@@ -1627,6 +1627,60 @@ test('掌紋自動描線：手動點好三個位置後一鍵描四條線（判�
   await expect(photo.getByRole('button', { name: /自動描/ })).toHaveCount(0);
 });
 
+test('掌紋自動描線：真斷掌的手描成斷掌線（紫色虛線、不另外描感情線和智慧線）；清掉斷掌線再自動描，就改描感情線', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  await page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption('palm');
+  const picker = palmCard(page, '看圖選線形');
+  const photo = palmCard(page, '拍照描線（選用）');
+  // 合成的真斷掌手掌（和單元測試同一個產生器；真實照片是生物特徵，不放 repo）
+  const { png, calib } = await page.evaluate(async () => {
+    const { synthPalm, RIGHT } = await import('/tests/helpers/synth-palm.js');
+    const p = synthPalm({ lines: { life: 'long-wide', simian: 'full', fate: 'wrist' }, seed: 61, real: true, bg: 'bright' });
+    const cv = document.createElement('canvas');
+    cv.width = p.w;
+    cv.height = p.h;
+    const img = cv.getContext('2d').createImageData(p.w, p.h);
+    for (let i = 0; i < p.gray.length; i += 1) img.data.set([p.gray[i], p.gray[i], p.gray[i], 255], i * 4);
+    cv.getContext('2d').putImageData(img, 0, 0);
+    return { png: cv.toDataURL('image/png').split(',')[1], calib: RIGHT };
+  });
+  await photo.locator('input[type="file"]').setInputFiles({ name: 'right.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  const cv = photo.locator('canvas.palm-canvas');
+  for (const k of ['index', 'pinky', 'wrist']) {
+    await cv.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    const box = await cv.boundingBox();
+    await page.mouse.click(box.x + (calib[k][0] / 720) * box.width, box.y + (calib[k][1] / 960) * box.height);
+  }
+  await photo.getByRole('button', { name: '自動描四條線' }).click();
+  const note = photo.locator('.palm-note');
+  await expect(note).toContainText('斷掌線');
+  await expect(note).toContainText('描成斷掌線');
+  await expect(note).not.toContainText('沒找到');
+  const step = (name) => photo.locator('.palm-steps .palm-step').filter({ has: page.locator('b', { hasText: new RegExp(`^${name}$`) }) });
+  await expect(step('斷掌線')).toContainText('已描 1 筆');
+  await expect(step('感情線')).toContainText('未描');
+  await expect(step('智慧線')).toContainText('未描');
+  await expect(picker.locator('.palm-step').filter({ has: page.locator('b', { hasText: /^斷掌$/ }) })).toContainText('真斷掌');
+  // 生命線、斷掌線、事業線都描了就算描完：不會再叫你描感情線、智慧線（斷掌線取代它們）
+  await step('生命線').click();
+  await expect(photo.getByRole('button', { name: '主要的線都描好了，看解讀' })).toBeVisible();
+  await expect(photo.getByRole('button', { name: /^下一條：/ })).toHaveCount(0);
+  // 不是斷掌：清掉斷掌線、重新自動描 → 改描感情線，不再放回斷掌線
+  await step('斷掌線').click();
+  await photo.getByRole('button', { name: '清除斷掌線' }).click();
+  await photo.getByRole('button', { name: '重新自動描線' }).click();
+  await expect(note).toContainText('感情線');
+  await expect(note).not.toContainText('描成斷掌線');
+  await expect(step('斷掌線')).toContainText('有才描');
+  await expect(step('感情線')).toContainText('已描');
+  // 復原兩步：回到有自動斷掌線的狀態
+  await photo.getByRole('button', { name: '復原' }).click();
+  await photo.getByRole('button', { name: '復原' }).click();
+  await expect(step('斷掌線')).toContainText('已描 1 筆');
+});
+
 test.describe('掌紋自動定位（手部辨識模型）', () => {
   // page.route 攔不到 service worker 代抓的請求：這組關掉 service worker，直接看頁面發出的請求
   test.use({ serviceWorkers: 'block' });

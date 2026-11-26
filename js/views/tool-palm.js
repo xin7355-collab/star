@@ -40,6 +40,8 @@ const TARGETS = [
 ];
 const LINE_NAME = Object.fromEntries(TARGETS.map((t) => [t.value, t.label]));
 const MAIN_LINES = ['life', 'head', 'heart', 'fate'];
+// 自動描線會放的線：四條主線，加上斷掌線（感情線和智慧線連成一條橫過手掌時，取代那兩條）
+const AUTO_LINES = [...MAIN_LINES, 'simian'];
 // 線名和畫在照片上的線同一個顏色（使用者回饋：看不出哪條虛線是哪條線）
 const COLORED = new Set(['life', 'head', 'heart', 'fate', 'simian']);
 const nameClass = (field) => (COLORED.has(field) ? `pl-name pl-${field}` : null);
@@ -92,7 +94,7 @@ function setPhoto(hand, ph) {
 // 復原用的狀態：照片本身（參照）＋校正點、筆畫的淺拷貝（點陣列建立後不再修改）
 function snap(hand) {
   const ph = session.photos[hand];
-  return ph ? { ph, calib: { ...ph.calib }, strokes: copyStrokes(ph.strokes), auto: { ...(ph.auto || {}) }, advice: ph.advice, sideOk: ph.sideOk } : { ph: null };
+  return ph ? { ph, calib: { ...ph.calib }, strokes: copyStrokes(ph.strokes), auto: { ...(ph.auto || {}) }, advice: ph.advice, sideOk: ph.sideOk, noSimian: !!ph.noSimian } : { ph: null };
 }
 
 // 草稿：iPhone 切到 LINE 再回來常常整頁重載，還沒按儲存的選擇會不見。每次改動就把選項代碼（不含照片）
@@ -279,6 +281,7 @@ export function drawPalm(p, { ctx, actions }) {
       ph.auto = { ...(state.auto || {}) };
       ph.advice = state.advice;
       ph.sideOk = state.sideOk;
+      ph.noSimian = !!state.noSimian;
     }
     applySuggestions(lines);
     session.note = { hand, text: `${verb}：${label}` };
@@ -372,6 +375,8 @@ export function drawPalm(p, { ctx, actions }) {
     const t = session.target;
     if (!(ph.strokes[t] || []).length) return;
     record(`清除${LINE_NAME[t]}`);
+    // 清掉自動描的斷掌線＝你看過照片、認為不是斷掌：之後重新自動描線就改描感情線和智慧線，不會再放回去
+    if (t === 'simian' && ph.auto && ph.auto.simian) ph.noSimian = true;
     delete ph.strokes[t];
     if (ph.auto) delete ph.auto[t];
     applySuggestions([t]);
@@ -426,14 +431,16 @@ export function drawPalm(p, { ctx, actions }) {
     const ph = curPhoto();
     if (!ph || ph.demo || !frameOf(ph)) return null;
     ph.auto = ph.auto || {};
-    const lines = MAIN_LINES.filter((l) => !(ph.strokes[l] || []).length || ph.auto[l]);
-    if (!lines.length) {
+    const lines = AUTO_LINES.filter((l) => !(ph.strokes[l] || []).length || ph.auto[l]);
+    if (!lines.some((l) => MAIN_LINES.includes(l))) {
       session.note = { hand, text: '四條線都是你自己描的，不用自動描。要重來的話，先選一條按「清除」。' };
       if (!silent) paintPhoto();
       return null;
     }
     const input = traceInput(ph);
-    const r = traceLines(input.gray, input.w, input.h, input.frame);
+    // 斷掌線只在感情線、智慧線都不是你自己描的時候才自動放（自己描的優先）；你清掉過就不再找斷掌
+    const simianOk = !ph.noSimian && ['heart', 'head', 'simian'].every((l) => lines.includes(l));
+    const r = traceLines(input.gray, input.w, input.h, input.frame, { simian: simianOk });
     const fr = frameOf(ph);
     record('自動描線');
     const found = [];
@@ -445,15 +452,16 @@ export function drawPalm(p, { ctx, actions }) {
         ph.strokes[l] = r.strokes[l].map((st) => st.map((q) => fr.toXY(q)));
         ph.auto[l] = true;
         found.push(LINE_NAME[l]);
-      } else missing.push(l);
+      } else if (l !== 'simian' && !(r.strokes.simian && (l === 'heart' || l === 'head'))) missing.push(l);
     }
     applySuggestions(lines);
     const parts = [];
     if (found.length) parts.push(`自動描好：${found.join('、')}（虛線），對照照片看看描得對不對。不對的那條：選它、在正確的紋路上點一下就會重描，或直接用手指描。`);
+    if (r.strokes.simian) parts.push('感情線和智慧線連成一條橫過整個手掌的線，描成斷掌線。不是斷掌的話，選「斷掌線」按「清除」，再按「重新自動描線」，就會改描感情線和智慧線。');
     const lost = missing.filter((l) => l !== 'fate').map((l) => LINE_NAME[l]);
     if (lost.length) parts.push(`沒找到${lost.join('、')}：光線太暗、反光或手掌沒攤平都會看不清楚，可以自己描或重拍。`);
     if (missing.includes('fate')) parts.push('事業線看起來很淡或沒有（很多人都這樣）；有的話自己描。');
-    if (r.simianHint) parts.push('感情線和智慧線看起來可能連成一條（斷掌）：請對照照片，在上面「看圖選」確認斷掌的選項。');
+    if (r.simianHint && !r.strokes.simian) parts.push('感情線和智慧線看起來可能連成一條（斷掌）：請對照照片，在上面「看圖選」確認斷掌的選項。');
     const text = parts.join('');
     if (!silent) {
       session.note = { hand, text };
@@ -624,10 +632,10 @@ export function drawPalm(p, { ctx, actions }) {
           h('button', {
             type: 'button',
             class: 'btn small primary',
-            text: MAIN_LINES.some((l) => ph.auto && ph.auto[l]) ? '重新自動描線' : '自動描四條線',
+            text: AUTO_LINES.some((l) => ph.auto && ph.auto[l]) ? '重新自動描線' : '自動描四條線',
             onclick: () => autoTrace(),
           }),
-          h('p', { class: 'small muted', text: '在手機上找生命線、智慧線、感情線、事業線，畫成虛線；自己描過的線不會動。' })));
+          h('p', { class: 'small muted', text: '在手機上找生命線、智慧線、感情線、事業線（斷掌的話描成斷掌線），畫成虛線；自己描過的線不會動。' })));
     const count = (l) => (ph.strokes[l] || []).length;
     const chips = next ? null : h('div', { class: 'palm-steps', role: 'group', 'aria-label': '要描哪條線' }, TARGETS.map((t) => h('button', {
       type: 'button',
@@ -636,13 +644,13 @@ export function drawPalm(p, { ctx, actions }) {
       onclick: () => { session.target = t.value; paintPhoto(); },
       onfocus: (e) => e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
     }, h('b', { class: nameClass(t.value), text: t.label }), h('span', { text: count(t.value) ? `已描 ${count(t.value)} 筆` : t.value === 'simian' ? '有才描' : '未描' }))));
-    // 描好一條就給「下一條」：照生命線、智慧線、感情線、事業線的順序找還沒描的
-    const order = MAIN_LINES;
+    // 描好一條就給「下一條」：照生命線、智慧線、感情線、事業線的順序找還沒描的；描了斷掌線就不用再描感情線、智慧線
+    const order = count('simian') ? ['life', 'simian', 'fate'] : MAIN_LINES;
     const nextLine = order.find((l) => !count(l) && order.indexOf(l) > order.indexOf(target)) || order.find((l) => !count(l) && l !== target);
     let flow = null;
     if (!next && count(target)) {
       if (nextLine) flow = h('button', { type: 'button', class: 'btn small primary', text: `下一條：${LINE_NAME[nextLine]}`, onclick: () => { session.target = nextLine; paintPhoto(); } });
-      else if (!ph.demo) flow = h('button', { type: 'button', class: 'btn small primary', text: '四條線都描好了，看解讀', onclick: () => resultBox.scrollIntoView({ behavior: 'smooth', block: 'start' }) });
+      else if (!ph.demo) flow = h('button', { type: 'button', class: 'btn small primary', text: count('simian') ? '主要的線都描好了，看解讀' : '四條線都描好了，看解讀', onclick: () => resultBox.scrollIntoView({ behavior: 'smooth', block: 'start' }) });
     }
     // 照片看起來是另一隻手：男左女右之下描錯手，解讀就整個看錯手。前鏡頭拍的照片可能左右相反，所以只提醒、讓他決定
     const side = frame && !ph.demo && !ph.sideOk && frame.side !== hand ? frame.side : null;

@@ -223,11 +223,19 @@ function runs(prof, tau, gap) {
  * 真實的掌紋深淺不一，只用一個固定門檻會在淡的那段被截斷、線判得太短；但門檻固定放低（例如 2）又會接上雜訊，
  * 把斷開的線接成一條、空白手掌描出假線（擬真合成照片實測）。跟著這條線自己的深度走，兩邊都顧到。
  */
-function extend(prof, r, gap) {
+function extend(prof, r, gap, crossAt = null) {
   const lo = Math.max(2.5, 0.55 * r.mean);
+  // 跨過淡掉的那一小段時，路徑如果橫著跳了一大步（超過 6 格、又比一步 1.5 格陡），接上的是旁邊另一條紋路，不延伸
+  // （擬真照片：短生命線結束後，路徑在淡掉的地方跳到內側平行的淺紋，短生命線被判成長的）
+  const jumped = (from, to) => {
+    if (!crossAt) return false;
+    const lateral = Math.abs(crossAt(to) - crossAt(from));
+    return lateral > 6 && lateral > 1.5 * Math.abs(to - from);
+  };
   let b = r.b;
   for (let i = r.b + 1, miss = 0; i < prof.length; i += 1) {
     if (prof[i] >= lo) {
+      if (miss && jumped(b, i)) break;
       b = i;
       miss = 0;
     } else if ((miss += 1) > gap) break;
@@ -235,6 +243,7 @@ function extend(prof, r, gap) {
   let a = r.a;
   for (let i = r.a - 1, miss = 0; i >= 0; i -= 1) {
     if (prof[i] >= lo) {
+      if (miss && jumped(a, i)) break;
       a = i;
       miss = 0;
     } else if ((miss += 1) > gap) break;
@@ -267,8 +276,10 @@ const lenOf = (cells, a, b) => {
  * 在照片上找四條主線。
  * @param {Uint8Array|Uint8ClampedArray|Float32Array} gray 灰階（w×h）
  * @param {{toXY:Function}} frame palmFrame 的結果
- * @returns {{strokes:{life?:number[][][], head?:number[][][], heart?:number[][][], fate?:number[][][]}, score:object, simianHint:boolean}}
- *   strokes 是 UV 座標的筆畫（和手描的一樣，可以直接交給 classifyStrokes）；找不到的線不會出現
+ * @param {{simian?:boolean}} [opts] simian：要不要找斷掌線（使用者清掉過自動描的斷掌線，就傳 false，改描感情線和智慧線）
+ * @returns {{strokes:{life?:number[][][], head?:number[][][], heart?:number[][][], fate?:number[][][], simian?:number[][][]}, score:object, simianHint:boolean}}
+ *   strokes 是 UV 座標的筆畫（和手描的一樣，可以直接交給 classifyStrokes）；找不到的線不會出現。
+ *   找到斷掌線時，感情線和智慧線不會出現（斷掌線取代它們）
  */
 /** 共用的前處理：暗紋 z 分數、每格的成本、找段（自動描、點一下重描都用） */
 function prepare(gray, w, h, frame) {
@@ -290,10 +301,10 @@ function prepare(gray, w, h, frame) {
   const stepTau = (prof) => Math.max(MIN_Z * 0.8, 0.4 * p90(prof));
   // 先找夠深的核心段，再往兩頭延伸到還像這條線的地方；延伸後碰在一起、深度又差不多的合成一段（同一條線深淺起伏，
   // 不合的話會被當成斷開）。核心段本身至少 0.1 掌寬：空白手掌的短雜紋延伸後會被拉長到過門檻
-  const segments = (prof, gap, cells, cross, tau = stepTau(prof), minCore = 0.1) => {
+  const segments = (prof, gap, cells, cross, tau = stepTau(prof), minCore = 0.1, fadeMerge = true) => {
     const ext = runs(prof, tau, gap)
       .filter((r) => lenOf(cells, r.a, r.b) >= minCore)
-      .map((r) => extend(prof, r, gap));
+      .map((r) => extend(prof, r, gap, (i) => cross(cells[i])));
     const merged = [];
     for (const r of ext) {
       const last = merged[merged.length - 1];
@@ -301,7 +312,17 @@ function prepare(gray, w, h, frame) {
       // 接縫兩邊橫向差超過 0.03 掌寬、又比一步一格陡，就不是同一條；深度差太多也不合
       const lateral = last ? Math.abs(cross(cells[r.a]) - cross(cells[last.b])) : 0;
       const jump = lateral > 6 && lateral > (r.a - last?.b) * 1;
-      if (last && r.a <= last.b + gap && !jump && Math.min(r.mean, last.mean) >= 0.6 * Math.max(r.mean, last.mean)) {
+      // 淡掉一段再出現（縫隙不到 0.12 掌寬、縫裡平均還有 2 個標準差深，比皮膚深）也是同一條：
+      // 實拍照片的生命線中段淡了 0.1 掌寬（z 2～3），以前被判成「斷開的生命線」——斷開在手相上是很重的判斷，
+      // 不能因為光線把淡的地方判成斷。真的斷開，縫裡是皮膚（z 0～1）。
+      // 事業線不用這條：事業線本來就常常一段一段、縫很短又對齊，接起來會把「斷續」判成「從手腕起」
+      let faded = false;
+      if (fadeMerge && last && r.a > last.b + gap && r.a - last.b <= 24) {
+        let sum = 0;
+        for (let i = last.b + 1; i < r.a; i += 1) sum += prof[i];
+        faded = sum / (r.a - last.b - 1) >= 2;
+      }
+      if (last && (r.a <= last.b + gap || faded) && !jump && Math.min(r.mean, last.mean) >= 0.6 * Math.max(r.mean, last.mean)) {
         const n1 = last.b - last.a + 1;
         const n2 = r.b - r.a + 1;
         last.mean = (last.mean * n1 + r.mean * n2) / (n1 + n2);
@@ -313,31 +334,43 @@ function prepare(gray, w, h, frame) {
   return { z, cellCost, segments, p90 };
 }
 
-export function traceLines(gray, w, h, frame) {
-  const { z, cellCost, segments } = prepare(gray, w, h, frame);
+export function traceLines(gray, w, h, frame, { simian = true } = {}) {
+  const { z, cellCost, segments, p90 } = prepare(gray, w, h, frame);
   const strokes = {};
   const score = {};
 
-  // ── 生命線：由上往下（v 0.30→1.04），每一列在拇指那側 u 0.66～1.16 選一格
-  const lifeR0 = row(0.3);
+  // ── 生命線：由上往下（v 0.28→1.04），每一列選一格。範圍跟著高度變：上段在拇指和食指之間（u 0.62～1.13），
+  // 往下可以一路彎到掌心中間（u 0.44）——拇指根肉墊大、拇指張得開的人，生命線的弧會掃到掌心正中間
+  // （使用者的實拍照片最寬到 u≈0.55；以前範圍只到 0.66，生命線被逼去描虎口的掌緣）。
+  // 拇指那側最多到 1.08（下段 1.06）：再出去是虎口外面和拇指根肉墊的外緣，背景比皮膚亮或暗時那裡像一條暗線，
+  // 範圍太寬會被它騙走（起點被拉到虎口外面，貼著拇指的生命線也會被判成弧線很寬）
+  const lifeR0 = row(0.28);
   const lifeR1 = row(1.04);
   const lifeN = lifeR1 - lifeR0 + 1;
-  const lifePath = bestPath(lifeN, () => [col(0.66), col(1.16)], (i, j) => cellCost(j, lifeR0 + i), 2, 0.05);
+  const lerp = (v, v0, v1, a, b) => (v <= v0 ? a : v >= v1 ? b : a + ((v - v0) / (v1 - v0)) * (b - a));
+  const lifeBand = (i) => {
+    const v = vOf(lifeR0 + i);
+    return [col(lerp(v, 0.35, 0.62, 0.62, 0.44)), col(lerp(v, 0.35, 0.5, 1.08, 1.06))];
+  };
+  const lifePath = bestPath(lifeN, lifeBand, (i, j) => cellCost(j, lifeR0 + i), 2, 0.05);
   const lifeCells = lifePath.map((c, i) => [c, lifeR0 + i]);
   {
     const prof = profile(z, lifeCells);
-    // 斷開的生命線縫隙常常只有 0.06 掌寬：接縫的容許只到 6 步（0.03），不然斷開的會被接成一條
-    const rs = segments(prof, 6, lifeCells, (q) => q[0]);
-    // 生命線從拇指和食指之間開始：主要那段要從上面（v ≤ 0.55）開始
-    const main = rs.find((r) => vOf(lifeCells[r.a][1]) <= 0.55 && r.mean >= MIN_Z && lenOf(lifeCells, r.a, r.b) >= MIN_LEN);
+    // 斷開的生命線縫隙常常只有 0.06 掌寬：接縫的容許只到 6 步（0.03），不然斷開的會被接成一條。
+    // 門檻只看手腕橫紋以上（v ≤ 0.88）：手腕的橫紋很深，路徑走到那裡會把「這條線多深」的估計拉高，
+    // 生命線下段淡一點就被截掉（實拍照片：生命線只描到一半）
+    const rs = segments(prof, 6, lifeCells, (q) => q[0], Math.max(MIN_Z * 0.8, 0.4 * p90(prof.slice(0, Math.max(1, row(0.88) - lifeR0)))));
+    // 生命線從拇指和食指之間開始：主要那段要從上面開始（v ≤ 0.45），而且起點在拇指那側（u ≥ 0.66）。
+    // 範圍放寬到掌心中間以後，從手腕直上的事業線也在範圍裡；事業線的上端在 u≈0.6，這條規則把它排除
+    const main = rs.find((r) => vOf(lifeCells[r.a][1]) <= 0.45 && uOf(lifeCells[r.a][0]) >= 0.66 && r.mean >= MIN_Z && lenOf(lifeCells, r.a, r.b) >= MIN_LEN);
     if (main) {
       strokes.life = [toStroke(lifeCells, main.a, main.b)];
       score.life = main.mean;
       // 斷開：主要那段下面還有一段夠長、夠深的
-      // 第二段要和主要那段差不多深、而且離得不遠：生命線內側常有一條平行的淺紋，短生命線結束後路徑會沿著它往下走，
-      // 只看「下面還有一段」會把短生命線判成斷開（擬真的合成照片裡 8 成的短生命線都這樣錯）
+      // 第二段要和主要那段差不多深、離得不遠，而且接得上（左右差不到 0.1 掌寬）：生命線內側常有一條平行的淺紋，
+      // 短生命線結束後路徑會沿著它往下走；範圍放寬後，路徑也可能橫過去接上事業線
       const second = rs.find((r) => r.a > main.b + 6 && r.a - main.b <= 24 && lenOf(lifeCells, r.a, r.b) >= 0.12
-        && r.mean >= MIN_Z && r.mean >= 0.7 * main.mean);
+        && r.mean >= MIN_Z && r.mean >= 0.7 * main.mean && Math.abs(uOf(lifeCells[r.a][0]) - uOf(lifeCells[main.b][0])) <= 0.1);
       if (second) strokes.life.push(toStroke(lifeCells, second.a, second.b));
     }
   }
@@ -401,6 +434,65 @@ export function traceLines(gray, w, h, frame) {
     }
   }
 
+  // ── 斷掌：一條橫線從小指那側一路橫過掌心、接到虎口（感情線和智慧線合成一條）。
+  // 感情線的範圍到了食指那側只到 v 0.27（不然會被智慧線搶走），斷掌線在那裡通常更低（接到虎口、v≈0.3），
+  // 所以另外找一條：範圍放寬到 v 0.12～0.44，從小指側走到虎口。三個條件都成立才算斷掌：
+  // 1. 一整段橫過手掌：小指側 u ≤ 0.2 起、到 u ≥ 0.92；中間淡掉的地方每一處不到 0.1 掌寬
+  //    （斷掌線靠虎口那段和生命線起點交會，紋路很亂、常常淡掉，實拍照片就斷了 0.08）；
+  //    小指那頭在感情線的高度（開頭 0.1 掌寬平均 v ≤ 0.34，不是智慧線的尾巴），
+  //    虎口那頭不往上彎進食指根（v ≥ 0.22，往上彎的是很長的感情線）；
+  // 2. 下面沒有另外一條從虎口出發的智慧線；3. 上面沒有另外一條感情線。
+  // 有另一條就只是感情線或智慧線特別長，照一般的描（使用者的實拍照片是真斷掌，以前被描成一條很長的感情線）。
+  const simC0 = col(-0.12);
+  const simC1 = col(1.06);
+  const simPath = bestPath(simC1 - simC0 + 1, (i) => {
+    const u = uOf(simC0 + i);
+    return [row(u < 0.5 ? 0.12 : 0.15), row(u < 0.5 ? 0.4 : 0.44)];
+  }, (i, j) => cellCost(simC0 + i, j) + (lifeAvoid.has(j * COLS + simC0 + i) ? 1 : 0), 1, 0.04);
+  const simCells = simPath.map((r, i) => [simC0 + i, r]);
+  {
+    const prof = profile(z, simCells);
+    const meanV = (a, b) => {
+      let sum = 0;
+      for (let i = a; i <= b; i += 1) sum += vOf(simCells[i][1]);
+      return sum / (b - a + 1);
+    };
+    // 斷掌線幾乎是平的（實拍 v 0.22～0.29、範本 0.26～0.33）：整段高低差超過 0.13 掌寬，是感情線接到別條線上
+    // （擬真照片抓到：小指側的感情線經過一段斜的雜紋，接上虎口出發的短智慧線，被當成一整條）
+    const vRange = (r) => {
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = r.a; i <= r.b; i += 1) {
+        lo = Math.min(lo, vOf(simCells[i][1]));
+        hi = Math.max(hi, vOf(simCells[i][1]));
+      }
+      return hi - lo;
+    };
+    const full = runs(prof, MIN_Z * 0.85, 20).find((r) => uOf(simCells[r.a][0]) <= 0.2 && uOf(simCells[r.b][0]) >= 0.92 && r.mean >= MIN_Z * 0.92
+      && meanV(r.a, Math.min(r.b, r.a + 19)) <= 0.34 && meanV(Math.max(r.a, r.b - 19), r.b) >= 0.22 && vRange(r) <= 0.13);
+    // 另一條線和斷掌線是不是同一條：八成的點都在 0.04 掌寬以內才算同一條（只有一半重疊的是另一條線，
+    // 例如往上彎進手指的感情線，前半段和斷掌線的路徑重疊）
+    const simV = new Map(simCells.map(([c, r]) => [c, vOf(r)]));
+    const separate = (st) => {
+      if (!st) return false;
+      const ds = [];
+      for (const [u, v] of st[0]) {
+        const sv = simV.get(col(u));
+        if (sv !== undefined) ds.push(Math.abs(v - sv));
+      }
+      ds.sort((x, y) => x - y);
+      return ds.length > 0 && ds[Math.floor(ds.length * 0.8)] >= 0.04;
+    };
+    if (simian && full && !separate(strokes.head) && !separate(strokes.heart)) {
+      strokes.simian = [toStroke(simCells, full.a, full.b)];
+      score.simian = full.mean;
+      delete strokes.heart;
+      delete strokes.head;
+      delete score.heart;
+      delete score.head;
+    }
+  }
+
   // ── 事業線：從手腕往上（v 1.04→0.12），每一列在 u 0.32～0.70；幾乎是直的。避開生命線（細的時候會被吸過去）。
   // 常常沒有或很淡：每一段要夠深，而且幾段加起來要有 0.25 掌寬才算有；斷成幾段的照順序全留（判定成「斷續」）
   const fateR0 = row(1.04);
@@ -415,7 +507,9 @@ export function traceLines(gray, w, h, frame) {
   const fateCells = fatePath.map((c, i) => [c, fateR0 - i]);
   {
     const prof = profile(z, fateCells);
-    const rs = segments(prof, 8, fateCells, (q) => q[0]).filter((r) => lenOf(fateCells, r.a, r.b) >= 0.12 && r.mean >= STRONG_Z);
+    // 事業線幾乎是直的：一段裡左右偏超過上下長度的 0.35 倍，是生命線的弧（生命線沒描到時，事業線的範圍會撿到它）
+    const straight = (r) => Math.abs(uOf(fateCells[r.b][0]) - uOf(fateCells[r.a][0])) <= 0.35 * Math.abs(vOf(fateCells[r.b][1]) - vOf(fateCells[r.a][1]));
+    const rs = segments(prof, 8, fateCells, (q) => q[0], undefined, undefined, false).filter((r) => lenOf(fateCells, r.a, r.b) >= 0.12 && r.mean >= STRONG_Z && straight(r));
     const total = rs.reduce((acc, r) => acc + lenOf(fateCells, r.a, r.b), 0);
     if (total >= 0.25) {
       strokes.fate = rs.slice(0, 3).map((r) => toStroke(fateCells, r.a, r.b));
@@ -429,9 +523,9 @@ export function traceLines(gray, w, h, frame) {
   const heartS = strokes.heart ? strokes.heart[0] : null;
   const headS = strokes.head ? strokes.head[0] : null;
   const vAtMid = (s) => s.reduce((a, p) => (Math.abs(p[0] - 0.5) < Math.abs(a[0] - 0.5) ? p : a))[1];
-  const simianHint = !!heartS && (headS
+  const simianHint = !!strokes.simian || (!!heartS && (headS
     ? Math.hypot(heartS[heartS.length - 1][0] - headS[headS.length - 1][0], heartS[heartS.length - 1][1] - headS[headS.length - 1][1]) < 0.06
-    : vAtMid(heartS) >= 0.25);
+    : vAtMid(heartS) >= 0.25));
   return { strokes, score, simianHint };
 }
 

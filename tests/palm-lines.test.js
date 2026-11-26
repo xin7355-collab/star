@@ -3,106 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { traceLines, traceLineAt } from '../js/core/palm-lines.js';
-import { palmFrame, classifyStrokes, TEMPLATES } from '../js/core/palm.js';
-
-/** 固定種子的亂數（每次跑結果都一樣） */
-function rng(seed) {
-  let s = seed >>> 0;
-  return () => {
-    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
-}
-const gauss = (rand) => Math.sqrt(-2 * Math.log(rand() || 1e-9)) * Math.cos(2 * Math.PI * rand());
-
-const RIGHT = { index: [470, 300], pinky: [225, 335], wrist: [360, 700] };
-const rotate = (calib, deg, [cx, cy] = [360, 480]) => {
-  const t = (deg * Math.PI) / 180;
-  const r = ([x, y]) => [cx + (x - cx) * Math.cos(t) - (y - cy) * Math.sin(t), cy + (x - cx) * Math.sin(t) + (y - cy) * Math.cos(t)];
-  return { index: r(calib.index), pinky: r(calib.pinky), wrist: r(calib.wrist) };
-};
-const mirror = (calib, w = 720) => ({ index: [w - calib.index[0], calib.index[1]], pinky: [w - calib.pinky[0], calib.pinky[1]], wrist: [w - calib.wrist[0], calib.wrist[1]] });
-
-/**
- * 合成手掌照片（灰階）：lines＝{ life:'long-wide', … } 照 TEMPLATES 畫；depth＝主線比皮膚暗多少，noise＝皮膚紋理雜訊，
- * lighting＝左上到右下的亮度差，minor＝雜紋數量（短、淺、方向亂）。
- */
-/**
- * real＝擬真：再加上指紋般的細紋、拇指根和小指側肉墊的明暗、生命線內側平行的淺紋等次要紋路，主線也深淺不一（最淺 55%）。
- * 這些是真實手掌常見、讓自動描線出錯的東西（平行淺紋曾讓短生命線被判成斷開或變長）。
- */
-function synthPalm({ calib = RIGHT, lines = {}, seed = 7, w = 720, h = 960, depth = 40, noise = 6, lighting = 40, minor = 70, width = 0.016, extra = [], depthOf = {}, real = false }) {
-  const frame = palmFrame(calib);
-  const rand = rng(seed);
-  const img = new Float32Array(w * h);
-  for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) img[y * w + x] = 178 + lighting * (0.5 - (x / w + y / h) / 2) + noise * gauss(rand);
-  const pw = Math.hypot(calib.index[0] - calib.pinky[0], calib.index[1] - calib.pinky[1]);
-  const dark = new Float32Array(w * h); // 每一點取最深的那一筆，重疊的地方才不會越疊越黑
-  const stroke = (uvPts, d, wid) => {
-    const r = Math.max(1.2, (wid * pw) / 2);
-    for (let i = 1; i < uvPts.length; i += 1) {
-      const [a, b] = [frame.toXY(uvPts[i - 1]), frame.toXY(uvPts[i])];
-      const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]));
-      for (let k = 0; k <= n; k += 1) {
-        const x = a[0] + ((b[0] - a[0]) * k) / n;
-        const y = a[1] + ((b[1] - a[1]) * k) / n;
-        for (let yy = Math.floor(y - r); yy <= Math.ceil(y + r); yy += 1) {
-          for (let xx = Math.floor(x - r); xx <= Math.ceil(x + r); xx += 1) {
-            if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-            const q = ((xx - x) ** 2 + (yy - y) ** 2) / (r * r);
-            if (q < 1) dark[yy * w + xx] = Math.max(dark[yy * w + xx], d * (1 - q));
-          }
-        }
-      }
-    }
-  };
-  for (let i = 0; i < minor; i += 1) {
-    const u = rand() * 1.1 - 0.05;
-    const v = rand() * 1.0 + 0.02;
-    const ang = rand() * Math.PI;
-    const len = 0.03 + rand() * 0.05;
-    stroke([[u, v], [u + Math.cos(ang) * len, v + Math.sin(ang) * len]], depth * 0.35, width * 0.6);
-  }
-  if (real) {
-    for (let y = 0; y < h; y += 1) for (let x = 0; x < w; x += 1) {
-      const [u, v] = frame.toUV([x, y]);
-      const ang = 0.8 * Math.sin(u * 3.1 + v * 2.3) + 0.6;
-      const phase = (Math.cos(ang) * u + Math.sin(ang) * v) / 0.008;
-      const mound = 14 * Math.exp(-(((u - 1.0) / 0.22) ** 2 + ((v - 0.72) / 0.28) ** 2)) + 10 * Math.exp(-(((u + 0.02) / 0.18) ** 2 + ((v - 0.7) / 0.3) ** 2))
-        - 10 * Math.exp(-(((u - 0.5) / 0.25) ** 2 + ((v - 0.55) / 0.25) ** 2));
-      img[y * w + x] += 5 * Math.sin(phase * 2 * Math.PI) + mound;
-    }
-    const secondary = [
-      [[0.97, 0.45], [0.9, 0.62], [0.89, 0.8], [0.93, 0.95]], // 生命線內側平行的淺紋
-      [[1.05, 0.62], [0.96, 0.66]], [[1.08, 0.78], [0.97, 0.8]],
-      [[-0.1, 0.55], [0.12, 0.53]], [[-0.1, 0.68], [0.1, 0.7]], [[-0.08, 0.82], [0.12, 0.8]],
-      [[0.45, 0.06], [0.52, 0.18]], [[0.3, 0.08], [0.36, 0.16]],
-    ];
-    for (const pts of secondary) stroke(pts, depth * 0.55, width * 0.8);
-  }
-  for (const [field, opt] of Object.entries(lines)) {
-    for (const pts of TEMPLATES[field][opt]) {
-      if (!real) {
-        stroke(pts, depthOf[field] ?? depth, width);
-        continue;
-      }
-      // 擬真：沿線一小段一小段畫，深度在 55%～100% 之間慢慢變化
-      for (let i = 1; i < pts.length; i += 1) {
-        for (let k = 0; k < 8; k += 1) {
-          const t0 = k / 8;
-          const t1 = (k + 1) / 8;
-          const lerp = (t) => [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t];
-          const f = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin((i * 8 + k) * 0.9 + seed));
-          stroke([lerp(t0), lerp(t1)], (depthOf[field] ?? depth) * f, width * (0.8 + 0.4 * rand()));
-        }
-      }
-    }
-  }
-  for (const [pts, d] of extra) stroke(pts, d, width);
-  const gray = new Uint8ClampedArray(w * h);
-  for (let i = 0; i < gray.length; i += 1) gray[i] = img[i] - dark[i];
-  return { gray, w, h, frame };
-}
+import { classifyStrokes } from '../js/core/palm.js';
+import { synthPalm, RIGHT, rotate, mirror } from './helpers/synth-palm.js';
 
 /** 找出來的線交給和手描一樣的判定；沒找到的線回 null */
 function classifyAll({ gray, w, h, frame }) {
@@ -177,9 +79,66 @@ test('空白的手掌（只有雜紋）：不會無中生有描出主線', () =>
   assert.deepEqual(out, { life: null, head: null, heart: null, fate: null });
 });
 
-test('一條橫過整個手掌的線（像斷掌）：給斷掌的提示，不自動判定', () => {
-  const { r } = classifyAll(synthPalm({ lines: { life: 'long-wide', simian: 'full', fate: 'wrist' }, seed: 61 }));
-  assert.equal(r.simianHint, true);
+test('真斷掌（一條橫線取代感情線和智慧線）：描成斷掌線、不另外描感情線和智慧線；清掉過就改描感情線、智慧線', () => {
+  for (const [k, opt] of [{ real: false }, { real: true }, { real: true, bg: 'bright' }, { real: true, bg: 'dark' }].entries()) {
+    const p = synthPalm({ lines: { life: k % 2 ? 'long-narrow' : 'long-wide', simian: 'full', fate: 'wrist' }, seed: 61 + k, ...opt });
+    const r = traceLines(p.gray, p.w, p.h, p.frame);
+    assert.ok(r.strokes.simian, `第 ${k + 1} 張沒認出斷掌`);
+    assert.equal(r.strokes.heart, undefined);
+    assert.equal(r.strokes.head, undefined);
+    assert.equal(r.simianHint, true);
+    const st = r.strokes.simian[0];
+    assert.ok(st[0][0] <= 0.2 && st.at(-1)[0] >= 0.92, '斷掌線要橫過整個手掌');
+    assert.equal(classifyStrokes('life', r.strokes.life), k % 2 ? 'long-narrow' : 'long-wide');
+    // 使用者清掉自動描的斷掌線（認為不是斷掌）：不找斷掌，照一般的找感情線
+    const r2 = traceLines(p.gray, p.w, p.h, p.frame, { simian: false });
+    assert.equal(r2.strokes.simian, undefined);
+    assert.ok(r2.strokes.heart || r2.strokes.head, '不找斷掌時要描出感情線或智慧線');
+  }
+});
+
+test('一般手掌不會被當成斷掌（含很長很平的感情線、亮背景）', () => {
+  let n = 0;
+  for (const [i, c] of CASES.entries()) {
+    for (let k = 0; k < 3; k += 1) {
+      const { r } = classifyAll(synthPalm({ lines: c.lines, seed: 1011 + i * 10 + k, real: true, bg: k === 2 ? 'bright' : null }));
+      assert.equal(r.strokes.simian, undefined, `${c.name} 第 ${k + 1} 張被當成斷掌`);
+      n += 1;
+    }
+  }
+  assert.equal(n, 12);
+});
+
+// 使用者實拍照片的情況（照片本身不放 repo：掌紋是生物特徵）：拇指根肉墊大，生命線的弧掃到掌心中間（u≈0.55），
+// 背景是比皮膚亮的白磁磚。以前生命線範圍只到 u 0.66，生命線被逼去描虎口的掌緣，事業線反而撿到生命線的下半段
+const WIDE_LIFE = [[1.04, 0.3], [0.86, 0.33], [0.72, 0.41], [0.62, 0.52], [0.56, 0.66], [0.55, 0.78], [0.58, 0.88], [0.63, 0.98]];
+test('生命線的弧很寬（掃到掌心中間）、背景是亮的磁磚：描得到整條、不會多描一條事業線', () => {
+  for (let k = 0; k < 4; k += 1) {
+    const p = synthPalm({ lines: { head: 'straight', heart: 'long-curve' }, extra: [[WIDE_LIFE, 36]], seed: 811 + k, real: true, bg: k < 2 ? 'bright' : null });
+    const r = traceLines(p.gray, p.w, p.h, p.frame);
+    assert.equal(classifyStrokes('life', r.strokes.life), 'long-wide', `第 ${k + 1} 張`);
+    const st = r.strokes.life[0];
+    assert.ok(Math.min(...st.map((q) => q[0])) < 0.62, `生命線要彎到掌心中間（最小 u ${Math.min(...st.map((q) => q[0])).toFixed(2)}）`);
+    assert.equal(r.strokes.fate, undefined, '生命線的下半段不能被當成事業線');
+  }
+});
+
+test('空白手掌放在亮背景、暗背景前面：掌緣不會被當成主線', () => {
+  for (const [k, bg] of ['bright', 'dark', 'bright'].entries()) {
+    const { out, r } = classifyAll(synthPalm({ lines: {}, seed: 57 + k, bg }));
+    assert.deepEqual(out, { life: null, head: null, heart: null, fate: null }, bg);
+    assert.equal(r.strokes.simian, undefined);
+  }
+});
+
+test('生命線中段淡掉一段（光線、皮膚皺摺）：還是一整條，不會被判成斷開；真的斷開還是判斷開', () => {
+  const faded = [[[1.04, 0.34], [0.86, 0.5], [0.8, 0.6]], [[0.8, 0.6], [0.78, 0.7]], [[0.78, 0.7], [0.82, 0.88], [0.9, 1.0]]];
+  for (let k = 0; k < 3; k += 1) {
+    const p = synthPalm({ lines: { head: 'straight', heart: 'long-curve' }, extra: [[faded[0], 40], [faded[1], 16], [faded[2], 40]], seed: 131 + k, real: true });
+    assert.equal(classifyStrokes('life', traceLines(p.gray, p.w, p.h, p.frame).strokes.life), 'long-wide', `第 ${k + 1} 張`);
+  }
+  const { out } = classifyAll(synthPalm({ lines: { life: 'broken', head: 'straight', heart: 'short' }, seed: 141, real: true }));
+  assert.equal(out.life, 'broken');
 });
 
 /** 筆畫在 u 附近的 v（取最接近的那一點） */
