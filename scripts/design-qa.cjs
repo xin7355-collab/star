@@ -160,7 +160,7 @@ async function tour(browser, width, prefix, opts) {
   await page.waitForSelector('#view-destiny .grids, #view-destiny .card .warn');
   files.push(await snap(page, `${prefix}name`, width));
   await tool(page, 'career');
-  await page.waitForSelector('#view-destiny .year-card');
+  await page.waitForSelector('#view-destiny .career-years .cy');
   files.push(await snap(page, `${prefix}career`, width));
   await tool(page, 'fengshui');
   await page.waitForSelector('#view-destiny .luoshu');
