@@ -1258,3 +1258,9 @@ body.ar-open { overflow: hidden; }
 .master ul.combos li { display: grid; grid-template-columns: 8.5em 1fr; align-items: center; gap: 10px; }
 .master ul.combos .btn { width: 100%; }
 .master details.red-flags summary { color: var(--poor); }
+
+/* 工作與換跑道（js/views/tool-career.js） */
+.job-targets { display: grid; gap: 8px; }
+.job-analysis h3 { margin-top: 14px; }
+.job-item summary { flex-wrap: wrap; gap: 4px; }
+.job-analysis .reasons li .btn.small { margin-top: 6px; }

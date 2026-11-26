@@ -8,6 +8,7 @@
 // 全部在手機上計算；文字為本 App 撰寫，命理是參考，不是保證。
 
 import { SIGNS } from './zodiac.js';
+import { NATURES } from './jobs.js';
 import { emergingFit, AI_ADVICE } from './emerging.js';
 import { positionsAt } from './astro.js';
 import { liunian, yongShen, ganzhiTone } from './bazi.js';
@@ -16,19 +17,8 @@ import { dominantShishen, personalYearNumber, PERSONAL_YEAR } from './reading.js
 import { SHISHEN_GROUPS, ZIWEI_STARS, LIFEPATH_DETAIL, SIGN_DETAIL, DECADE_FOCUS } from './reading-texts.js';
 import { BLOOD } from './blood.js';
 
-export const NATURES = {
-  manage: { label: '管理決策型', desc: '帶團隊、做決定、對結果負責。', jobs: ['主管', '經營者', '專案經理', '店長'], edge: '能扛責任、看全局', trap: '一個人扛太多，忘了授權' },
-  expert: { label: '專業技術型', desc: '把一門技術做深，靠專業吃飯。', jobs: ['工程師', '技師', '醫事人員', '會計師', '設計師'], edge: '專精、可靠、越做越值錢', trap: '只顧技術，忽略溝通與包裝' },
-  create: { label: '創意表達型', desc: '用作品、內容、表演說話。', jobs: ['設計', '內容創作', '行銷企劃', '表演', '教學'], edge: '點子多、有感染力', trap: '靈感來去不定，要靠紀律收尾' },
-  sales: { label: '業務開拓型', desc: '接觸人、談判、開發市場。', jobs: ['業務', '通路開發', '房仲', '保險', '貿易'], edge: '敢開口、反應快、會看人', trap: '業績起伏大，要有存糧' },
-  stable: { label: '穩定制度型', desc: '有規則、有保障，能長期累積。', jobs: ['公職', '行政', '銀行', '大企業內勤', '品管'], edge: '穩定、細心、值得信任', trap: '太求安穩，錯過轉換的時機' },
-  care: { label: '助人服務型', desc: '照顧、教育、陪伴別人。', jobs: ['醫護', '社工', '老師', '諮商', '客服', '長照'], edge: '有同理心、讓人安心', trap: '把別人的情緒都扛在身上' },
-  research: { label: '研究分析型', desc: '找答案、做判斷、寫報告。', jobs: ['研究員', '分析師', '工程師', '顧問', '法務'], edge: '邏輯清楚、判斷準', trap: '想太久才動，或不擅長推銷自己' },
-  free: { label: '自由獨立型', desc: '自己安排時間與節奏。', jobs: ['自由接案', '創業', '網路經營', '個人工作室'], edge: '自主、有彈性、能開創', trap: '收入不穩，要自己建立紀律與保障' },
-  finance: { label: '理財經營型', desc: '跟錢、資源與數字打交道。', jobs: ['財務', '金融', '投資', '會計', '經營管理'], edge: '對數字敏感、懂得配置資源', trap: '太看重短期報酬' },
-  mobile: { label: '變動移動型', desc: '常出差、換環境、跑外勤。', jobs: ['外勤業務', '旅遊業', '物流', '記者', '外派'], edge: '適應快、見識廣', trap: '定不下來，累積不夠' },
-  public: { label: '公眾溝通型', desc: '面對群眾、建立形象。', jobs: ['公關', '媒體', '主持', '講師', '品牌經營'], edge: '表達力強、有舞台魅力', trap: '太在意別人的評價' },
-};
+// 工作性質的定義搬到 jobs.js（工作選單也要用；jobs.js 不能依賴這個比較重的模組，名單存檔會用到它）
+export { NATURES };
 
 // 各系統投給哪兩種工作性質（依本 App 的文字整理，避免同一系統投太多票）
 // 八字用月令格局投票：格局是子平法看「一生主軸、靠什麼成事」的地方，比單純數十神多寡更貼近傳統論事業的方式

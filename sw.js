@@ -3,7 +3,7 @@
 // 發佈新版時 VERSION 要跟 js/version.js 的 APP_VER、version.json 一致（tests/pwa.test.js 會檢查），
 // 舊快取會在新版啟用時清除。
 
-const VERSION = '2026.11.26-17';
+const VERSION = '2026.11.27-1';
 
 const ASSETS = [
   './',
@@ -33,6 +33,7 @@ const ASSETS = [
   './js/core/reminders.js',
   './js/core/compass.js',
   './js/core/couple.js',
+  './js/core/jobs.js',
   './js/core/master-texts.js',
   './js/core/sky.js',
   './js/core/palm-lines.js',

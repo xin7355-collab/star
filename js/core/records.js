@@ -3,6 +3,7 @@
 // 匯入的備份檔視為不受信任的輸入：只收白名單欄位、檢查型別與長度、限制筆數，其餘一律丟棄。
 
 import { sanitizePalm } from './palm.js';
+import { sanitizeCareer } from './jobs.js';
 
 export const SCHEMA = 1;
 export const LIMITS = { people: 50, history: 300, name: 20, title: 60, summary: 400, detailBytes: 4000 };
@@ -127,6 +128,11 @@ export function sanitizePerson(p) {
     ...(() => {
       const alt = sanitizeAltNames(p.altNames);
       return alt.length ? { altNames: alt } : {};
+    })(),
+    // 目前的工作、年資、想做的工作（工作選單的代碼，不收自由輸入的文字）；沒填就不多存這一欄
+    ...(() => {
+      const career = sanitizeCareer(p.career);
+      return career ? { career } : {};
     })(),
     raw,
     createdAt: isoTime(p.createdAt) || new Date().toISOString(),

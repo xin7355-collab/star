@@ -299,3 +299,9 @@ AR 星空,data_view,long_content,DONE,code:css/app.css .ar-list-items 最多 28v
 各工具老師怎麼看,data_view,empty,NA,,沒有不好的地方時「怎麼化解」整段不出現，只留斷語與好的地方怎麼用
 搭配看按鈕,action,default,DONE,e2e:配對：老師怎麼看——（開運佈置按鈕切到命盤的開運佈置）,
 搭配看按鈕,action,focus_visible,DONE,code:按鈕用共用的 .btn 樣式,
+工作與換跑道,data_view,loading,NA,,和工作與未來方向同一次計算（命盤載入完才畫）
+工作與換跑道,data_view,empty,DONE,e2e:工作與未來：選目前的工作和想做的工作（下拉選單）→ 適合程度、轉換難度、怎麼轉、什麼時候換、推薦；老師怎麼看；存進名單、編輯資料不會洗掉,還沒選時先列推薦的工作
+工作與換跑道,data_view,error,NA,,純計算；選單代碼經過白名單
+工作與換跑道,data_view,populated,DONE,e2e:工作與未來：選目前的工作和想做的工作（下拉選單）→ 適合程度、轉換難度、怎麼轉、什麼時候換、推薦；老師怎麼看；存進名單、編輯資料不會洗掉,
+工作選擇存檔,action,default,DONE,e2e:工作與未來：（存到我的資料、重新整理還在）,沒變更時按鈕停用
+工作選擇存檔,action,disabled,DONE,code:js/views/tool-career.js 和存檔一樣時停用,
