@@ -1239,3 +1239,12 @@ body.ar-open { overflow: hidden; }
 /* 掌紋：自動找三個位置（按鈕和說明在同一塊，下載進度接在按鈕下面） */
 .palm-auto { margin-top: 8px; }
 .palm-auto p { margin: 4px 0 0; }
+
+/* 線名和畫在照片上的線同一個顏色（描線按鈕、看圖選、說明、提示訊息）；按鈕裡的線名前面加一小段色條 */
+.pl-name { white-space: nowrap; }
+.pl-name.pl-life { color: var(--pl-life); }
+.pl-name.pl-head { color: var(--pl-head); }
+.pl-name.pl-heart { color: var(--pl-heart); }
+.pl-name.pl-fate { color: var(--pl-fate); }
+.pl-name.pl-simian { color: var(--pl-simian); }
+.palm-step b.pl-name::before { content: ''; display: inline-block; width: 12px; height: 3px; margin-right: 5px; border-radius: 2px; background: currentColor; vertical-align: middle; }

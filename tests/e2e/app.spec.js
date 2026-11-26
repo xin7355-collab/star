@@ -1308,7 +1308,7 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
   await expect(photo.locator('.palm-step', { hasText: '事業線' })).toContainText('已描 1 筆');
   await expect(picker.locator('.palm-step', { hasText: '事業線' })).toContainText('從手腕直上');
   await expect(picker.locator('.palm-step', { hasText: '生命線' })).toContainText('短（到掌中）');
-  // 放大鏡：手指按著時出現、放開就收起來；太短的一筆不算，而且說清楚為什麼
+  // 放大鏡：手指按著時出現、放開就收起來；太短的一筆當成「點一下重描」，這張照片那裡沒有紋路，就說看不到
   await center();
   const q0 = at(uv([0.4, 0.55]));
   await page.mouse.move(...q0);
@@ -1317,7 +1317,7 @@ test('掌紋：看圖選線形（含斷掌）、拍照描線自動判斷、左�
   await expect(photo.locator('.palm-loupe')).toBeVisible();
   await page.mouse.up();
   await expect(photo.locator('.palm-loupe')).toBeHidden();
-  await expect(photo.locator('.palm-note')).toHaveText(/這一筆太短/);
+  await expect(photo.locator('.palm-note')).toHaveText(/你點的地方看不到明顯的.{3}：點在紋路正上方再試一次/);
 
   // 存進名單：重開 App 還在；名單裡只有選項代碼，沒有照片
   await dv.getByRole('button', { name: '存到我的資料' }).click();
@@ -1593,6 +1593,26 @@ test('掌紋自動描線：手動點好三個位置後一鍵描四條線（判�
     await expect(picker.locator('.palm-step').filter({ has: page.locator('b', { hasText: new RegExp(`^${line}$`) }) })).toContainText(label); // 「智慧線起點：和生命線相連」也含「生命線」，要比對項目名稱
   }
   await expect(photo.getByText('上一步：自動描線')).toBeVisible();
+  // 線名和畫線同一個顏色：描線按鈕、提示訊息裡的線名
+  const css = (loc) => loc.evaluate((el) => getComputedStyle(el).color);
+  const tokens = await page.evaluate(() => ['life', 'head', 'heart', 'fate'].map((k) => getComputedStyle(document.documentElement).getPropertyValue(`--pl-${k}`).trim()));
+  expect(tokens).toEqual(['#5fe0b5', '#7cc4ff', '#ff8fa3', '#f6c453']);
+  expect(await css(photo.locator('.palm-steps b.pl-life'))).toBe('rgb(95, 224, 181)');
+  expect(await css(photo.locator('.palm-steps b.pl-heart'))).toBe('rgb(255, 143, 163)');
+  expect(await css(photo.locator('.palm-note .pl-head').first())).toBe('rgb(124, 196, 255)');
+  expect(await css(picker.locator('.palm-steps b.pl-fate'))).toBe('rgb(246, 196, 83)');
+  // 點一下重描：選感情線、在感情線上點一下 → 沿著它重描，判定不變；點在沒有紋路的地方 → 說看不到
+  await photo.locator('.palm-steps .palm-step').filter({ has: page.locator('b', { hasText: /^感情線$/ }) }).click();
+  await center();
+  await page.mouse.click(...at(uv([0.5, 0.18])));
+  await expect(photo.locator('.palm-note')).toHaveText('已沿著你點的位置重描感情線（虛線）。還是不對就換個位置再點，或直接用手指描。');
+  await expect(picker.locator('.palm-step').filter({ has: page.locator('b', { hasText: /^感情線$/ }) })).toContainText('長、尾端上揚');
+  await expect(photo.getByText('上一步：點一下重描感情線')).toBeVisible();
+  await photo.locator('.palm-steps .palm-step').filter({ has: page.locator('b', { hasText: /^事業線$/ }) }).click();
+  await center();
+  await page.mouse.click(...at(uv([0.3, 0.75])));
+  await expect(photo.locator('.palm-note')).toHaveText('你點的地方看不到明顯的事業線：點在紋路正上方再試一次，或直接用手指描。');
+  await expect(picker.locator('.palm-step').filter({ has: page.locator('b', { hasText: /^事業線$/ }) })).toContainText('從手腕直上');
   // 再按一次：只重描自動描的那三條
   await photo.getByRole('button', { name: '重新自動描線' }).click();
   await expect(photo.locator('.palm-note')).toContainText('自動描好：智慧線、感情線、事業線');

@@ -11,7 +11,7 @@ import { palmDiagram, palmThumb, diagramFields, traceGuide, photoExamples, pract
 import {
   CALIB, newPhoto, freePhoto, readPhoto, enhancedCanvas, sampleGray, frameOf, uvTraces, copyStrokes, tracedLines, changedLines, photoCanvas, traceInput,
 } from '../ui/palm-photo.js';
-import { traceLines } from '../core/palm-lines.js';
+import { traceLines, traceLineAt } from '../core/palm-lines.js';
 import {
   activeFields, sanitizePicks, simplifyStroke, suggestPicks, photoAdvice, compareHands, handRole, mainHand, HAND_SCHOOLS,
   mergeSuggestions, TRACE_LINES,
@@ -40,6 +40,17 @@ const TARGETS = [
 ];
 const LINE_NAME = Object.fromEntries(TARGETS.map((t) => [t.value, t.label]));
 const MAIN_LINES = ['life', 'head', 'heart', 'fate'];
+// 線名和畫在照片上的線同一個顏色（使用者回饋：看不出哪條虛線是哪條線）
+const COLORED = new Set(['life', 'head', 'heart', 'fate', 'simian']);
+const nameClass = (field) => (COLORED.has(field) ? `pl-name pl-${field}` : null);
+const NAME_FIELD = { 生命線: 'life', 智慧線: 'head', 感情線: 'heart', 事業線: 'fate', 斷掌線: 'simian' };
+// 點一下重描時要避開的線：只有平行、容易搞混的那幾條
+const AVOID_WHEN_RETRACE = { heart: ['head'], head: ['heart', 'life'], life: ['head'], fate: ['life'] };
+/** 提示文字裡的線名換成彩色（其餘照原樣），螢幕閱讀器唸的內容不變 */
+function colorNames(text) {
+  return String(text).split(/(生命線|智慧線|感情線|事業線|斷掌線)/).filter(Boolean)
+    .map((part) => (NAME_FIELD[part] ? h('span', { class: nameClass(NAME_FIELD[part]), text: part }) : part));
+}
 // 每條線從哪裡描到哪裡（示範圖同時畫出起點和方向）
 const TRACE_HOW = {
   life: '從拇指和食指中間開始，沿著拇指根部的弧線往手腕描。',
@@ -187,7 +198,7 @@ export function drawPalm(p, { ctx, actions }) {
       onclick: () => { session.step[hand] = j; paintPicker(); },
       // 橫向捲動列：Tab 到畫面外的按鈕時瀏覽器只捲出一角，要自己捲到整顆看得到
       onfocus: (e) => e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
-    }, h('b', { text: f.label }), h('span', { text: picks()[f.id] ? PALM_TEXT[f.id][picks()[f.id]].label : '未選' }))));
+    }, h('b', { class: nameClass(f.id), text: f.label }), h('span', { text: picks()[f.id] ? PALM_TEXT[f.id][picks()[f.id]].label : '未選' }))));
     // 目前這題的按鈕捲到中間（只動這一列，不動整頁）
     requestAnimationFrame(() => {
       const on = chips.querySelector('.on');
@@ -305,10 +316,9 @@ export function drawPalm(p, { ctx, actions }) {
     const ph = curPhoto();
     const fr = frameOf(ph);
     if (!fr) return;
-    // 太短的一筆（不到 0.08 個掌寬）判定時本來就不算：直接說清楚，不要畫了卻沒反應
+    // 太短的一筆（不到 0.08 個掌寬）判定時本來就不算：當成「點一下」，沿著點的地方重描這條線
     if (!simplifyStroke(pts.map((q) => fr.toUV(q)))) {
-      session.note = { hand: session.hand, text: '這一筆太短，當成不小心碰到：請沿著線多描一段。' };
-      paintPhoto();
+      retraceAt(field, pts[0]);
       return;
     }
     // 這條原本是自動描的：改用自己描的（兩筆疊在一起會被判成分岔、斷開或雙重線）
@@ -321,6 +331,38 @@ export function drawPalm(p, { ctx, actions }) {
       session.note = { hand: session.hand, text: `已改用你描的${LINE_NAME[field]}（自動描的那條拿掉了）。` };
     }
     (ph.strokes[field] = ph.strokes[field] || []).push(pts);
+    applySuggestions([field]);
+    repaintAfter();
+  }
+
+  /**
+   * 點一下重描：自動描到別條紋路、或沒找到時，在正確的那條線上點一下，沿著它重描（core/palm-lines.js traceLineAt）。
+   * 其他已經描好的線交給它避開，免得路徑漂到旁邊更深的那條。練習模式和斷掌線還是請他用手指描。
+   */
+  function retraceAt(field, q) {
+    const hand = session.hand;
+    const ph = curPhoto();
+    const fr = frameOf(ph);
+    if (!ph || !fr) return;
+    if (ph.demo || !MAIN_LINES.includes(field)) {
+      session.note = { hand, text: '這一筆太短，當成不小心碰到：請沿著線多描一段。' };
+      paintPhoto();
+      return;
+    }
+    const input = traceInput(ph);
+    // 只避開平行、容易搞混的線（交叉的不避：事業線本來就穿過感情線、智慧線，避開會在交叉處斷掉）
+    const others = (AVOID_WHEN_RETRACE[field] || []).flatMap((l) => (ph.strokes[l] || []).map((st) => st.map((p) => fr.toUV(p))));
+    const r = traceLineAt(input.gray, input.w, input.h, input.frame, field, fr.toUV(q), { avoid: others });
+    if (!r) {
+      session.note = { hand, text: `你點的地方看不到明顯的${LINE_NAME[field]}：點在紋路正上方再試一次，或直接用手指描。` };
+      paintPhoto();
+      return;
+    }
+    record(`點一下重描${LINE_NAME[field]}`);
+    ph.auto = ph.auto || {};
+    ph.strokes[field] = r.strokes.map((st) => st.map((p) => fr.toXY(p)));
+    ph.auto[field] = true;
+    session.note = { hand, text: `已沿著你點的位置重描${LINE_NAME[field]}（虛線）。還是不對就換個位置再點，或直接用手指描。` };
     applySuggestions([field]);
     repaintAfter();
   }
@@ -407,7 +449,7 @@ export function drawPalm(p, { ctx, actions }) {
     }
     applySuggestions(lines);
     const parts = [];
-    if (found.length) parts.push(`自動描好：${found.join('、')}（虛線），對照照片看看描得對不對；不對的那條直接自己描，會取代自動描的。`);
+    if (found.length) parts.push(`自動描好：${found.join('、')}（虛線），對照照片看看描得對不對。不對的那條：選它、在正確的紋路上點一下就會重描，或直接用手指描。`);
     const lost = missing.filter((l) => l !== 'fate').map((l) => LINE_NAME[l]);
     if (lost.length) parts.push(`沒找到${lost.join('、')}：光線太暗、反光或手掌沒攤平都會看不清楚，可以自己描或重拍。`);
     if (missing.includes('fate')) parts.push('事業線看起來很淡或沒有（很多人都這樣）；有的話自己描。');
@@ -485,7 +527,7 @@ export function drawPalm(p, { ctx, actions }) {
     const hand = session.hand;
     const ph = session.photos[hand];
     const hist = session.hist[hand];
-    noteLine.textContent = session.note && session.note.hand === hand ? session.note.text : '';
+    fill(noteLine, ...(session.note && session.note.hand === hand ? colorNames(session.note.text) : []));
     const input = h('input', {
       type: 'file',
       accept: 'image/*',
@@ -559,7 +601,7 @@ export function drawPalm(p, { ctx, actions }) {
     const at = next ? CALIB.indexOf(next) : 3;
     const frame = frameOf(ph);
     const target = session.target;
-    const canvas = photoCanvas(ph, { getTarget: () => session.target, getSource: () => (session.enhance ? ph.enh : null), onCalib: placeCalib, onStroke: addStroke });
+    const canvas = photoCanvas(ph, { getTarget: () => session.target, getSource: () => (session.enhance ? ph.enh : null), onCalib: placeCalib, onStroke: addStroke, onTap: retraceAt });
     const guide = traceGuide({
       hand,
       calibDone: at,
@@ -574,9 +616,10 @@ export function drawPalm(p, { ctx, actions }) {
           h('button', { type: 'button', class: 'btn small primary', text: locating ? '辨識中…' : '自動找位置並描線', disabled: locating, onclick: autoLocate }),
           locating ? locLine : h('p', { class: 'small muted', text: `用手部辨識模型在手機上找，照片不會上傳；第一次要下載約 ${MP_MB}MB（建議連 Wi-Fi）。` })))
       : h('div', { class: 'palm-how' },
-        h('p', { class: 'palm-instr' }, h('b', { text: `描${LINE_NAME[target]}` })),
+        h('p', { class: 'palm-instr' }, h('b', {}, '描', h('span', { class: nameClass(target), text: LINE_NAME[target] }))),
         h('p', { class: 'small', text: TRACE_HOW[target] }),
         h('p', { class: 'small muted', text: '斷開、分岔或有兩條，就分成幾筆描；描錯了按「復原」。' }),
+        ph.demo ? null : h('p', { class: 'small muted', text: '自動描錯了？在正確的那條紋路上點一下，就會沿著它重描。' }),
         ph.demo ? null : h('div', { class: 'palm-auto' },
           h('button', {
             type: 'button',
@@ -592,7 +635,7 @@ export function drawPalm(p, { ctx, actions }) {
       'aria-pressed': target === t.value ? 'true' : 'false',
       onclick: () => { session.target = t.value; paintPhoto(); },
       onfocus: (e) => e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
-    }, h('b', { text: t.label }), h('span', { text: count(t.value) ? `已描 ${count(t.value)} 筆` : t.value === 'simian' ? '有才描' : '未描' }))));
+    }, h('b', { class: nameClass(t.value), text: t.label }), h('span', { text: count(t.value) ? `已描 ${count(t.value)} 筆` : t.value === 'simian' ? '有才描' : '未描' }))));
     // 描好一條就給「下一條」：照生命線、智慧線、感情線、事業線的順序找還沒描的
     const order = MAIN_LINES;
     const nextLine = order.find((l) => !count(l) && order.indexOf(l) > order.indexOf(target)) || order.find((l) => !count(l) && l !== target);

@@ -283,3 +283,9 @@ AR 星空,data_view,long_content,DONE,code:css/app.css .ar-list-items 最多 28v
 掌紋自動描線,action,disabled,DONE,code:js/views/tool-palm.js 還沒點好三個位置時不顯示；練習用的範例手掌不顯示；四條都自己描的會說明不用自動描,
 掌紋自動描線,action,busy,NA,,在手機上同步計算（縮到掌寬 320px，約 0.05 秒），沒有等待畫面
 掌紋自動描線,action,failure,DONE,test:tests/palm-lines.test.js 空白手掌不描假線；畫面說明沒找到哪幾條、原因與做法，事業線很淡、可能斷掌另外提醒,
+點一下重描掌紋,action,default,DONE,e2e:掌紋自動描線：選感情線、在感情線上點一下就沿著它重描，判定不變；復原記一步,
+點一下重描掌紋,action,hover,NA,,觸控裝置為主
+點一下重描掌紋,action,focus_visible,NA,,畫布上的點擊手勢沒有焦點；鍵盤使用者用上面的「看圖選」選線形（描線畫布本來就是觸控操作）
+點一下重描掌紋,action,disabled,DONE,code:js/views/tool-palm.js 練習用的範例手掌、斷掌線不重描，還是請他用手指描,
+點一下重描掌紋,action,busy,NA,,在手機上同步計算（約 0.05 秒），沒有等待畫面
+點一下重描掌紋,action,failure,DONE,e2e:點在沒有紋路的地方說「看不到明顯的事業線：點在紋路正上方再試一次，或直接用手指描」；tests/palm-lines.test.js 空白處不亂描,

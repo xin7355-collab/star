@@ -106,7 +106,9 @@ export function zScores(relGrid) {
     if (!Number.isNaN(v)) core.push(v);
   }
   const med = median(core);
-  const sigma = Math.max(1.4826 * median(core.map((v) => Math.abs(v - med))), 0.004);
+  // 下限 0.008：太乾淨的影像（程式畫的範例手掌、極少雜訊）雜訊估計接近 0，膚色的漸層都會變成很深的「紋路」；
+  // 手機照片的皮膚紋理和雜訊約 0.01 以上（合成照片量到 0.013～0.016），不受影響
+  const sigma = Math.max(1.4826 * median(core.map((v) => Math.abs(v - med))), 0.008);
   const z = new Float32Array(COLS * ROWS);
   for (let i = 0; i < z.length; i += 1) z[i] = Number.isNaN(relGrid[i]) ? NaN : (relGrid[i] - med) / sigma;
   return z;
@@ -143,9 +145,10 @@ function bestPath(n, band, cost, maxStep, turn) {
           }
         }
         if (best === Infinity) {
-          // 這一步的範圍和上一步接不起來（範圍突然跳開）：接最近的那一格
+          // 這一步的範圍和上一步接不起來（範圍突然變寬或跳開）：接最近的那一格，但每跳一格要算 1.5 的成本
+          // （比走一格最暗的路還貴）。以前只算轉彎的成本，點一下重描時路徑過了點的地方，會一步橫跳到旁邊的線上
           const k = Math.min(prevBand[1], Math.max(prevBand[0], j));
-          best = prev[k - prevBand[0]] + turn * Math.abs(k - j);
+          best = prev[k - prevBand[0]] + 1.5 * Math.abs(k - j);
           arg = k;
         }
       } else best = 0;
@@ -193,25 +196,50 @@ function profile(z, cells) {
   });
 }
 
-/** 夠深的連續段：深度 ≥ tau，中間斷開不到 gap 步的接起來；回傳 [{a, b, mean}]（步的編號，含兩端） */
+/** 夠深的連續段：深度 ≥ tau，中間斷開不到 gap 步的接起來；回傳 [{a, b, mean}]（步的編號，含兩端；mean 是這段的平均深度） */
 function runs(prof, tau, gap) {
   const out = [];
   let cur = null;
   prof.forEach((v, i) => {
-    if (v >= tau) {
-      if (cur && i - cur.b - 1 <= gap) cur.b = i;
-      else {
-        cur = { a: i, b: i };
-        out.push(cur);
-      }
+    if (v < tau) return;
+    if (cur && i - cur.b - 1 <= gap) cur.b = i;
+    else {
+      cur = { a: i, b: i };
+      out.push(cur);
     }
   });
   for (const r of out) {
-    let s = 0;
-    for (let i = r.a; i <= r.b; i += 1) s += prof[i];
-    r.mean = s / (r.b - r.a + 1);
+    let sum = 0;
+    for (let i = r.a; i <= r.b; i += 1) sum += prof[i];
+    r.mean = sum / (r.b - r.a + 1);
   }
   return out;
+}
+
+/**
+ * 把一段往兩頭延伸到還「像這條線」的地方：深度至少是這段平均的 55%（也至少 2.5）。
+ * 55% 是擬真合成照片掃描出來的：45% 時生命線內側的平行淺紋（約主線一半深）會被接成生命線的延續，
+ * 65% 時低對比照片裡淡掉的那段真線又會被截斷。
+ * 真實的掌紋深淺不一，只用一個固定門檻會在淡的那段被截斷、線判得太短；但門檻固定放低（例如 2）又會接上雜訊，
+ * 把斷開的線接成一條、空白手掌描出假線（擬真合成照片實測）。跟著這條線自己的深度走，兩邊都顧到。
+ */
+function extend(prof, r, gap) {
+  const lo = Math.max(2.5, 0.55 * r.mean);
+  let b = r.b;
+  for (let i = r.b + 1, miss = 0; i < prof.length; i += 1) {
+    if (prof[i] >= lo) {
+      b = i;
+      miss = 0;
+    } else if ((miss += 1) > gap) break;
+  }
+  let a = r.a;
+  for (let i = r.a - 1, miss = 0; i >= 0; i -= 1) {
+    if (prof[i] >= lo) {
+      a = i;
+      miss = 0;
+    } else if ((miss += 1) > gap) break;
+  }
+  return { ...r, a, b };
 }
 
 // 每一條線：從哪裡走到哪裡、每一步可以在哪個範圍、轉彎多難、要多深才算數
@@ -242,7 +270,8 @@ const lenOf = (cells, a, b) => {
  * @returns {{strokes:{life?:number[][][], head?:number[][][], heart?:number[][][], fate?:number[][][]}, score:object, simianHint:boolean}}
  *   strokes 是 UV 座標的筆畫（和手描的一樣，可以直接交給 classifyStrokes）；找不到的線不會出現
  */
-export function traceLines(gray, w, h, frame) {
+/** 共用的前處理：暗紋 z 分數、每格的成本、找段（自動描、點一下重描都用） */
+function prepare(gray, w, h, frame) {
   const pw = Math.hypot(...frame.toXY([1, 0]).map((v, i) => v - frame.toXY([0, 0])[i]));
   const z = zScores(sampleGrid(relDarkness(gray, w, h, pw), w, h, frame));
   const zAt = (c, r) => {
@@ -254,13 +283,40 @@ export function traceLines(gray, w, h, frame) {
     const v = zAt(c, r);
     return Number.isNaN(v) ? 1.5 : 1 - Math.min(1, Math.max(0, v) / 6);
   };
+  const p90 = (prof) => {
+    const sorted = [...prof].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length * 0.9)] || 0;
+  };
+  const stepTau = (prof) => Math.max(MIN_Z * 0.8, 0.4 * p90(prof));
+  // 先找夠深的核心段，再往兩頭延伸到還像這條線的地方；延伸後碰在一起、深度又差不多的合成一段（同一條線深淺起伏，
+  // 不合的話會被當成斷開）。核心段本身至少 0.1 掌寬：空白手掌的短雜紋延伸後會被拉長到過門檻
+  const segments = (prof, gap, cells, cross, tau = stepTau(prof), minCore = 0.1) => {
+    const ext = runs(prof, tau, gap)
+      .filter((r) => lenOf(cells, r.a, r.b) >= minCore)
+      .map((r) => extend(prof, r, gap));
+    const merged = [];
+    for (const r of ext) {
+      const last = merged[merged.length - 1];
+      // 同一條線淡掉再出現，位置是連續的；換到旁邊平行的淺紋（生命線內側常有一條），路徑會先橫著跳一段。
+      // 接縫兩邊橫向差超過 0.03 掌寬、又比一步一格陡，就不是同一條；深度差太多也不合
+      const lateral = last ? Math.abs(cross(cells[r.a]) - cross(cells[last.b])) : 0;
+      const jump = lateral > 6 && lateral > (r.a - last?.b) * 1;
+      if (last && r.a <= last.b + gap && !jump && Math.min(r.mean, last.mean) >= 0.6 * Math.max(r.mean, last.mean)) {
+        const n1 = last.b - last.a + 1;
+        const n2 = r.b - r.a + 1;
+        last.mean = (last.mean * n1 + r.mean * n2) / (n1 + n2);
+        last.b = Math.max(last.b, r.b);
+      } else merged.push({ ...r });
+    }
+    return merged;
+  };
+  return { z, cellCost, segments, p90 };
+}
+
+export function traceLines(gray, w, h, frame) {
+  const { z, cellCost, segments } = prepare(gray, w, h, frame);
   const strokes = {};
   const score = {};
-  const stepTau = (prof) => {
-    const sorted = [...prof].sort((a, b) => a - b);
-    const p90 = sorted[Math.floor(sorted.length * 0.9)] || 0;
-    return Math.max(MIN_Z * 0.8, 0.4 * p90);
-  };
 
   // ── 生命線：由上往下（v 0.30→1.04），每一列在拇指那側 u 0.66～1.16 選一格
   const lifeR0 = row(0.3);
@@ -271,14 +327,17 @@ export function traceLines(gray, w, h, frame) {
   {
     const prof = profile(z, lifeCells);
     // 斷開的生命線縫隙常常只有 0.06 掌寬：接縫的容許只到 6 步（0.03），不然斷開的會被接成一條
-    const rs = runs(prof, stepTau(prof), 6).filter((r) => lenOf(lifeCells, r.a, r.b) >= 0.08);
+    const rs = segments(prof, 6, lifeCells, (q) => q[0]);
     // 生命線從拇指和食指之間開始：主要那段要從上面（v ≤ 0.55）開始
     const main = rs.find((r) => vOf(lifeCells[r.a][1]) <= 0.55 && r.mean >= MIN_Z && lenOf(lifeCells, r.a, r.b) >= MIN_LEN);
     if (main) {
       strokes.life = [toStroke(lifeCells, main.a, main.b)];
       score.life = main.mean;
       // 斷開：主要那段下面還有一段夠長、夠深的
-      const second = rs.find((r) => r.a > main.b + 6 && lenOf(lifeCells, r.a, r.b) >= 0.12 && r.mean >= MIN_Z);
+      // 第二段要和主要那段差不多深、而且離得不遠：生命線內側常有一條平行的淺紋，短生命線結束後路徑會沿著它往下走，
+      // 只看「下面還有一段」會把短生命線判成斷開（擬真的合成照片裡 8 成的短生命線都這樣錯）
+      const second = rs.find((r) => r.a > main.b + 6 && r.a - main.b <= 24 && lenOf(lifeCells, r.a, r.b) >= 0.12
+        && r.mean >= MIN_Z && r.mean >= 0.7 * main.mean);
       if (second) strokes.life.push(toStroke(lifeCells, second.a, second.b));
     }
   }
@@ -300,7 +359,7 @@ export function traceLines(gray, w, h, frame) {
   let heartRun = null;
   {
     const prof = profile(z, heartCells);
-    const rs = runs(prof, stepTau(prof), 8).filter((r) => lenOf(heartCells, r.a, r.b) >= 0.08);
+    const rs = segments(prof, 8, heartCells, (q) => q[1]);
     heartRun = rs.find((r) => uOf(heartCells[r.a][0]) <= 0.15 && r.mean >= MIN_Z && lenOf(heartCells, r.a, r.b) >= MIN_LEN) || null;
     if (heartRun) {
       strokes.heart = [toStroke(heartCells, heartRun.a, heartRun.b)];
@@ -334,7 +393,7 @@ export function traceLines(gray, w, h, frame) {
   const headCells = headPath.map((r, i) => [headC0 - i, r]);
   {
     const prof = profile(z, headCells);
-    const rs = runs(prof, stepTau(prof), 8).filter((r) => lenOf(headCells, r.a, r.b) >= 0.08);
+    const rs = segments(prof, 8, headCells, (q) => q[1]);
     const main = rs.find((r) => uOf(headCells[r.a][0]) >= 0.82 && r.mean >= MIN_Z && lenOf(headCells, r.a, r.b) >= MIN_LEN);
     if (main) {
       strokes.head = [toStroke(headCells, main.a, main.b)];
@@ -356,7 +415,7 @@ export function traceLines(gray, w, h, frame) {
   const fateCells = fatePath.map((c, i) => [c, fateR0 - i]);
   {
     const prof = profile(z, fateCells);
-    const rs = runs(prof, stepTau(prof), 8).filter((r) => lenOf(fateCells, r.a, r.b) >= 0.12 && r.mean >= STRONG_Z);
+    const rs = segments(prof, 8, fateCells, (q) => q[0]).filter((r) => lenOf(fateCells, r.a, r.b) >= 0.12 && r.mean >= STRONG_Z);
     const total = rs.reduce((acc, r) => acc + lenOf(fateCells, r.a, r.b), 0);
     if (total >= 0.25) {
       strokes.fate = rs.slice(0, 3).map((r) => toStroke(fateCells, r.a, r.b));
@@ -374,4 +433,81 @@ export function traceLines(gray, w, h, frame) {
     ? Math.hypot(heartS[heartS.length - 1][0] - headS[headS.length - 1][0], heartS[heartS.length - 1][1] - headS[headS.length - 1][1]) < 0.06
     : vAtMid(heartS) >= 0.25);
   return { strokes, score, simianHint };
+}
+
+const ANCHOR_Z = 3.6;
+
+// 點一下重描：每條線放寬的範圍（使用者說線在這裡，不再限制得那麼緊）。step＝沿線走的方向，band＝另一個方向
+const AT = {
+  life: { vertical: true, from: 0.25, to: 1.08, band: [0.5, 1.25], maxStep: 2, turn: 0.05 },
+  fate: { vertical: true, from: 1.08, to: 0.08, band: [0.2, 0.85], maxStep: 1, turn: 0.08 },
+  heart: { vertical: false, from: -0.16, to: 1.08, band: [-0.05, 0.5], maxStep: 1, turn: 0.04 },
+  head: { vertical: false, from: 1.12, to: -0.08, band: [0.1, 0.88], maxStep: 1, turn: 0.06 },
+};
+
+/**
+ * 沿著使用者點的位置重描一條線（自動描到別條紋路、或沒找到時用）：路徑一定經過點的那裡（左右 0.015 掌寬內），
+ * 其他照原本的方法找最暗、最連續的路；範圍放寬、門檻放低（只要求點的附近夠像一條線）。
+ * 已經描好的其他線（avoid）會避開：範圍放寬後，路徑過了點的地方很容易漂到旁邊更深的那條（例如感情線漂到智慧線）。
+ * 只該傳「平行、容易搞混」的線：掌紋本來就會交叉（事業線穿過感情線、智慧線），把交叉的線也避開，路徑會在交叉處繞道而斷掉。
+ * 門檻 3.6：空白皮膚上點一下，雜訊路徑的深度最高約 3.5；比皮膚暗 14 的淡線約 3.6～3.9（tests/palm-lines.test.js）。
+ * @param {'life'|'head'|'heart'|'fate'} line
+ * @param {number[]} at 點的位置（u, v）
+ * @param {{avoid?:number[][][]}} [opts] avoid：其他線的筆畫（u, v）
+ * @returns {{strokes:number[][][], score:number}|null} 點的地方看不到線時回傳 null
+ */
+export function traceLineAt(gray, w, h, frame, line, at, { avoid = [] } = {}) {
+  const spec = AT[line];
+  if (!spec || !Array.isArray(at)) return null;
+  const { z, cellCost, segments, p90 } = prepare(gray, w, h, frame);
+  const stepIdx = spec.vertical ? row : col;
+  const crossIdx = spec.vertical ? col : row;
+  const [sAt, cAt] = spec.vertical ? [at[1], at[0]] : [at[0], at[1]];
+  // 點在預設範圍外面時，範圍跟著放大到包含那一點
+  const asc = spec.to > spec.from;
+  const from = asc ? Math.min(spec.from, sAt - 0.03) : Math.max(spec.from, sAt + 0.03);
+  const to = asc ? Math.max(spec.to, sAt + 0.03) : Math.min(spec.to, sAt - 0.03);
+  const i0 = stepIdx(from);
+  const dir = asc ? 1 : -1;
+  const n = Math.abs(stepIdx(to) - i0) + 1;
+  const ia = (stepIdx(sAt) - i0) * dir;
+  const ja = crossIdx(cAt);
+  const maxCross = (spec.vertical ? COLS : ROWS) - 1;
+  const clamp = (j) => Math.max(0, Math.min(maxCross, j));
+  const lo = clamp(crossIdx(Math.min(spec.band[0], cAt - 0.03)));
+  const hi = clamp(crossIdx(Math.max(spec.band[1], cAt + 0.03)));
+  const band = (i) => (i === ia ? [clamp(ja - 3), clamp(ja + 3)] : [lo, hi]);
+  const at2 = (i, j) => (spec.vertical ? [j, i0 + i * dir] : [i0 + i * dir, j]);
+  // 其他線附近（0.03 掌寬內）很貴；點的地方附近（0.05 內）不算，使用者點的就是對的
+  const near = new Set();
+  for (const st of avoid) {
+    for (let k = 1; k < st.length; k += 1) {
+      const [a, b] = [st[k - 1], st[k]];
+      const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / STEP));
+      for (let t = 0; t <= steps; t += 1) {
+        const u = a[0] + ((b[0] - a[0]) * t) / steps;
+        const v = a[1] + ((b[1] - a[1]) * t) / steps;
+        // 點的地方附近不算；拇指和食指之間（u ≥ 0.95）是生命線和智慧線共同的起點，也不算
+        if (Math.hypot(u - at[0], v - at[1]) < 0.05 || u >= 0.95) continue;
+        for (let dc = -6; dc <= 6; dc += 1) for (let dr = -6; dr <= 6; dr += 1) near.add((row(v) + dr) * COLS + col(u) + dc);
+      }
+    }
+  }
+  const path = bestPath(n, band, (i, j) => {
+    const [c, r] = at2(i, j);
+    return cellCost(c, r) + (near.has(r * COLS + c) ? 1 : 0);
+  }, spec.maxStep, spec.turn);
+  const cells = path.map((j, i) => at2(i, j));
+  const prof = profile(z, cells);
+  // 門檻放低（2 個標準差就算），只看點的那附近：包含那一點、或離它 12 步內的那段
+  const rs = segments(prof, 10, cells, (q) => (spec.vertical ? q[0] : q[1]), Math.max(2, 0.35 * p90(prof)), 0.03);
+  let best = null;
+  for (const r of rs) {
+    const d = ia < r.a ? r.a - ia : ia > r.b ? ia - r.b : 0;
+    if (d <= 12 && (!best || d < best.d || (d === best.d && r.mean > best.r.mean))) best = { r, d };
+  }
+  if (!best || best.r.mean < ANCHOR_Z || lenOf(cells, best.r.a, best.r.b) < 0.06) return null;
+  const a = Math.min(best.r.a, ia);
+  const b = Math.max(best.r.b, ia);
+  return { strokes: [toStroke(cells, a, b)], score: best.r.mean };
 }

@@ -141,9 +141,9 @@ const lineColor = (field) => getComputedStyle(document.documentElement).getPrope
 /**
  * 照片畫布：先點三個校正點（按住可以滑動微調，放開才算），再沿著掌紋描線。
  * 只用 pointer 事件，手指、觸控筆、滑鼠都能用。手指按著時，角落的放大鏡顯示手指底下的紋路（手指會擋住正在描的線）。
- * 畫布不直接改資料：onCalib(點)、onStroke(線, 點列) 交給外面，外面先記下復原用的狀態再修改。
+ * 畫布不直接改資料：onCalib(點)、onStroke(線, 點列)、onTap(線, 點)（只點一下沒拖）交給外面，外面先記下復原用的狀態再修改。
  */
-export function photoCanvas(ph, { getTarget, getSource, onCalib, onStroke }) {
+export function photoCanvas(ph, { getTarget, getSource, onCalib, onStroke, onTap }) {
   const cv = h('canvas', { class: 'palm-canvas', role: 'img', 'aria-label': '手掌照片：點校正點、用手指沿著掌紋描線' });
   const loupe = h('canvas', { class: 'palm-loupe', 'aria-hidden': 'true', hidden: true });
   const wrap = h('div', { class: 'palm-canvas-wrap' }, cv, loupe);
@@ -327,6 +327,7 @@ export function photoCanvas(ph, { getTarget, getSource, onCalib, onStroke }) {
     if (was.pin) {
       if (Math.hypot(e.clientX - was.down.x, e.clientY - was.down.y) <= MAX_SLIDE) onCalib(was.pin);
     } else if (was.cur && was.cur.pts.length >= 2) onStroke(was.cur.field, was.cur.pts);
+    else if (was.cur && onTap) onTap(was.cur.field, was.cur.pts[0]);
   };
   cv.addEventListener('pointerup', (e) => end(e, true));
   cv.addEventListener('pointercancel', (e) => end(e, false));
