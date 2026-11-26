@@ -24,8 +24,34 @@ export function freePhoto(ph) {
   ph.enh = null;
 }
 
-/** applied：這張照片自動填進選項的值（判斷哪些是自己改過的）；sideOk：使用者確認過左右手 */
-export const newPhoto = (img, extra = {}) => ({ ...img, calib: {}, strokes: {}, applied: {}, advice: null, sideOk: false, enh: null, demo: false, ...extra });
+/** applied：這張照片自動填進選項的值（判斷哪些是自己改過的）；sideOk：使用者確認過左右手；auto：哪幾條線是自動描的（畫成虛線） */
+export const newPhoto = (img, extra = {}) => ({ ...img, calib: {}, strokes: {}, auto: {}, applied: {}, advice: null, sideOk: false, enh: null, demo: false, ...extra });
+
+const TRACE_PALM_PX = 320; // 自動描線時把照片縮到掌寬約 320px：和測試的尺度一樣，iPhone 上記憶體也省（原圖 1280px 要多吃三十幾 MB）
+
+/**
+ * 自動描線的輸入：縮小的灰階影像和對應的掌心框。描線結果是掌心座標（u, v），和照片大小無關，
+ * 用原本的掌心框換回照片像素就好。
+ * @returns {{gray:Uint8Array, w:number, h:number, frame:object}|null}
+ */
+export function traceInput(ph) {
+  const fr = frameOf(ph);
+  if (!fr) return null;
+  const k = Math.min(1, TRACE_PALM_PX / fr.width);
+  const w = Math.max(1, Math.round(ph.w * k));
+  const hh = Math.max(1, Math.round(ph.h * k));
+  const cv = document.createElement('canvas');
+  cv.width = w;
+  cv.height = hh;
+  const c = cv.getContext('2d', { willReadFrequently: true });
+  c.drawImage(ph.canvas, 0, 0, w, hh);
+  const d = c.getImageData(0, 0, w, hh).data;
+  cv.width = 0;
+  const gray = new Uint8Array(w * hh);
+  for (let i = 0, j = 0; i < gray.length; i += 1, j += 4) gray[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
+  const sc = (q) => [q[0] * k, q[1] * k];
+  return { gray, w, h: hh, frame: palmFrame({ index: sc(ph.calib.index), pinky: sc(ph.calib.pinky), wrist: sc(ph.calib.wrist) }) };
+}
 
 /** 照片 → 縮小的 canvas（原圖用完就放掉） */
 export async function readPhoto(file) {
@@ -156,11 +182,15 @@ export function photoCanvas(ph, { getTarget, getSource, onCalib, onStroke }) {
       for (const q of pts.slice(1)) c.lineTo(q[0], q[1]);
       c.stroke();
     };
+    // 自動描的線畫成虛線：提醒「這是建議，對照照片看看」；自己描的是實線
     for (const [field, strokes] of Object.entries(ph.strokes)) {
+      const dash = ph.auto && ph.auto[field] ? [9 * px, 6 * px] : [];
       for (const st of strokes) {
+        c.setLineDash(dash);
         line(st, PALM_CANVAS.shadow, 6);
         line(st, lineColor(field), 3.5);
       }
+      c.setLineDash([]);
     }
     if (cur) {
       line(cur.pts, PALM_CANVAS.shadow, 6);

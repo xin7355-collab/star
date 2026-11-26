@@ -1553,6 +1553,60 @@ test('塔羅：自訂牌組（檔名認牌、對不到的列出來、逐張換�
   expect(requests.filter((r) => r.method !== 'GET')).toEqual([]);
 });
 
+test('掌紋自動描線：手動點好三個位置後一鍵描四條線（判成範例手掌的答案）、自己描過的線不會被動到、可以重新自動描', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  await page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption('palm');
+  const picker = palmCard(page, '看圖選線形');
+  const photo = palmCard(page, '拍照描線（選用）');
+  // 範例手掌當成自己的照片（練習模式不提供自動描線，免得直接看到答案）
+  const png = await page.evaluate(async () => (await import('/js/ui/palm-chart.js')).practicePalm('left').canvas.toDataURL('image/png').split(',')[1]);
+  await photo.locator('input[type="file"]').setInputFiles({ name: 'left.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  const cv = photo.locator('canvas.palm-canvas');
+  let box;
+  const center = async () => {
+    await cv.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    box = await cv.boundingBox();
+  };
+  const at = ([x, y]) => [box.x + (x / 714) * box.width, box.y + (y / 884) * box.height];
+  const pts = await page.evaluate(async () => (await import('/js/ui/palm-chart.js')).practicePoints('left'));
+  for (const k of ['index', 'pinky', 'wrist']) {
+    await center();
+    await page.mouse.click(...at(pts[k]));
+  }
+  // 先自己描生命線
+  const mid = [(pts.index[0] + pts.pinky[0]) / 2, (pts.index[1] + pts.pinky[1]) / 2];
+  const uv = ([u, v]) => [pts.pinky[0] + u * (pts.index[0] - pts.pinky[0]) + v * (pts.wrist[0] - mid[0]), pts.pinky[1] + u * (pts.index[1] - pts.pinky[1]) + v * (pts.wrist[1] - mid[1])];
+  await center();
+  const q = [[1.04, 0.34], [0.86, 0.5], [0.78, 0.7], [0.82, 0.88], [0.9, 1.0]].map(uv).map(at);
+  await page.mouse.move(...q[0]);
+  await page.mouse.down();
+  for (const r of q.slice(1)) await page.mouse.move(...r, { steps: 6 });
+  await page.mouse.up();
+  await expect(picker.locator('.palm-step').filter({ has: page.locator('b', { hasText: /^生命線$/ }) })).toContainText('長、弧度大');
+  // 一鍵描其他三條：自己描的生命線不動
+  await photo.getByRole('button', { name: '自動描四條線' }).click();
+  await expect(photo.locator('.palm-note')).toContainText('自動描好：智慧線、感情線、事業線（虛線）');
+  await expect(photo.locator('.palm-note')).not.toContainText('生命線');
+  for (const [line, label] of [['生命線', '長、弧度大'], ['智慧線', '往下彎'], ['感情線', '長、尾端上揚'], ['事業線', '從手腕直上']]) {
+    await expect(picker.locator('.palm-step').filter({ has: page.locator('b', { hasText: new RegExp(`^${line}$`) }) })).toContainText(label); // 「智慧線起點：和生命線相連」也含「生命線」，要比對項目名稱
+  }
+  await expect(photo.getByText('上一步：自動描線')).toBeVisible();
+  // 再按一次：只重描自動描的那三條
+  await photo.getByRole('button', { name: '重新自動描線' }).click();
+  await expect(photo.locator('.palm-note')).toContainText('自動描好：智慧線、感情線、事業線');
+  // 練習模式沒有自動描線
+  await photo.getByRole('button', { name: '清除照片' }).click();
+  await photo.getByRole('button', { name: '用範例手掌練習' }).click();
+  for (const k of ['index', 'pinky', 'wrist']) {
+    await center();
+    await page.mouse.click(...at(pts[k]));
+  }
+  await expect(photo.locator('.palm-instr')).toContainText('描生命線');
+  await expect(photo.getByRole('button', { name: /自動描/ })).toHaveCount(0);
+});
+
 test.describe('掌紋自動定位（手部辨識模型）', () => {
   // page.route 攔不到 service worker 代抓的請求：這組關掉 service worker，直接看頁面發出的請求
   test.use({ serviceWorkers: 'block' });
@@ -1578,9 +1632,9 @@ test.describe('掌紋自動定位（手部辨識模型）', () => {
     const photo = await openWithPhoto(page, 'left');
     expect(requests.filter((r) => r.url.includes('/vendor/mediapipe/'))).toEqual([]); // 還沒按：一個位元組都不抓
     await expect(photo.getByText(/第一次要下載約 22MB/)).toBeVisible();
-    await photo.getByRole('button', { name: '自動找三個位置' }).click();
+    await photo.getByRole('button', { name: '自動找位置並描線' }).click();
     await expect(photo.locator('.palm-note')).toContainText('照片裡沒找到手', { timeout: 90_000 });
-    await expect(photo.getByRole('button', { name: '自動找三個位置' })).toBeEnabled();
+    await expect(photo.getByRole('button', { name: '自動找位置並描線' })).toBeEnabled();
     await expect(photo.locator('.palm-instr')).toContainText('1／3'); // 還在等手動點
     const mp = requests.filter((r) => r.url.includes('/vendor/mediapipe/')).map((r) => r.url.split('/').pop());
     expect(mp).toEqual(expect.arrayContaining(['vision_wasm_internal.wasm', 'hand_landmarker.task', 'vision_bundle.mjs', 'vision_wasm_internal.js']));
@@ -1615,17 +1669,22 @@ test.describe('掌紋自動定位（手部辨識模型）', () => {
     });
     // 第一次：模型檔下載失敗（網路斷掉）→ 說明，按鈕可以再按
     await page.route('**/vendor/mediapipe/hand_landmarker.task', (route) => route.abort());
-    await photo.getByRole('button', { name: '自動找三個位置' }).click();
+    await photo.getByRole('button', { name: '自動找位置並描線' }).click();
     await expect(photo.locator('.palm-note')).toContainText('辨識模型載入失敗');
     await page.unroute('**/vendor/mediapipe/hand_landmarker.task');
     // 故意讓下載失敗：瀏覽器主控台會記一筆「Failed to load resource」，不算執行期錯誤
     errors = errors.filter((e) => !/Failed to load resource.*hand_landmarker\.task/.test(e));
-    // 第二次：找到了
-    await photo.getByRole('button', { name: '自動找三個位置' }).click();
+    // 第二次：找到了，接著自動描四條線（範例手掌的答案：長弧生命線、往下彎的智慧線、尾端上揚的感情線、從手腕直上的事業線）
+    await photo.getByRole('button', { name: '自動找位置並描線' }).click();
     await expect(photo.locator('.palm-note')).toContainText('已自動放好三個位置');
+    await expect(photo.locator('.palm-note')).toContainText('自動描好：生命線、智慧線、感情線、事業線');
     await expect(photo.locator('.palm-instr')).toContainText('描生命線');
-    await expect(photo.getByText('上一步：自動找三個位置')).toBeVisible();
+    await expect(photo.getByText('上一步：自動描線')).toBeVisible();
     await expect(photo.locator('.palm-side')).toHaveCount(0); // 選左手、照片也是左手
+    const picker = palmCard(page, '看圖選線形');
+    for (const [line, label] of [['生命線', '長、弧度大'], ['智慧線', '往下彎'], ['感情線', '長、尾端上揚'], ['事業線', '從手腕直上']]) {
+      await expect(picker.locator('.palm-step').filter({ has: page.locator('b', { hasText: new RegExp(`^${line}$`) }) })).toContainText(label); // 「智慧線起點：和生命線相連」也含「生命線」，要比對項目名稱
+    }
     // 描生命線：判斷結果和手動點三個位置時一樣（長、弧度大），而且填進選項
     const cv = photo.locator('canvas.palm-canvas');
     await cv.evaluate((el) => el.scrollIntoView({ block: 'center' }));
@@ -1639,9 +1698,12 @@ test.describe('掌紋自動定位（手部辨識模型）', () => {
     await page.mouse.down();
     for (const r of q.slice(1)) await page.mouse.move(...r, { steps: 6 });
     await page.mouse.up();
-    await expect(palmCard(page, '看圖選線形').locator('.palm-step', { hasText: '生命線' })).toContainText('長、弧度大');
-    // 復原兩次：回到還沒自動找之前（等著點第 1 個位置）
-    await photo.getByRole('button', { name: /^復原/ }).click();
+    // 自己描的取代自動描的那條（不會變成兩筆、被判成斷開）
+    await expect(photo.locator('.palm-note')).toHaveText('已改用你描的生命線（自動描的那條拿掉了）。');
+    await expect(picker.locator('.palm-step').filter({ has: page.locator('b', { hasText: /^生命線$/ }) })).toContainText('長、弧度大');
+    // 復原三次：自己描的 → 自動描線 → 自動找位置，回到等著點第 1 個位置
+    await photo.getByRole('button', { name: '復原：描生命線' }).click();
+    await photo.getByRole('button', { name: '復原：自動描線' }).click();
     await photo.getByRole('button', { name: '復原：自動找三個位置' }).click();
     await expect(photo.locator('.palm-instr')).toContainText('1／3');
   });

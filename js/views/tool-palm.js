@@ -9,8 +9,9 @@ import { traitScale } from '../ui/widgets.js';
 import { playWhenVisible } from '../ui/motion.js';
 import { palmDiagram, palmThumb, diagramFields, traceGuide, photoExamples, practicePalm, PRACTICE_ANSWER } from '../ui/palm-chart.js';
 import {
-  CALIB, newPhoto, freePhoto, readPhoto, enhancedCanvas, sampleGray, frameOf, uvTraces, copyStrokes, tracedLines, changedLines, photoCanvas,
+  CALIB, newPhoto, freePhoto, readPhoto, enhancedCanvas, sampleGray, frameOf, uvTraces, copyStrokes, tracedLines, changedLines, photoCanvas, traceInput,
 } from '../ui/palm-photo.js';
+import { traceLines } from '../core/palm-lines.js';
 import {
   activeFields, sanitizePicks, simplifyStroke, suggestPicks, photoAdvice, compareHands, handRole, mainHand, HAND_SCHOOLS,
   mergeSuggestions, TRACE_LINES,
@@ -80,7 +81,7 @@ function setPhoto(hand, ph) {
 // 復原用的狀態：照片本身（參照）＋校正點、筆畫的淺拷貝（點陣列建立後不再修改）
 function snap(hand) {
   const ph = session.photos[hand];
-  return ph ? { ph, calib: { ...ph.calib }, strokes: copyStrokes(ph.strokes), advice: ph.advice, sideOk: ph.sideOk } : { ph: null };
+  return ph ? { ph, calib: { ...ph.calib }, strokes: copyStrokes(ph.strokes), auto: { ...(ph.auto || {}) }, advice: ph.advice, sideOk: ph.sideOk } : { ph: null };
 }
 
 // 草稿：iPhone 切到 LINE 再回來常常整頁重載，還沒按儲存的選擇會不見。每次改動就把選項代碼（不含照片）
@@ -264,6 +265,7 @@ export function drawPalm(p, { ctx, actions }) {
     if (ph) {
       ph.calib = { ...state.calib };
       ph.strokes = copyStrokes(state.strokes);
+      ph.auto = { ...(state.auto || {}) };
       ph.advice = state.advice;
       ph.sideOk = state.sideOk;
     }
@@ -309,8 +311,15 @@ export function drawPalm(p, { ctx, actions }) {
       paintPhoto();
       return;
     }
-    const n = (ph.strokes[field] || []).length + 1;
+    // 這條原本是自動描的：改用自己描的（兩筆疊在一起會被判成分岔、斷開或雙重線）
+    const wasAuto = !!(ph.auto && ph.auto[field]);
+    const n = wasAuto ? 1 : (ph.strokes[field] || []).length + 1;
     record(`描${LINE_NAME[field]}${n > 1 ? `（第 ${n} 筆）` : ''}`);
+    if (wasAuto) {
+      delete ph.strokes[field];
+      delete ph.auto[field];
+      session.note = { hand: session.hand, text: `已改用你描的${LINE_NAME[field]}（自動描的那條拿掉了）。` };
+    }
     (ph.strokes[field] = ph.strokes[field] || []).push(pts);
     applySuggestions([field]);
     repaintAfter();
@@ -322,6 +331,7 @@ export function drawPalm(p, { ctx, actions }) {
     if (!(ph.strokes[t] || []).length) return;
     record(`清除${LINE_NAME[t]}`);
     delete ph.strokes[t];
+    if (ph.auto) delete ph.auto[t];
     applySuggestions([t]);
     repaintAfter();
   }
@@ -358,8 +368,56 @@ export function drawPalm(p, { ctx, actions }) {
     const fr = frameOf(ph);
     ph.advice = photoAdvice(sampleGray(ph, fr), fr.width / ph.w);
     applySuggestions(tracedLines(ph));
-    session.note = { hand, text: '已自動放好三個位置：看看三個圈是不是在食指根部、小指根部和手腕中間；不準就按「重新點三個位置」自己點。' };
+    // 接著自動描線（使用者要的是全自動）；描線另記一步，覺得描錯可以只復原描線
+    const traced = autoTrace({ silent: true });
+    session.note = { hand, text: `已自動放好三個位置（看看三個圈是不是在食指根部、小指根部和手腕中間，不準就按「重新點三個位置」）。${traced || ''}` };
     repaintAfter();
+  }
+
+  /**
+   * 自動描四條主線（core/palm-lines.js）：自己描過的線不動，只描還沒描的、或之前自動描的。
+   * 描到的畫成虛線；找不到的說清楚原因（事業線很多人很淡或沒有）。silent：不重畫、只回傳說明文字（接在自動找位置後面用）。
+   * @returns {string|null} 說明文字
+   */
+  function autoTrace({ silent = false } = {}) {
+    const hand = session.hand;
+    const ph = curPhoto();
+    if (!ph || ph.demo || !frameOf(ph)) return null;
+    ph.auto = ph.auto || {};
+    const lines = MAIN_LINES.filter((l) => !(ph.strokes[l] || []).length || ph.auto[l]);
+    if (!lines.length) {
+      session.note = { hand, text: '四條線都是你自己描的，不用自動描。要重來的話，先選一條按「清除」。' };
+      if (!silent) paintPhoto();
+      return null;
+    }
+    const input = traceInput(ph);
+    const r = traceLines(input.gray, input.w, input.h, input.frame);
+    const fr = frameOf(ph);
+    record('自動描線');
+    const found = [];
+    const missing = [];
+    for (const l of lines) {
+      delete ph.strokes[l];
+      delete ph.auto[l];
+      if (r.strokes[l]) {
+        ph.strokes[l] = r.strokes[l].map((st) => st.map((q) => fr.toXY(q)));
+        ph.auto[l] = true;
+        found.push(LINE_NAME[l]);
+      } else missing.push(l);
+    }
+    applySuggestions(lines);
+    const parts = [];
+    if (found.length) parts.push(`自動描好：${found.join('、')}（虛線），對照照片看看描得對不對；不對的那條直接自己描，會取代自動描的。`);
+    const lost = missing.filter((l) => l !== 'fate').map((l) => LINE_NAME[l]);
+    if (lost.length) parts.push(`沒找到${lost.join('、')}：光線太暗、反光或手掌沒攤平都會看不清楚，可以自己描或重拍。`);
+    if (missing.includes('fate')) parts.push('事業線看起來很淡或沒有（很多人都這樣）；有的話自己描。');
+    if (r.simianHint) parts.push('感情線和智慧線看起來可能連成一條（斷掌）：請對照照片，在上面「看圖選」確認斷掌的選項。');
+    const text = parts.join('');
+    if (!silent) {
+      session.note = { hand, text };
+      repaintAfter();
+    }
+    return text;
   }
 
   function resetCalib() {
@@ -513,12 +571,20 @@ export function drawPalm(p, { ctx, actions }) {
         h('p', { class: 'palm-instr' }, h('span', { class: 'badge', text: `${at + 1}／3` }), ' ', h('span', { text: `點照片上的「${next.text}」` })),
         h('p', { class: 'small muted', text: '照左邊的示範圖點。按住可以滑動微調，放開才算；手指按著時，角落的放大鏡看得到手指底下。' }),
         ph.demo ? null : h('div', { class: 'palm-auto' },
-          h('button', { type: 'button', class: 'btn small primary', text: locating ? '辨識中…' : '自動找三個位置', disabled: locating, onclick: autoLocate }),
+          h('button', { type: 'button', class: 'btn small primary', text: locating ? '辨識中…' : '自動找位置並描線', disabled: locating, onclick: autoLocate }),
           locating ? locLine : h('p', { class: 'small muted', text: `用手部辨識模型在手機上找，照片不會上傳；第一次要下載約 ${MP_MB}MB（建議連 Wi-Fi）。` })))
       : h('div', { class: 'palm-how' },
         h('p', { class: 'palm-instr' }, h('b', { text: `描${LINE_NAME[target]}` })),
         h('p', { class: 'small', text: TRACE_HOW[target] }),
-        h('p', { class: 'small muted', text: '斷開、分岔或有兩條，就分成幾筆描；描錯了按「復原」。' }));
+        h('p', { class: 'small muted', text: '斷開、分岔或有兩條，就分成幾筆描；描錯了按「復原」。' }),
+        ph.demo ? null : h('div', { class: 'palm-auto' },
+          h('button', {
+            type: 'button',
+            class: 'btn small primary',
+            text: MAIN_LINES.some((l) => ph.auto && ph.auto[l]) ? '重新自動描線' : '自動描四條線',
+            onclick: () => autoTrace(),
+          }),
+          h('p', { class: 'small muted', text: '在手機上找生命線、智慧線、感情線、事業線，畫成虛線；自己描過的線不會動。' })));
     const count = (l) => (ph.strokes[l] || []).length;
     const chips = next ? null : h('div', { class: 'palm-steps', role: 'group', 'aria-label': '要描哪條線' }, TARGETS.map((t) => h('button', {
       type: 'button',

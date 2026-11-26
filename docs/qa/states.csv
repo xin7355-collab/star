@@ -277,3 +277,9 @@ AR 星空,data_view,long_content,DONE,code:css/app.css .ar-list-items 最多 28v
 掌紋自動定位,action,disabled,DONE,code:js/views/tool-palm.js 辨識中按鈕停用並顯示「辨識中…」；練習用的範例手掌不提供,
 掌紋自動定位,action,busy,DONE,code:js/ui/hand-detect.js 下載百分比（第一次約 22MB）→「辨識中…」,
 掌紋自動定位,action,failure,DONE,e2e:模型下載失敗說明並可再試；沒找到手、角度不對（側面）都請他重拍或手動點,
+掌紋自動描線,action,default,DONE,e2e:掌紋自動描線：手動點好三個位置後一鍵描四條線（判成範例手掌的答案）、自己描過的線不會被動到、可以重新自動描,
+掌紋自動描線,action,hover,NA,,觸控裝置為主
+掌紋自動描線,action,focus_visible,DONE,code:css/app.css 全站共用的 :focus-visible 金色外框,
+掌紋自動描線,action,disabled,DONE,code:js/views/tool-palm.js 還沒點好三個位置時不顯示；練習用的範例手掌不顯示；四條都自己描的會說明不用自動描,
+掌紋自動描線,action,busy,NA,,在手機上同步計算（縮到掌寬 320px，約 0.05 秒），沒有等待畫面
+掌紋自動描線,action,failure,DONE,test:tests/palm-lines.test.js 空白手掌不描假線；畫面說明沒找到哪幾條、原因與做法，事業線很淡、可能斷掌另外提醒,
