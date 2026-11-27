@@ -655,7 +655,7 @@ export function mountDestiny(root, ctx) {
 
   // ── 瑪雅曆：上面是 13 月亮曆銀河印記，下面是瑪雅密碼 A～E（另一套算法，預設收起）
   async function drawMaya(p, input) {
-    const [{ computeMaya, compareMaya }, { MAYA_POSITION_TEXT, MAYA_KEYWORD_TEXT }, MK, MT, MG] = await Promise.all([
+    const [{ computeMaya, compareMaya, explainCompare }, { MAYA_POSITION_TEXT, MAYA_KEYWORD_TEXT }, MK, MT, MG] = await Promise.all([
       import('../core/maya.js'), import('../core/reading-texts.js'), import('../core/maya-kin.js'), import('../core/maya-texts.js'), import('../ui/maya-glyphs.js')]);
     const kinCards = mayaKinCards(p, input, MK, MT, MG);
     const r = computeMaya(input.date, mayaTwinTime(p, input));
@@ -667,16 +667,26 @@ export function mountDestiny(root, ctx) {
       sel.value = compareId && others.some((x) => x.id === compareId) ? compareId : '';
       const other = others.find((x) => x.id === sel.value);
       let table = null;
+      let explain = null;
       if (other) {
         const oi = ctx.inputOf(other);
         if (oi) {
           const rows = compareMaya(r, computeMaya(oi.date));
           table = h('table', { class: 'compare' }, h('thead', {}, h('tr', {}, h('th', { text: '' }), h('th', { text: p.name }), h('th', { text: other.name }))), h('tbody', {}, rows.map((x) => h('tr', { class: x.same ? 'same' : '' }, h('th', { scope: 'row', text: x.label }), h('td', { text: x.a ?? '—' }), h('td', { text: x.b ?? '—' })))));
+          // 每個位置一句白話：上一版只有數字表（使用者回饋「沒有詳細說明」）
+          const ex = explainCompare(rows, p.name, other.name, MAYA_KEYWORD_TEXT);
+          explain = [
+            h('p', { class: 'gold', text: `${ex.total} 個位置裡有 ${ex.same} 個一樣：${ex.verdict}` }),
+            h('ul', { class: 'reasons' }, ex.lines.map((l) => h('li', { class: l.same ? 'tone-good' : 'tone-info', text: l.text }))),
+          ];
+        } else {
+          explain = h('p', { class: 'warn', text: `${other.name}的生日資料不完整，算不出瑪雅密碼；請到「我的」編輯重新儲存。` });
         }
       }
       compareBlock = h('div', { class: 'field' }, h('span', { class: 'field-label', text: '合盤' }), sel,
         h('p', { class: 'hint', text: '合盤是把兩個人的 A～E 並排：數字一樣的位置（有底色），代表你們在那個面向有相同的課題，比較容易懂彼此；不一樣的地方是可以互相學習的部分。' }),
-        table ? h('div', { class: 'table-wrap' }, table) : null);
+        table ? h('div', { class: 'table-wrap' }, table) : null,
+        explain);
     }
     // 瑪雅密碼是使用者提供的 V1 規則，和上面的 KIN 是不同算法：預設收起來，兩套數字才不會混在一起看。
     // 多胞胎預設打開：只有它能把出生時分加進去、把手足分開。
@@ -750,25 +760,47 @@ export function mountDestiny(root, ctx) {
       const other = others.find((x) => x.id === sel.value);
       const oi = other ? ctx.inputOf(other) : null;
       const theirs = oi ? MK.mayaKin(oi.date) : null;
-      let body = h('p', { class: 'muted small', text: '選一個人：看你們的圖騰落在彼此五大神諭的哪個位置，也就是對方常在你生活裡扮演什麼角色。' });
+      let body = h('p', { class: 'muted small', text: '選一個人：看你們的主要關係、圖騰落在彼此五大神諭的哪個位置、顏色和調性怎麼搭，以及相處建議。' });
       if (theirs) {
-        const r = MK.pairRelation(theirs.kin, kin);
+        // 每一對都有主要關係：圖騰不在彼此神諭裡（約六成）時看顏色的搭配；上一版這種情況只有一句「沒有連結」（使用者回饋「沒有合盤後的結果」）
+        const r = MK.pairSummary(kin, theirs.kin);
+        const M = MT.PAIR_MAIN[r.main];
+        const me = p.self ? '你' : p.name;
         const ROLES = ['analog', 'antipode', 'occult', 'guide'];
-        const say = (type, who) => (type === 'color' ? `同屬${MT.COLOR_TEXT[who.seal.color].name}家族：${MT.PAIR_RELATION_TEXT.color}` : MT.PAIR_RELATION_TEXT[type]);
+        const say = (type) => MT.PAIR_RELATION_TEXT[type];
         const figure = (x, label) => h('figure', { class: 'pair-kin' }, MG.mayaGlyph(x.seal.n, { tone: x.tone.n, label: `${label}：KIN ${x.kin} ${x.title}` }), h('figcaption', {}, h('b', { text: label }), h('span', { text: `KIN ${x.kin} ${x.title}` })));
+        // 圖騰的位置：支持、挑戰、隱藏推動、引導說「誰落在誰的哪裡」；同 KIN、同圖騰是兩個人一起的狀態；同色交給下面的顏色那一行
+        const both = r.otherInMine === r.mineInOther;
+        const posLines = both && ROLES.includes(r.otherInMine) ? [h('li', { class: 'tone-good' }, h('b', { text: '圖騰位置：你們互相落在對方的' }), h('span', { text: say(r.otherInMine) }))]
+          : both && ['return', 'seal'].includes(r.otherInMine) ? [h('li', { class: 'tone-good' }, h('b', { text: '圖騰位置：' }), h('span', { text: say(r.otherInMine) }))]
+            : [
+              ROLES.includes(r.otherInMine) ? h('li', { class: 'tone-good' }, h('b', { text: `圖騰位置：${other.name}落在${me}的` }), h('span', { text: say(r.otherInMine) })) : null,
+              ROLES.includes(r.mineInOther) ? h('li', { class: 'tone-good' }, h('b', { text: `圖騰位置：${me}落在${other.name}的` }), h('span', { text: say(r.mineInOther) })) : null,
+              r.otherInMine === 'none' && r.mineInOther === 'none' ? h('li', { class: 'tone-info', text: '圖騰位置：彼此都不在對方的五大神諭裡，所以主要看顏色的搭配。' }) : null,
+            ].filter(Boolean);
+        const myC = MT.COLOR_TEXT[seal.color];
+        const thC = MT.COLOR_TEXT[theirs.seal.color];
+        const myT = MT.TONE_TEXT[tone.n];
+        const thT = MT.TONE_TEXT[theirs.tone.n];
+        const toneLine = r.sameTone ? `同調性「${tone.name}」：做事的節奏相近，「${myT.key}」是你們共同的功課。`
+          : r.toneSum14 ? `${me}是 ${tone.n}・${tone.name}、${other.name}是 ${theirs.tone.n}・${theirs.tone.name}，相加是 14：在 13 天的波符裡一前一後、位置對稱，節奏剛好互補。`
+            : `${me}是調性 ${tone.n}「${myT.key}」、${other.name}是調性 ${theirs.tone.n}「${thT.key}」：一個重${myT.key}、一個重${thT.key}，分工時各拿擅長的那一段。`;
         body = [
           h('div', { class: 'pair-row' }, figure(mine, p.name), figure(theirs, other.name)),
+          h('div', { class: 'pair-main' }, h('span', { class: 'field-label', text: '主要關係' }), h('span', { class: `badge ${['antipode', 'antipodeColor'].includes(r.main) ? 'alt' : 'good'}`, text: M.label }), h('b', { text: M.head })),
+          h('p', { text: M.text }),
           h('ul', { class: 'reasons' },
-            // 位置類（支持、挑戰、隱藏推動、引導）說「誰落在誰的哪個位置」；同 KIN、同圖騰、同色、沒有連結是兩個人一起的狀態
-            r.otherInMine === r.mineInOther
-              ? h('li', { class: 'tone-good' }, h('b', { text: ROLES.includes(r.otherInMine) ? '你們互相落在對方的' : '你們兩個：' }), h('span', { text: say(r.otherInMine, mine) }))
-              : [
-                ROLES.includes(r.otherInMine) ? h('li', { class: 'tone-good' }, h('b', { text: `${other.name}落在你的` }), h('span', { text: say(r.otherInMine, mine) })) : null,
-                ROLES.includes(r.mineInOther) ? h('li', { class: 'tone-good' }, h('b', { text: `你落在${other.name}的` }), h('span', { text: say(r.mineInOther, theirs) })) : null,
-                r.otherInMine === 'color' || r.mineInOther === 'color' ? h('li', { class: 'tone-good' }, h('b', { text: '你們兩個：' }), h('span', { text: say('color', mine) })) : null,
-              ],
-            r.sameTone ? h('li', { class: 'tone-info', text: `同調性「${tone.name}」：做事的節奏相近，${MT.TONE_TEXT[tone.n].key}是你們共同的功課。` }) : null,
-            r.sameWavespell ? h('li', { class: 'tone-info', text: `出生在同一個波符（${mine.wavespell.seal.name}波符）：人生大方向的主題相似。` }) : null),
+            posLines,
+            h('li', { class: 'tone-info' }, h('b', { text: '顏色：' }), h('span', { text: `${me}是${myC.name}（${myC.key}）、${other.name}是${thC.name}（${thC.key}）——${MT.COLOR_PAIR_TEXT[r.color]}` })),
+            h('li', { class: 'tone-info' }, h('b', { text: '調性：' }), h('span', { text: toneLine })),
+            r.sameWavespell ? h('li', { class: 'tone-info', text: `同一個波符（${mine.wavespell.seal.name}波符）：人生大方向的主題相似。` }) : null),
+          h('h3', { text: '你們各自帶給對方' }),
+          h('ul', { class: 'reasons' },
+            h('li', { class: 'tone-good' }, h('b', { text: `${me}（${seal.name}）帶給${other.name}：` }), h('span', { text: MT.SEAL_TEXT[seal.n].gift })),
+            h('li', { class: 'tone-good' }, h('b', { text: `${other.name}（${theirs.seal.name}）帶給${me}：` }), h('span', { text: MT.SEAL_TEXT[theirs.seal.n].gift }))),
+          h('h3', { text: '相處建議' }),
+          h('ul', { class: 'reasons' }, M.tips.map((t) => h('li', { class: 'tone-good', text: t }))),
+          h('details', { class: 'more', id: 'maya-pair-howto' }, h('summary', { text: '合盤怎麼看（規則與限制）' }), h('ul', { class: 'plain small' }, MT.PAIR_HOWTO.map((t) => h('li', { text: t })))),
           h('p', { class: 'hint', text: MT.PAIR_NOTE }),
         ];
       } else if (other) {

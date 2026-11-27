@@ -2,8 +2,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { kinOf, kinInfo, kinFrom, oracleOf, mayaKin, validDate, toneBarsDots, sealOf, toneOf, yearKin, dayRelation, nextKinDate, pairRelation, SEALS, TONES } from '../js/core/maya-kin.js';
-import { DAY_RELATION_TEXT, PAIR_RELATION_TEXT } from '../js/core/maya-texts.js';
+import { kinOf, kinInfo, kinFrom, oracleOf, mayaKin, validDate, toneBarsDots, sealOf, toneOf, yearKin, dayRelation, nextKinDate, pairRelation, colorRelation, pairSummary, SEALS, TONES } from '../js/core/maya-kin.js';
+import { DAY_RELATION_TEXT, PAIR_RELATION_TEXT, PAIR_MAIN, COLOR_PAIR_TEXT, PAIR_HOWTO } from '../js/core/maya-texts.js';
 
 test('查證過的日期：年名、yokai.jp 的 KIN 34、2012 冬至', () => {
   const name = (date) => kinInfo(kinOf(date)).title;
@@ -135,4 +135,45 @@ test('合盤：支持、挑戰、隱藏推動、同圖騰、沒有連結都是�
       assert.ok(PAIR_RELATION_TEXT[r.otherInMine] && PAIR_RELATION_TEXT[r.mineInOther], `${a}/${b}`);
     }
   }
+});
+
+test('合盤的顏色搭配：神諭三個位置的顏色固定成對（支持紅白／藍黃、挑戰紅藍／白黃、隱藏推動紅黃／白藍），同色是引導的家族', () => {
+  for (let seal = 1; seal <= 20; seal += 1) {
+    const o = oracleOf(kinFrom(seal, 1));
+    assert.equal(colorRelation(seal, o.analog.seal), 'analog', `${seal}`);
+    assert.equal(colorRelation(seal, o.antipode.seal), 'antipode', `${seal}`);
+    assert.equal(colorRelation(seal, o.occult.seal), 'occult', `${seal}`);
+    assert.equal(colorRelation(seal, seal), 'same');
+  }
+  // 紅龍（1）和白風（2）支持色、藍夜（3）挑戰色、黃種子（4）推動色
+  assert.deepEqual([2, 3, 4].map((s) => colorRelation(1, s)), ['analog', 'antipode', 'occult']);
+  assert.deepEqual(Object.keys(COLOR_PAIR_TEXT).sort(), ['analog', 'antipode', 'occult', 'same']);
+});
+
+test('合盤：每一對都有主要關係——上一版約六成的配對只有一句「沒有連結」；不在神諭裡就看顏色的搭配', () => {
+  // 1990/8/15 KIN 109 超頻紅月 × 1962/11/20 KIN 126 太陽白世界橋：不在彼此神諭裡，紅白是支持色；調性 5＋9＝14
+  const a = pairSummary(109, 126);
+  assert.equal(a.main, 'analogColor');
+  assert.equal(a.toneSum14, true);
+  assert.equal(pairSummary(109, 235).main, 'antipodeColor'); // 紅月 × 磁性藍鷹：紅藍挑戰色
+  assert.equal(pairSummary(109, 70).main, 'analog');
+  assert.equal(pairSummary(109, 57).main, 'guide');
+  assert.equal(pairSummary(109, 109).main, 'return');
+  let none = 0;
+  let total = 0;
+  for (let x = 1; x <= 260; x += 1) {
+    for (let y = 1; y <= 260; y += 1) {
+      if (x === y) continue;
+      const r = pairSummary(x, y);
+      total += 1;
+      if (r.otherInMine === 'none' && r.mineInOther === 'none') {
+        none += 1;
+        assert.ok(r.main.endsWith('Color') && r.main !== 'sameColor', `${x}/${y} ${r.main}`);
+      }
+      assert.ok(PAIR_MAIN[r.main], `${x}/${y} ${r.main}`);
+    }
+  }
+  assert.ok(none / total > 0.55 && none / total < 0.65, `沒有連結的比例 ${none / total}`);
+  for (const m of Object.values(PAIR_MAIN)) assert.ok(m.label && m.head && m.text && m.tips.length >= 2);
+  assert.ok(PAIR_HOWTO.some((t) => /兩個 KIN 相加/.test(t)), '說明沒採用的算法');
 });

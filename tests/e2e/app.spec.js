@@ -200,7 +200,7 @@ test('切換查看的人：頁首同一個選單，在命盤換人，今日、�
   await expect(page.getByRole('combobox', { name: '目前查看的人' })).toHaveValue(ME.id);
 });
 
-test('瑪雅合盤：選一個人看彼此落在對方五大神諭的位置；瑪雅密碼的合盤跟著選同一個人、有說明', async ({ page }) => {
+test('瑪雅合盤：每一對都有主要關係（不在神諭裡就看顏色搭配）、各自帶給對方、相處建議、規則說明；瑪雅密碼的合盤跟著選同一個人、每個位置有白話', async ({ page }) => {
   await seed(page, [ME, MOM]);
   await page.goto('/');
   await tab(page, 'destiny');
@@ -209,13 +209,25 @@ test('瑪雅合盤：選一個人看彼此落在對方五大神諭的位置；�
   const card = dv.locator('section.card', { hasText: '銀河印記合盤' });
   await expect(card).toContainText('選一個人');
   await card.getByRole('combobox', { name: '和誰合盤（銀河印記）' }).selectOption(MOM.id);
-  // 1990/8/15＝KIN 109 超頻紅月、1962/11/20＝KIN 126 太陽白世界橋：彼此都不在對方的五大神諭裡
+  // 1990/8/15＝KIN 109 超頻紅月、1962/11/20＝KIN 126 太陽白世界橋：彼此都不在對方的五大神諭裡（上一版只有這一句，等於沒有結果）
+  // → 主要關係看顏色：紅白是支持色；調性 5＋9＝14
   await expect(card.getByRole('img', { name: '媽媽：KIN 126 太陽白世界橋' })).toBeVisible();
-  await expect(card).toContainText('你們兩個：彼此都不在對方的五大神諭裡');
+  await expect(card.locator('.pair-main')).toContainText('支持色');
+  await expect(card.locator('.pair-main')).toContainText('互補的搭檔');
+  await expect(card).toContainText('圖騰位置：彼此都不在對方的五大神諭裡，所以主要看顏色的搭配。');
+  await expect(card).toContainText('你是紅色（開創）、媽媽是白色（精煉）');
+  await expect(card).toContainText('相加是 14');
+  await expect(card.getByRole('heading', { name: '你們各自帶給對方' })).toBeVisible();
+  await expect(card.getByRole('heading', { name: '相處建議' })).toBeVisible();
+  await card.locator('summary', { hasText: '合盤怎麼看' }).click();
+  await expect(card.locator('#maya-pair-howto')).toContainText('大約六成');
   await dv.locator('details.maya-code > summary').click();
   await expect(dv.getByRole('combobox', { name: '和誰合盤', exact: true })).toHaveValue(MOM.id);
   await expect(dv.getByText(/合盤是把兩個人的 A～E 並排/)).toBeVisible();
-  await expect(dv.locator('details.maya-code table.compare')).toBeVisible();
+  const code = dv.locator('details.maya-code');
+  await expect(code.locator('table.compare')).toBeVisible();
+  await expect(code).toContainText(/5 個位置裡有 \d 個一樣：/);
+  await expect(code.locator('li', { hasText: '前世 A：我是' })).toContainText('媽媽是');
 });
 
 test('姓名：藝名和本名並排比較（存在手機、可移除）；匿名試算不儲存、可比多個名字', async ({ page }) => {

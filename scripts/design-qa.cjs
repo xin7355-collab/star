@@ -208,6 +208,13 @@ async function tour(browser, width, prefix, opts) {
   await tool(page, 'maya');
   await page.waitForSelector('#view-destiny .kin-hero');
   files.push(await snap(page, `${prefix}maya`, width));
+  // 銀河印記合盤：名單有兩個人以上時選第一個人，量主要關係、相處建議、規則說明和瑪雅密碼的逐項白話（snap 會打開摺疊）
+  const pairSel = page.locator('#view-destiny').getByRole('combobox', { name: '和誰合盤（銀河印記）' });
+  if (await pairSel.count()) {
+    await pairSel.selectOption(await pairSel.locator('option').nth(1).getAttribute('value'));
+    await page.waitForSelector('#view-destiny .pair-main');
+    files.push(await snap(page, `${prefix}maya-pair`, width));
+  }
   // 掌紋：一般組還沒選（解讀區是空的提示），長內容組兩隻手都選滿
   await tool(page, 'palm');
   await page.waitForSelector('#view-destiny .palm-options');

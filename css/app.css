@@ -1123,6 +1123,9 @@ path.palm-line.pl-life, path.palm-line.pl-head, path.palm-line.pl-heart, path.pa
 .pair-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0 4px; }
 .pair-kin { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
 .pair-kin svg { width: 72px; }
+/* 合盤的主要關係：標籤＋一句話結論，窄螢幕自動換行 */
+.pair-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 2px; }
+.pair-main .field-label { margin: 0; }
 .pair-kin figcaption { display: flex; flex-direction: column; font-size: 14px; }
 .kin-relation p { margin: 0 0 4px; }
 .kin-no { color: var(--gold); font-weight: 800; letter-spacing: 0.06em; }

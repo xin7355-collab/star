@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildZiwei, timeIndexOf, GRID } from '../js/core/ziwei.js';
-import { computeMaya, compareMaya } from '../js/core/maya.js';
+import { computeMaya, compareMaya, explainCompare } from '../js/core/maya.js';
+import { MAYA_KEYWORD_TEXT } from '../js/core/reading-texts.js';
 import { lifePath, grid, gridWithTalent, LINES, MISSING_TEXT, MANY_TEXT } from '../js/core/numerology.js';
 import { chengGu, shichenIndex, formatWeight } from '../js/core/chenggu.js';
 import { computeFortune } from '../js/core/fortune.js';
@@ -105,4 +106,23 @@ test('運勢：今年每月取 4 天，產出 12 個月與最佳／最需保守�
   assert.equal(f.months.length, 12);
   assert.ok(f.best.m >= 1 && f.best.m <= 12);
   assert.match(f.summary, /月份/);
+});
+
+test('瑪雅密碼合盤的白話：幾個位置一樣、每個位置一句話；例外年份的格子寫不適用', () => {
+  const me = computeMaya({ y: 1990, m: 8, d: 15 });
+  const mom = computeMaya({ y: 1963, m: 3, d: 9 });
+  const ex = explainCompare(compareMaya(me, mom), '我', '媽媽', MAYA_KEYWORD_TEXT);
+  assert.equal(ex.total, 5);
+  assert.equal(ex.same, compareMaya(me, mom).filter((r) => r.same).length);
+  assert.equal(ex.lines.length, 5);
+  for (const l of ex.lines) assert.ok(!/undefined|null|。）/.test(l.text), l.text);
+  const same = ex.lines.find((l) => l.same);
+  assert.match(same.text, /兩個人都是/);
+  assert.match(ex.lines.find((l) => !l.same).text, /我是 \d+「.+」.*媽媽是 \d+「.+」/);
+  const mirror = explainCompare(compareMaya(me, me), '我', '我', MAYA_KEYWORD_TEXT);
+  assert.match(mirror.verdict, /像照鏡子/);
+  const kid = computeMaya({ y: 2015, m: 5, d: 5 }); // 例外年份：A、B 不適用
+  const ek = explainCompare(compareMaya(me, kid), '我', '小孩', MAYA_KEYWORD_TEXT);
+  assert.equal(ek.total, 3);
+  assert.equal(ek.lines.filter((l) => /不適用/.test(l.text)).length, 2);
 });

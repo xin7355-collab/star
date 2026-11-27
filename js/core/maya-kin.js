@@ -179,6 +179,36 @@ export function pairRelation(otherKin, myKin) {
   };
 }
 
+/**
+ * 兩個圖騰的顏色是哪一種搭配：支持、挑戰、隱藏推動三個位置的圖騰顏色固定成對
+ * （支持：紅白、藍黃；挑戰：紅藍、白黃；隱藏推動：紅黃、白藍），同色是引導的家族。
+ * 用神諭本身的圖騰算，不另外背表：兩個人的圖騰不在彼此神諭裡（約六成的配對）時，還看得出是哪一種搭配。
+ * @returns {'same'|'analog'|'antipode'|'occult'}
+ */
+export function colorRelation(sealA, sealB) {
+  const colorOf = (n) => SEALS[n - 1].color;
+  if (colorOf(sealA) === colorOf(sealB)) return 'same';
+  const o = oracleOf(kinFrom(sealA, 1));
+  for (const key of ['analog', 'antipode', 'occult']) if (colorOf(o[key].seal) === colorOf(sealB)) return key;
+  return 'same'; // 走不到：四種顏色剛好是自己＋三個位置
+}
+
+// 主要關係的順序：越貼近的越前面（同一個 KIN ＞ 同圖騰 ＞ 支持 ＞ 挑戰 ＞ 隱藏推動 ＞ 引導 ＞ 同色）
+const MAIN_ORDER = ['return', 'seal', 'analog', 'antipode', 'occult', 'guide', 'color'];
+
+/**
+ * 合盤的整理：除了彼此在神諭裡的位置（pairRelation），每一對都給一個「主要關係」——
+ * 上一版大約六成的配對只得到一句「彼此都不在對方的五大神諭裡」，等於沒有結果（使用者回饋）。
+ * 都不在神諭裡時，主要關係改看顏色的搭配（analogColor／antipodeColor／occultColor）。
+ * toneSum14：調性相加是 14，就是隱藏推動的調性（KIN 相加 261 的那一組）。
+ */
+export function pairSummary(myKin, otherKin) {
+  const r = pairRelation(otherKin, myKin);
+  const color = colorRelation(sealOf(myKin), sealOf(otherKin));
+  const main = MAIN_ORDER.find((t) => r.otherInMine === t || r.mineInOther === t) || `${color}Color`;
+  return { ...r, color, main, toneSum14: toneOf(myKin) + toneOf(otherKin) === 14 };
+}
+
 /** 下一次（含今天）KIN 等於 kin 的日子：銀河生日 260 天一次，中間遇到 2/29 會晚一天 */
 export function nextKinDate(from, kin) {
   if (!validDate(from)) return null;
