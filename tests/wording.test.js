@@ -33,7 +33,7 @@ test('斷掌說明：提到民俗說法沒有根據，並說明是常見的天�
 
 test('塔羅文字（牌義、牌位讀法、總結）與配對的「老師怎麼看」：同樣不出現宿命、恐嚇、打包票的字眼', async () => {
   const { readFile } = await import('node:fs/promises');
-  for (const file of ['js/core/tarot.js', 'js/core/tarot-reading.js', 'js/views/tarot.js', 'js/core/couple.js', 'js/ui/master.js', 'js/core/master-texts.js', 'js/core/jobs.js', 'js/core/occupations.js', 'js/views/job-picker.js', 'js/core/work-profile.js', 'js/core/quiz.js', 'js/views/multi-picker.js', 'js/views/quiz-card.js']) {
+  for (const file of ['js/core/tarot.js', 'js/core/tarot-reading.js', 'js/views/tarot.js', 'js/core/couple.js', 'js/ui/master.js', 'js/core/master-texts.js', 'js/core/jobs.js', 'js/core/occupations.js', 'js/views/job-picker.js', 'js/core/work-profile.js', 'js/core/quiz.js', 'js/views/multi-picker.js', 'js/views/quiz-card.js', 'js/core/maya-master.js', 'js/core/maya-texts.js']) {
     const src = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
     for (const word of BANNED) assert.ok(!src.includes(word), `「${word}」出現在 ${file}`);
   }

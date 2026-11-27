@@ -132,7 +132,7 @@ test('合盤：支持、挑戰、隱藏推動、同圖騰、沒有連結都是�
     for (let b = 1; b <= 260; b += 1) {
       const r = pairRelation(a, b);
       if (['return', 'seal', 'analog', 'antipode', 'occult', 'none'].includes(r.otherInMine)) assert.equal(r.mineInOther, r.otherInMine, `${a}/${b}`);
-      assert.ok(PAIR_RELATION_TEXT[r.otherInMine] && PAIR_RELATION_TEXT[r.mineInOther], `${a}/${b}`);
+      for (const t of [r.otherInMine, r.mineInOther]) if (['analog', 'antipode', 'occult', 'guide'].includes(t)) assert.ok(PAIR_RELATION_TEXT[t], `${a}/${b} ${t}`);
     }
   }
 });
@@ -174,6 +174,6 @@ test('合盤：每一對都有主要關係——上一版約六成的配對只�
     }
   }
   assert.ok(none / total > 0.55 && none / total < 0.65, `沒有連結的比例 ${none / total}`);
-  for (const m of Object.values(PAIR_MAIN)) assert.ok(m.label && m.head && m.text && m.tips.length >= 2);
+  for (const m of Object.values(PAIR_MAIN)) assert.ok(m.label && m.head && m.tips.length >= 2);
   assert.ok(PAIR_HOWTO.some((t) => /兩個 KIN 相加/.test(t)), '說明沒採用的算法');
 });
