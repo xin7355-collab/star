@@ -760,6 +760,9 @@ test('工作選單包含官方職業分類全部職業：口語搜尋、注音�
   await s1.press('Enter');
   await expect(s1).not.toBeFocused();
   await expect(form.locator('.job-summary')).toContainText('現在：機車駕駛人員');
+  // 現在的工作不會出現在想做的工作裡（選了會被濾掉，像按了沒反應）
+  await s1.fill('機車駕駛');
+  await expect(form.getByText('找不到「機車駕駛」')).toBeVisible();
   await s1.fill('土木');
   await form.locator('.job-hit', { has: page.locator('b', { hasText: /^土木工程師$/ }) }).click();
   // 從大類找：0 軍人

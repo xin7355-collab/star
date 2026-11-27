@@ -277,15 +277,15 @@ function termScore(e, t) {
 
 /**
  * 搜尋工作（常見工作＋官方職業）。好幾個詞要全部對上；常見工作同分時排前面（名稱比較口語）。
- * 也可以直接打官方代碼（例如 2512）
+ * 也可以直接打官方代碼（例如 2512）。exclude：不列的代碼（想做的工作不列現在的工作和已選的）
  * @returns {{hits:{job:object, score:number}[], total:number}}
  */
-export function searchJobs(q, { withStatus = false, limit = 30 } = {}) {
+export function searchJobs(q, { withStatus = false, limit = 30, exclude = [] } = {}) {
   const terms = String(q || '').split(/[\s\u3000,，、]+/).map(norm).filter(Boolean);
   if (!terms.length) return { hits: [], total: 0 };
   const hits = [];
   for (const e of INDEX) {
-    if (e.job.status && !withStatus) continue;
+    if ((e.job.status && !withStatus) || exclude.includes(e.job.id)) continue;
     let score = Infinity;
     for (const t of terms) {
       score = Math.min(score, termScore(e, t));

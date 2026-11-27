@@ -128,6 +128,9 @@ test('搜尋：口語叫法、官方名稱、代碼都找得到；常見工作�
   // 狀態類只有「目前的工作」找得到
   assert.deepEqual(ids('學生'), []);
   assert.equal(ids('學生', { withStatus: true })[0], 'student');
+  // 想做的工作不列現在的工作和已選的
+  assert.ok(!ids('外送', { exclude: ['8321'] }).includes('8321'));
+  assert.ok(ids('外送', { exclude: ['8321'] }).includes('driver'));
   // 上限與總數
   const many = searchJobs('人員', { limit: 30 });
   assert.equal(many.hits.length, 30);

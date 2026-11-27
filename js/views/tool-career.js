@@ -62,6 +62,7 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
   // 想做的工作：已選的加一個空位（最多 3 個），三個空的挑選器排著只會占版面
   const paintTargets = () => fill(targetBox, Array.from({ length: Math.min(MAX_TARGETS, state.targets.length + 1) }, (_, i) => jobPicker({
     label: `想做的工作 ${i + 1}`, value: state.targets[i] || '', placeholder: '（不選）', group: pickers,
+    exclude: [state.current, ...state.targets.filter((_, k) => k !== i)].filter(Boolean),
     onPick: (v) => {
       const next = [...state.targets];
       next[i] = v;
