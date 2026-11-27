@@ -67,7 +67,7 @@ export function returnsIn(year, natalPos) {
  * @param {{bazi?:object, natal?:object, birth:{y,m,d}, today:{y,m,d}, gender?:string, years?:number}} input
  * @returns {{years:Array<{year,age,ganzhi,shishen,score,level,tags:string[],events:Array<{system,tone,text}>}>, watch:Array, good:Array}}
  */
-export function buildLifeline({ bazi = null, natal = null, birth, today, gender = '', years = 10 }) {
+export function buildLifeline({ bazi = null, natal = null, birth, today, gender = '', years = 10, mayaCount = 'dreamspell' }) {
   const list = Array.from({ length: years }, (_, i) => today.y + i);
   const lns = bazi ? liunian(bazi, list) : [];
   const slow = natalSlow(natal);
@@ -149,7 +149,7 @@ export function buildLifeline({ bazi = null, natal = null, birth, today, gender 
     if (py === 1) tags.push('新循環');
     add('生命靈數', 'info', `流年數 ${py}：${PERSONAL_YEAR[py]}`);
     // 生日那天的 KIN 是這一年的流年印記（12/31 一定過了生日，取到的就是這一年生日那天）
-    const yk = yearKin(birth, { y: year, m: 12, d: 31 });
+    const yk = yearKin(birth, { y: year, m: 12, d: 31 }, mayaCount);
     if (yk) add('瑪雅', 'info', `流年印記 KIN ${yk.kin}「${yk.title}」（生日起的一年）：${SEAL_TEXT[yk.seal.n].keys.join('、')}。`);
     score = Math.round(score * 10) / 10;
     return { year, age: year - birth.y, ganzhi: ln ? ln.ganzhi : null, shishen: ln ? ln.shishen : null, score, level: levelOf(score), tags, events };

@@ -13,6 +13,7 @@ import { wuxingWheel, loader } from '../ui/charts.js';
 import { shareFile } from '../ui/poster.js';
 import { masterCard } from '../ui/master.js';
 import { baziMaster, ziweiMaster, yearMaster } from '../core/master-texts.js';
+import { MAYA_COUNTS, ZIWEI_SCHOOLS, ZIWEI_YEARS } from '../core/schools.js';
 
 // 匿名試算的名字：只放在這次開著的 App 記憶體裡，不存檔、不進紀錄，換人也保留（不屬於任何人）；重開 App 就清掉
 const trial = { names: [], bazi: false };
@@ -52,6 +53,8 @@ export function mountDestiny(root, ctx) {
   const twinOverride = new Map();
   // 瑪雅密碼區塊打開或收起：記在這支手機；勾雙胞胎分流、換合盤對象都會重畫，不記的話一勾就自己關掉
   let mayaCodeOpen = load('mayaCodeOpen', null);
+  // 排盤設定打開或收起：切一個派別整頁會重畫，不記的話每切一次就收起來，要連續比較好幾派很麻煩
+  let settingsOpen = false;
   const mayaTwinTime = (p, input) => (input.time && (twinOverride.has(p.id) ? twinOverride.get(p.id) : !!p.birthOrder) ? input.time : null);
   let token = 0;
   // 換工具後要捲到的卡片（例如測驗結果的「看各系統說中幾句」）：工具是非同步畫的，畫完才捲得到
@@ -87,8 +90,8 @@ export function mountDestiny(root, ctx) {
         h('div', { class: 'field' }, h('span', { class: 'field-label', text: people.length > 1 ? `工具（正在看：${p.name}，換人在右上角）` : '工具' }), toolSel),
         h(
           'details',
-          { class: 'more' },
-          h('summary', { text: '排盤設定' }),
+          { class: 'more', id: 'chart-settings', open: settingsOpen, ontoggle: (e) => { settingsOpen = e.target.open; } },
+          h('summary', { text: '排盤設定（派別切換）' }),
           h('p', { class: 'field-label', text: '23 點後出生（子時）的日柱' }),
           segmented({ name: 'sect', label: '子時換日', value: String(settings.sect), options: [{ value: '1', label: '23 點換日（預設）' }, { value: '2', label: '0 點換日' }], onChange: (v) => ctx.saveSettings({ sect: Number(v) }) }),
           h('p', { class: 'field-label', text: '時間校正' }),
@@ -96,6 +99,16 @@ export function mountDestiny(root, ctx) {
           h('p', { class: 'hint', text: '日光節約時間出生會自動減回標準時間。真太陽時依出生地經度與均時差調整（需要出生地）。0 點換日時，23 點後的時柱依隔天日干起子時（lunar-typescript 的作法）。' }),
           h('p', { class: 'field-label', text: '多胞胎的紫微借宮看法（在「我的」填出生順序才會用到）' }),
           segmented({ name: 'twin', label: '借宮看法', value: settings.twinMethod, options: [{ value: 'sibling', label: '弟妹借兄弟宮' }, { value: 'travel', label: '老二借遷移宮' }], onChange: (v) => ctx.saveSettings({ twinMethod: v }) }),
+          // 派別切換（使用者想切換比較哪一派比較好）：切了整個 App 的結果一起換
+          h('p', { class: 'field-label', text: '紫微派別' }),
+          segmented({ name: 'ziwei-school', label: '紫微派別', value: settings.ziweiSchool, options: ZIWEI_SCHOOLS, onChange: (v) => ctx.saveSettings({ ziweiSchool: v }) }),
+          h('p', { class: 'field-label', text: '紫微年分界' }),
+          segmented({ name: 'ziwei-year', label: '紫微年分界', value: settings.ziweiYear, options: ZIWEI_YEARS, onChange: (v) => ctx.saveSettings({ ziweiYear: v }) }),
+          h('p', { class: 'hint', text: '中州派（iztro 的排法）主星、四化和通行版一樣，差在劫殺、大耗、龍德、截空、天使天傷這些雜曜。年分界只影響立春到農曆新年之間出生的人（年干不同，四化跟著變）。紫微的子時跟著上面的「子時換日」。' }),
+          h('p', { class: 'field-label', text: '瑪雅曆算法' }),
+          segmented({ name: 'maya-count', label: '瑪雅曆算法', value: settings.mayaCount, options: MAYA_COUNTS, onChange: (v) => ctx.saveSettings({ mayaCount: v }) }),
+          h('p', { class: 'hint', text: '13 月亮曆是台灣多數老師用的；傳統馬雅曆是瓜地馬拉 K\'iche\' 族的日曆，同一天的圖騰常不同。五大神諭、波符、流年印記、合盤是 13 月亮曆的規則，用傳統曆時是套用（混合做法）。今日、人生時間軸、綜合解讀的瑪雅一起換。' }),
+          h('p', { class: 'muted small', text: '沒有哪一派被證明比較準：切換是為了看懂不同老師為什麼說法不同，不是挑一個說中你想聽的。' }),
         ),
       ),
     );
@@ -106,7 +119,8 @@ export function mountDestiny(root, ctx) {
       fill(out, warnCard('這個人的生日資料不完整，請到「我的」編輯後重新儲存。'));
       return;
     }
-    const opts = { gender: p.gender || null, sect: settings.sect, solarTime: settings.solarTime, today: zoneToday(DEFAULT_TZ) };
+    // 派別設定一起帶：瑪雅曆算法、紫微派別與年分界（各工具、綜合解讀用同一份）
+    const opts = { gender: p.gender || null, sect: settings.sect, solarTime: settings.solarTime, today: zoneToday(DEFAULT_TZ), mayaCount: settings.mayaCount, ziweiSchool: settings.ziweiSchool, ziweiYear: settings.ziweiYear };
     // 新工具放在各自的檔案，用到才載入；共用存紀錄按鈕與多胞胎瑪雅設定
     const kit = { ctx, actions, mayaTime: mayaTwinTime(p, input) };
     const draw = {
@@ -121,7 +135,7 @@ export function mountDestiny(root, ctx) {
       bazi: () => drawBazi(p, input, opts),
       liunian: () => drawLiunian(p, input, opts),
       ziwei: () => drawZiwei(p, input, opts),
-      maya: () => drawMaya(p, input),
+      maya: () => drawMaya(p, input, opts),
       numerology: () => drawNumerology(p, input, opts),
       chenggu: () => drawChenggu(p, input, opts),
     }[tool];
@@ -307,7 +321,7 @@ export function mountDestiny(root, ctx) {
 
   // ── 加到手機行事曆：打開才計算（重用畫面算好的時間軸和流月，約 30 毫秒）。
   // 檔案在手機上產生、不上傳，內容只有提醒和原因，不含生日（tests/ics.test.js 會檢查）。
-  function calendarBlock({ p, input, b, L, M, today }) {
+  function calendarBlock({ p, input, b, L, M, today, mayaCount = 'dreamspell' }) {
     const body = h('div', { class: 'ics-body' }, h('p', { class: 'muted small', text: '計算中…' }));
     const box = h('details', { class: 'more ics' }, h('summary', { text: '把要注意的日子加到手機行事曆' }), body);
     let built = false;
@@ -316,7 +330,7 @@ export function mountDestiny(root, ctx) {
       built = true;
       const [{ reminderEvents, REMINDER_KINDS }, { buildIcs }, ics] = await Promise.all([
         import('../core/reminders.js'), import('../core/ics.js'), import('../ui/ics-export.js')]);
-      const all = reminderEvents({ bazi: b, natal: ctx.natalOf(p), birth: input.date, today, gender: p.gender, personId: p.id, name: p.name, self: p.self, lifeline: L, months: M });
+      const all = reminderEvents({ bazi: b, natal: ctx.natalOf(p), birth: input.date, today, gender: p.gender, personId: p.id, name: p.name, self: p.self, lifeline: L, months: M, mayaCount });
       const saved = load('icsKinds', null);
       const kinds = new Set(Array.isArray(saved) ? saved : REMINDER_KINDS.map((k) => k.id));
       let sel = [];
@@ -398,7 +412,7 @@ export function mountDestiny(root, ctx) {
     if (!b.ok) return warnCard(b.error, true);
     const y0 = opts.today.y;
     // ── 人生時間軸：未來 10 年每年的重點（八字、大運、太歲、占星回歸、生命靈數、瑪雅），先講哪幾年要注意、哪幾年順
-    const L = buildLifeline({ bazi: b, natal: ctx.natalOf(p), birth: input.date, today: opts.today, gender: p.gender });
+    const L = buildLifeline({ bazi: b, natal: ctx.natalOf(p), birth: input.date, today: opts.today, gender: p.gender, mayaCount: opts.mayaCount });
     const LV = { 順: 'lv-high', 小順: 'lv-mid', 平: 'lv-flat', 注意: 'lv-low', 小心: 'lv-poor' };
     const barPct = (score) => Math.round(Math.max(6, Math.min(100, ((score + 4) / 7) * 100))); // -4～+3 對到長條長度
     // 注意的年份只講壓力的原因、順的年份只講助力的原因（依重要程度排）；都沒有就講那一年的十神
@@ -418,7 +432,7 @@ export function mountDestiny(root, ctx) {
         h('p', { class: 'ly-advice', text: LEVEL_TEXT[y.level] }),
         h('ul', { class: 'reasons' }, y.events.map((e) => h('li', { class: `tone-${e.tone}` }, h('span', { class: `sys sys-${e.system}`, text: e.system }), h('span', { text: e.text }))))))),
       h('p', { class: 'hint', text: `${LIFELINE_NOTE}八字流年從立春（約 2/4）起算，流年印記從生日起算，年齡是當年生日過後的實歲。` }),
-      calendarBlock({ p, input, b, L, M, today: opts.today }));
+      calendarBlock({ p, input, b, L, M, today: opts.today, mayaCount: opts.mayaCount }));
     // ── 接下來 12 個月（以節氣換月）
     const monthsCard = h('section', { class: 'card' },
       cardHead(h, 'bell', '接下來 12 個月', '流月、水星逆行、日月食'),
@@ -486,7 +500,7 @@ export function mountDestiny(root, ctx) {
   // ── 紫微命盤
   async function drawZiwei(p, input, opts) {
     const [{ buildZiwei, STAR_TEXT }, { rotateZiwei, twinsInfo }, { PALACE_TEXT, ZIWEI_STARS, PALACE_DOMAIN, BRIGHTNESS_TEXT, mutagenIn }, { pairText, sanFang, mingPatterns }, { ziweiSummary }] = await Promise.all([import('../core/ziwei.js'), import('../core/reading.js'), import('../core/reading-texts.js'), import('../core/ziwei-pattern.js'), import('../core/ziwei-summary.js')]);
-    const z0 = buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today });
+    const z0 = buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today, sect: opts.sect, school: opts.ziweiSchool, yearDivide: opts.ziweiYear });
     if (!z0.ok) return input.time ? warnCard(z0.error, true) : noTimeCard(z0.error);
     const twins = p.birthOrder ? twinsInfo({ birthOrder: p.birthOrder, hasTime: true, method: ctx.getSettings().twinMethod }) : null;
     const z = twins && twins.shift ? rotateZiwei(z0, twins.shift) : z0;
@@ -654,13 +668,13 @@ export function mountDestiny(root, ctx) {
   }
 
   // ── 瑪雅曆：上面是 13 月亮曆銀河印記，下面是瑪雅密碼 A～E（另一套算法，預設收起）
-  async function drawMaya(p, input) {
+  async function drawMaya(p, input, opts) {
     const [{ computeMaya, compareMaya, explainCompare }, { MAYA_POSITION_TEXT, MAYA_KEYWORD_TEXT }, MK, MT, MG, MM] = await Promise.all([
       import('../core/maya.js'), import('../core/reading-texts.js'), import('../core/maya-kin.js'), import('../core/maya-texts.js'), import('../ui/maya-glyphs.js'), import('../core/maya-master.js')]);
     const r = computeMaya(input.date, mayaTwinTime(p, input));
     // 合盤的老師解盤也看瑪雅密碼的同異（另一套算法，和下面的合盤表同一份結果）
     const codeOf = (other, oi) => explainCompare(compareMaya(r, computeMaya(oi.date)), p.name, other.name, MAYA_KEYWORD_TEXT);
-    const kinCards = mayaKinCards(p, input, MK, MT, MG, { MM, codeOf });
+    const kinCards = mayaKinCards(p, input, MK, MT, MG, { MM, codeOf, count: opts.mayaCount });
     const others = ctx.getPeople().filter((x) => x.id !== p.id);
     const twinBox = h('input', { type: 'checkbox', id: 'maya-twin', checked: r.twin, disabled: !input.time, onchange: (e) => { twinOverride.set(p.id, e.target.checked); render(); } });
     let compareBlock = null;
@@ -712,8 +726,8 @@ export function mountDestiny(root, ctx) {
   }
 
   // ── 瑪雅曆（13 月亮曆）銀河印記：圖騰＋調性、五大神諭、波符與 260 格卓爾金曆、20 圖騰總覽
-  function mayaKinCards(p, input, MK, MT, MG, { MM, codeOf }) {
-    const mine = MK.mayaKin(input.date);
+  function mayaKinCards(p, input, MK, MT, MG, { MM, codeOf, count = 'dreamspell' }) {
+    const mine = MK.mayaKin(input.date, count);
     if (!mine) return [warnCard('生日不在 1800～2200 年之間，算不出瑪雅曆。')];
     const { kin, seal, tone, oracle } = mine;
     const ST = MT.SEAL_TEXT[seal.n];
@@ -721,7 +735,9 @@ export function mountDestiny(root, ctx) {
     const CT = MT.COLOR_TEXT[seal.color];
     const name = (k) => MK.kinInfo(k).title;
     const hero = h('section', { class: 'card feature maya-kin' },
-      cardHead(h, 'sparkle', `${p.name}的瑪雅銀河印記`, '13 月亮曆・20 圖騰 × 13 調性'),
+      cardHead(h, 'sparkle', `${p.name}的瑪雅銀河印記`, count === 'traditional' ? '傳統馬雅曆・20 圖騰 × 13 數字' : '13 月亮曆・20 圖騰 × 13 調性'),
+      // 傳統曆的圖騰照傳統算，下面的神諭、波符是 13 月亮曆的規則：照實說是混合做法
+      count === 'traditional' ? h('p', { class: 'warn', text: '目前用「傳統馬雅曆」算圖騰（排盤設定可切換）：五大神諭、波符、合盤是 13 月亮曆的規則，套在傳統曆上是混合做法。' }) : null,
       h('div', { class: 'kin-hero' },
         playWhenVisible(h('div', { class: 'kin-glyph' }, MG.mayaGlyph(seal.n, { tone: tone.n, animate: true, label: `${mine.title}（KIN ${kin}）的圖騰與調性` }))),
         h('div', { class: 'kin-meta' },
@@ -757,12 +773,13 @@ export function mountDestiny(root, ctx) {
     const others = ctx.getPeople().filter((x) => x.id !== p.id);
     let pairCard = null;
     let pairMaster = null;
+    let methodCard = null;
     if (others.length) {
       const sel = h('select', { 'aria-label': '和誰合盤（銀河印記）', onchange: (e) => { compareId = e.target.value || null; render(); } }, h('option', { value: '', text: '和誰合盤？' }), others.map((x) => h('option', { value: x.id, text: x.name })));
       sel.value = compareId && others.some((x) => x.id === compareId) ? compareId : '';
       const other = others.find((x) => x.id === sel.value);
       const oi = other ? ctx.inputOf(other) : null;
-      const theirs = oi ? MK.mayaKin(oi.date) : null;
+      const theirs = oi ? MK.mayaKin(oi.date, count) : null;
       let body = h('p', { class: 'muted small', text: '選一個人：老師會講你們是什麼關係、誰的長處補誰的卡點、卡住時怎麼辦，以及兩個人都順的日子。' });
       if (theirs) {
         // 每一對都有主要關係（圖騰不在彼此神諭裡就看顏色）；完整解盤在下面的「老師怎麼看」：
@@ -774,7 +791,7 @@ export function mountDestiny(root, ctx) {
           b: { ...theirs, name: other.name },
           sum,
           code: codeOf(other, oi),
-          days: MM.sharedMayaDays(kin, theirs.kin, zoneToday(DEFAULT_TZ)),
+          days: MM.sharedMayaDays(kin, theirs.kin, zoneToday(DEFAULT_TZ), { count }),
         });
         const figure = (x, label) => h('figure', { class: 'pair-kin' }, MG.mayaGlyph(x.seal.n, { tone: x.tone.n, label: `${label}：KIN ${x.kin} ${x.title}` }), h('figcaption', {}, h('b', { text: label }), h('span', { text: `KIN ${x.kin} ${x.title}` })));
         body = [
@@ -803,6 +820,7 @@ export function mountDestiny(root, ctx) {
           combos: m.combos,
           onGo: (view, o) => ctx.go(view, o),
         });
+        methodCard = methodCompareCard(MM, MT, { name: me, date: input.date }, { name: other.name, date: oi.date });
       } else if (other) {
         body = h('p', { class: 'warn', text: `${other.name}的生日資料不完整，算不出瑪雅曆；請到「我的」編輯重新儲存。` });
       }
@@ -827,7 +845,7 @@ export function mountDestiny(root, ctx) {
         h('p', { class: 'small', text: '引導：同調性、同顏色，依調性的點數決定是哪一個（調性 1、6、11 的引導就是自己）。支持：同調性，兩個圖騰號碼相加是 19。挑戰：同調性，圖騰號碼差 10。隱藏推動：兩個 KIN 相加是 261（圖騰 21 減、調性 14 減）。' })));
 
     // 波符與卓爾金曆：你的 KIN 金框、今天虛線框、你的波符 13 天顏色深一點
-    const today = MK.kinOf(zoneToday(DEFAULT_TZ));
+    const today = MK.kinOf(zoneToday(DEFAULT_TZ), count);
     const ws = mine.wavespell;
     const wsEnd = ((ws.kin + 11) % 260) + 1;
     const wst = MT.SEAL_TEXT[ws.seal.n];
@@ -875,7 +893,34 @@ export function mountDestiny(root, ctx) {
       h('details', { class: 'more' }, h('summary', { text: '四種顏色' }),
         h('ul', { class: 'plain' }, Object.values(MT.COLOR_TEXT).map((c) => h('li', {}, h('b', { text: `${c.name}（${c.key}）：` }), h('span', { text: c.text }))))),
       h('p', { class: 'hint', text: MT.MAYA_NOTE }));
-    return [hero, oracleCard, pairCard, pairMaster, gridCard, allCard].filter(Boolean);
+    return [hero, oracleCard, pairCard, pairMaster, methodCard, gridCard, allCard].filter(Boolean);
+  }
+
+  // ── 合盤的算法對照：同一對人用不同算法各算一次（使用者回饋：別人用瑪雅算說我們不合，這裡沒有）。
+  // 哪一種落在「挑戰」就是哪一種會被講成不合；也教使用者怎麼判斷對方用的是哪一種（問對方給的圖騰）
+  function methodCompareCard(MM, MT, a, b) {
+    const c = MM.methodCompare(a, b);
+    if (!c.rows.length) return null;
+    const hard = c.rows.filter((x) => x.hard);
+    const kinText = (x) => `KIN ${x.kin} ${x.title}`;
+    return h('section', { class: 'card', id: 'maya-methods' },
+      cardHead(h, 'compass', '算法對照：別人算的為什麼不一樣', '同一對人，用不同算法各算一次'),
+      h('ul', { class: 'reasons method-list' }, c.rows.map((x) => h('li', { class: x.hard ? 'tone-bad' : 'tone-good' },
+        h('div', { class: 'method-head' }, h('b', { text: x.label }), h('span', { class: `badge ${x.hard ? 'danger' : 'good'}`, text: x.mainLabel }), x.hard ? h('span', { class: 'muted small', text: '會被講成不合' }) : null),
+        h('div', { class: 'small', text: `${a.name}：${kinText(x.a)}；${b.name}：${kinText(x.b)}` }),
+        h('div', { class: 'muted small', text: x.note })))),
+      c.composite ? h('p', { class: 'small' }, h('b', { text: '兩個 KIN 相加（民間的「關係印記」）：' }),
+        h('span', { text: `${kinText(c.composite)}，關鍵字「${MT.SEAL_TEXT[c.composite.seal.n].keys.join('、')}」。這個算法查不到可靠的原始出處，參考就好。` })) : null,
+      h('p', { class: 'gold', text: hard.length
+        ? `會算出「不合」的是：${hard.map((x) => x.label).join('、')}。別人說你們不合，多半是用了這${hard.length > 1 ? '幾' : ''}種算法，不一定是誰算錯。`
+        : '這幾種算法都沒有落在「挑戰」。別人說你們不合，可能是把「隱藏推動」「挑戰色」講成表面不合，或用了其他老師自己的規則。' }),
+      h('details', { class: 'more' }, h('summary', { text: '怎麼知道對方用的是哪一種？' }),
+        h('ul', { class: 'plain small' },
+          h('li', { text: '問對方給你們的 KIN 號碼或圖騰，和上面對照：一樣的那一列，就是對方用的算法。' }),
+          h('li', { text: '圖騰和 13 月亮曆一樣、結論卻不同：差在解讀（例如把隱藏推動講成不合）。' }),
+          h('li', { text: '都對不上：可能是用了農曆生日、別的對照常數，或其他老師自己的規則。' }),
+          h('li', { text: '想直接用傳統馬雅曆看全部的內容：到上面「排盤設定」把瑪雅曆算法切到「傳統馬雅曆」。' }))),
+      h('p', { class: 'hint', text: '沒有哪一種算法被證明比較準；13 月亮曆是 1987 年設計的現代曆法，傳統馬雅曆是瓜地馬拉 K\'iche\' 族至今使用的日曆，兩者本來就不同。' }));
   }
 
   // ── 生命靈數

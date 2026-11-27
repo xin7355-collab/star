@@ -128,7 +128,7 @@ export function personalYearNumber(birth, year) {
  * @param {{natal?:object, bazi?:object, ziwei?:object, birth:{y,m,d}, maya?:object, name?:object, chenggu?:object,
  *          today:{y,m,d}, gender?:string, birthOrder?:number, twinMethod?:'sibling'|'travel', bloodType?:string}} input
  */
-export function buildReading({ natal = null, bazi = null, ziwei = null, birth, maya = null, name = null, chenggu = null, today, gender = null, birthOrder = 0, twinMethod = 'sibling', bloodType = '' }) {
+export function buildReading({ natal = null, bazi = null, ziwei = null, birth, maya = null, name = null, chenggu = null, today, gender = null, birthOrder = 0, twinMethod = 'sibling', bloodType = '', mayaCount = 'dreamspell' }) {
   const lp = (() => {
     const digits = `${birth.y}${String(birth.m).padStart(2, '0')}${String(birth.d).padStart(2, '0')}`.split('').map(Number);
     let n = digits.reduce((a, b) => a + b, 0);
@@ -137,7 +137,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
   })();
   const twins = twinsInfo({ birthOrder, natal, hasTime: !!(natal && natal.mode === 'timed'), method: twinMethod });
   // 瑪雅曆銀河印記只看日期，生日一定有，所以直接在這裡算（瑪雅密碼要看多胞胎時分，由呼叫的地方傳進來）
-  const kin = mayaKin(birth);
+  const kin = mayaKin(birth, mayaCount);
   const zw = ziwei && ziwei.ok ? (twins && twins.shift ? rotateZiwei(ziwei, twins.shift) : ziwei) : null;
 
   // ── 1. 收集特質標籤（said：每個系統說了哪些特質，「說中與不像」拿來和測驗逐句對照）
@@ -281,7 +281,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
   }
   const py = personalYearNumber(birth, today.y);
   yearPoints.push({ system: '生命靈數', text: `今年是你的流年數 ${py}：${PERSONAL_YEAR[py]}` });
-  const yk = yearKin(birth, today);
+  const yk = yearKin(birth, today, mayaCount);
   if (yk) yearPoints.push({ system: '瑪雅', text: `流年印記是 KIN ${yk.kin}「${yk.title}」（${yk.from.y}/${yk.from.m}/${yk.from.d} 生日起的一年）：關鍵字「${SEAL_TEXT[yk.seal.n].keys.join('、')}」，這一年常問自己：${TONE_TEXT[yk.tone.n].q}` });
   add('year', `${today.y} 年重點`, yearPoints.length > 2 ? '把下面幾個系統的提醒合起來看：哪件事被提到兩次以上，就是今年最該花心思的地方。' : '', yearPoints);
 

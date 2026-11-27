@@ -52,6 +52,19 @@ export const TONES = [
 ];
 
 const ANCHOR = { y: 2013, m: 7, d: 26, kin: 164 };
+
+// 瑪雅曆的兩種算法（選項清單在 schools.js）：dreamspell 13 月亮曆（2/29 不算一天）、traditional 傳統馬雅曆（每天都算）。
+// 使用者回饋「別人用瑪雅算說我們不合，你算的沒有」：多半是用了不同的算法，讓使用者自己切換比較。
+
+// 傳統曆用 GMT 對照常數 584283（長紀曆 0.0.0.0.0＝4 Ajaw）：2012-12-21 是 13.0.0.0.0 4 Ajaw（單元測試驗證）
+const GMT = 584283;
+/** 西曆日期的儒略日數（整數，正午） */
+function jdn(y, m, d) {
+  const a = Math.floor((14 - m) / 12);
+  const yy = y + 4800 - a;
+  const mm = m + 12 * a - 3;
+  return d + Math.floor((153 * mm + 2) / 5) + 365 * yy + Math.floor(yy / 4) - Math.floor(yy / 100) + Math.floor(yy / 400) - 32045;
+}
 const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const mod = (a, n) => ((a % n) + n) % n;
 const wrapSeal = (s) => mod(s - 1, 20) + 1;
@@ -71,9 +84,13 @@ export function validDate({ y, m, d }) {
   return d <= (m === 2 && isLeap(y) ? 29 : MONTH_DAYS[m - 1]);
 }
 
-/** 西曆日期 → KIN（1～260）；日期不合法回傳 null */
-export function kinOf(date) {
+/** 西曆日期 → KIN（1～260）；日期不合法回傳 null。count：'dreamspell'（預設）或 'traditional' */
+export function kinOf(date, count = 'dreamspell') {
   if (!validDate(date)) return null;
+  if (count === 'traditional') {
+    const n = jdn(date.y, date.m, date.d) - GMT;
+    return kinFrom(mod(n + 19, 20) + 1, mod(n + 3, 13) + 1);
+  }
   const days = noLeapDays(date.y, date.m, date.d) - noLeapDays(ANCHOR.y, ANCHOR.m, ANCHOR.d);
   return mod(ANCHOR.kin - 1 + days, 260) + 1;
 }
@@ -123,26 +140,40 @@ export function kinInfo(kin) {
 }
 
 /** 生日 → 完整資料；2/29 生的人另外註明（沿用 2/28 的 KIN，也有人用 3/1） */
-export function mayaKin(date) {
-  const kin = kinOf(date);
+export function mayaKin(date, count = 'dreamspell') {
+  const kin = kinOf(date, count);
   if (kin === null) return null;
   const info = kinInfo(kin);
-  const leapDay = date.m === 2 && date.d === 29;
-  return { ...info, leapDay, altKin: leapDay ? kinOf({ y: date.y, m: 3, d: 1 }) : null };
+  // 2/29 的兩種用法只有 13 月亮曆才有（傳統曆每一天都算）
+  const leapDay = count === 'dreamspell' && date.m === 2 && date.d === 29;
+  return { ...info, count, leapDay, altKin: leapDay ? kinOf({ y: date.y, m: 3, d: 1 }) : null };
 }
+
+/**
+ * 常見的算錯：把 2 月 29 日也算一天（13 月亮曆不算），離 2013 年越遠，KIN 差越多天。
+ * 合盤的「算法對照」用：別人算出來的圖騰如果是這一個，就是計算器沒扣掉閏日。
+ */
+export function kinWithLeapDays(date) {
+  if (!validDate(date)) return null;
+  const days = Math.round((Date.UTC(date.y, date.m - 1, date.d) - Date.UTC(ANCHOR.y, ANCHOR.m - 1, ANCHOR.d)) / 86400000);
+  return mod(ANCHOR.kin - 1 + days, 260) + 1;
+}
+
+/** 兩個 KIN 相加（超過 260 減 260）：民間說的「關係印記」，查不到可靠的原始出處，只在算法對照裡列出來 */
+export const compositeKin = (a, b) => mod(a + b - 1, 260) + 1;
 
 /**
  * 流年印記：13 月亮曆的看法，每年從生日那天開始，那天的 KIN 就是這一年的主題（還沒過今年生日就看去年生日那天）。
  * 2/29 生的人平年用 2/28（13 月亮曆本來就把 2/29 和 2/28 算成同一個 KIN）。
  * @returns 這個 KIN 的完整資料，加上 from（這一輪流年從哪天開始）
  */
-export function yearKin(birth, today) {
+export function yearKin(birth, today, count = 'dreamspell') {
   if (!validDate(birth) || !validDate(today)) return null;
   const dayIn = (y) => (birth.m === 2 && birth.d === 29 && !isLeap(y) ? 28 : birth.d);
   const passed = today.m > birth.m || (today.m === birth.m && today.d >= dayIn(today.y));
   const y = passed ? today.y : today.y - 1;
   const from = { y, m: birth.m, d: dayIn(y) };
-  const kin = kinOf(from);
+  const kin = kinOf(from, count);
   return kin === null ? null : { ...kinInfo(kin), from };
 }
 
@@ -210,13 +241,13 @@ export function pairSummary(myKin, otherKin) {
 }
 
 /** 下一次（含今天）KIN 等於 kin 的日子：銀河生日 260 天一次，中間遇到 2/29 會晚一天 */
-export function nextKinDate(from, kin) {
+export function nextKinDate(from, kin, count = 'dreamspell') {
   if (!validDate(from)) return null;
   let t = Date.UTC(from.y, from.m - 1, from.d);
   for (let days = 0; days <= 262; days += 1, t += 86400000) {
     const dt = new Date(t);
     const date = { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
-    if (kinOf(date) === kin) return { date, days };
+    if (kinOf(date, count) === kin) return { date, days };
   }
   return null;
 }

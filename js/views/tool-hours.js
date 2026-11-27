@@ -20,7 +20,7 @@ export async function drawHours(p, input, opts, { ctx }) {
   const raw = p.raw || {};
   const custom = raw.placeId === 'custom' && Number.isFinite(raw.lat) && Number.isFinite(raw.lon) ? { lat: raw.lat, lon: raw.lon, name: '自訂座標' } : null;
   const place = input.place || custom || PLACES[raw.placeId] || PLACES.taipei;
-  const cands = H.hourCandidates(input, { gender: p.gender, sect: opts.sect, place, today: opts.today });
+  const cands = H.hourCandidates(input, { gender: p.gender, sect: opts.sect, place, today: opts.today, ziweiSchool: opts.ziweiSchool, ziweiYear: opts.ziweiYear });
   const known = H.knownSlot(input, { solarTime: opts.solarTime });
   const who = p.self ? '你' : p.name;
   const risingOf = H.HOUR_FIELDS.find((f) => f.key === 'rising').get;

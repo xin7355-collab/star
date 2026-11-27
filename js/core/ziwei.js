@@ -43,12 +43,32 @@ function star(s) {
 }
 
 /**
- * @param {{date, time, tz, place, fold}} input
- * @param {{gender:'男'|'女', solarTime?:'standard'|'true', at?:{y,m,d}}} options
+ * 紫微的派別（iztro 本身支援的設定；選項清單在 schools.js）：
+ * - school：default 通行版／zhongzhou 中州派（實測 504 張盤：主星、四化相同，差在劫殺、大耗、龍德、截空、天使天傷這些雜曜）
+ * - yearDivide：normal 農曆正月初一換年（預設）／exact 立春換年（立春到春節之間出生的人年干不同，四化跟著變）
+ * - sect：和八字的「子時換日」一致——1＝23 點起算隔天（iztro 的 forward），2＝0 點換日（current）
  */
-export function buildZiwei(input, { gender, solarTime = 'standard', at = null } = {}) {
+// iztro 的設定是全域的：每次排盤前設好、排完改回預設，不讓一次的選擇影響到別的畫面
+function withConfig({ school = 'default', yearDivide = 'normal', sect = 1 }, fn) {
+  astro.config({ algorithm: school === 'zhongzhou' ? 'zhongzhou' : 'default', yearDivide: yearDivide === 'exact' ? 'exact' : 'normal', dayDivide: sect === 2 ? 'current' : 'forward' });
+  try {
+    return fn();
+  } finally {
+    astro.config({ algorithm: 'default', yearDivide: 'normal', dayDivide: 'forward' });
+  }
+}
+
+/**
+ * @param {{date, time, tz, place, fold}} input
+ * @param {{gender:'男'|'女', solarTime?:'standard'|'true', at?:{y,m,d}, sect?:1|2, school?:string, yearDivide?:string}} options
+ */
+export function buildZiwei(input, { gender, solarTime = 'standard', at = null, sect = 1, school = 'default', yearDivide = 'normal' } = {}) {
   if (!input.time) return { ok: false, error: '紫微命盤需要出生時間（命宮看時辰）。請在名單裡補上時間。' };
   if (gender !== '男' && gender !== '女') return { ok: false, error: '紫微命盤需要性別（大限順逆行看性別）。請在名單裡選擇性別。' };
+  return withConfig({ school, yearDivide, sect }, () => chartOf(input, { gender, solarTime, at, school }));
+}
+
+function chartOf(input, { gender, solarTime, at, school }) {
   const clk = baziClock(input, { solarTime });
   if (!clk.ok) return clk;
   const { y, m, d, h } = clk.clock;
@@ -93,6 +113,7 @@ export function buildZiwei(input, { gender, solarTime = 'standard', at = null } 
   }
   return {
     ok: true,
+    school,
     notes: clk.notes,
     uncertain,
     gender,

@@ -195,6 +195,11 @@ AI 短評卡,data_view,long_content,DONE,npm run qa:design（long-fortune：模�
 瑪雅合盤,data_view,error,DONE,code:js/views/destiny.js 對方生日資料不完整時說明去「我的」重新儲存,
 瑪雅合盤,data_view,populated,DONE,e2e:瑪雅合盤：每一對都有主要關係；老師解盤指名道姓（誰的長處補誰的卡點）、為什麼、卡住時怎麼辦、兩個人都順的日子、搭配工具；瑪雅密碼的合盤每個位置有白話,
 瑪雅合盤老師解盤,data_view,empty,DONE,code:js/views/destiny.js 接下來 60 天沒有兩人都順的日子時說明改看「今日」,
+瑪雅算法對照,data_view,populated,DONE,e2e:派別切換：合盤有算法對照（哪一種會被講成不合）；排盤設定連續切換不會收起；瑪雅曆切傳統馬雅曆後命盤和今日一起換；紫微派別、年分界存在設定,
+瑪雅算法對照,data_view,empty,DONE,code:js/views/destiny.js 沒選人或對方生日不完整時不出現（合盤卡已說明）,
+派別切換,action,default,DONE,e2e:派別切換：（瑪雅曆算法、紫微派別、紫微年分界存在設定）,切了整個 App 一起換
+派別切換,action,focus_visible,DONE,code:共用 segmented 元件（css/app.css :focus-visible）,
+派別切換,action,busy,NA,,設定存在這支手機，同步完成
 瑪雅合盤,data_view,long_content,DONE,code:js/views/destiny.js 規則說明收在摺疊；老師解盤的化解一項一項收起（共用 masterCard）；320 寬截圖確認,
 瑪雅圖騰總覽,control,default,DONE,e2e:先打開自己的圖騰說明,
 瑪雅圖騰總覽,control,hover,NA,,觸控裝置為主

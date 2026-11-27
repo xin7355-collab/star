@@ -126,3 +126,22 @@ test('瑪雅密碼合盤的白話：幾個位置一樣、每個位置一句話�
   assert.equal(ek.total, 3);
   assert.equal(ek.lines.filter((l) => /不適用/.test(l.text)).length, 2);
 });
+
+test('紫微派別：中州派主星、四化和通行版相同、雜曜不同；立春換年讓立春前出生的年柱不同；子時換日跟八字一致；排完設定會還原', () => {
+  const input = { date: { y: 1990, m: 2, d: 1 }, time: { h: 6, mi: 30 }, tz: 'Asia/Taipei', place: null, fold: null };
+  const base = buildZiwei(input, { gender: '男' });
+  const zz = buildZiwei(input, { gender: '男', school: 'zhongzhou' });
+  const majors = (z) => z.palaces.map((p) => p.major.map((s) => s.name + s.mutagen).join(',')).join('|');
+  const minors = (z) => z.palaces.map((p) => [...p.minor.map((s) => s.name), ...p.adjective].sort().join(',')).join('|');
+  assert.equal(majors(zz), majors(base));
+  assert.notEqual(minors(zz), minors(base));
+  // 1990-02-01 在立春（2/4）前、春節（1/27）後：正月初一換年是庚午年，立春換年還是己巳年
+  assert.match(base.chineseDate, /^庚午/);
+  assert.match(buildZiwei(input, { gender: '男', yearDivide: 'exact' }).chineseDate, /^己巳/);
+  // 23:30 出生：23 點換日算隔天（初六月廿六）、0 點換日算當天
+  const late = { ...input, date: { y: 1990, m: 8, d: 15 }, time: { h: 23, mi: 30 } };
+  assert.notEqual(buildZiwei(late, { gender: '男', sect: 2 }).lunarDate, buildZiwei(late, { gender: '男' }).lunarDate);
+  // iztro 的設定是全域的：前一次選了中州派、立春，下一次用預設排要和最一開始一樣
+  assert.equal(minors(buildZiwei(input, { gender: '男' })), minors(base));
+  assert.equal(buildZiwei(input, { gender: '男' }).chineseDate, base.chineseDate);
+});

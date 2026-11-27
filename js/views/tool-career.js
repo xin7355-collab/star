@@ -48,7 +48,7 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
     loadProfile(ctx, p, input, opts, { mayaTime, withName: false }), import('../core/career.js'), import('../core/lifeline.js'), import('../core/bazi.js')]);
   const r = C.buildCareer({ natal: prof.natal, bazi: prof.bazi, ziwei: prof.ziwei, birth: input.date, bloodType: p.bloodType || '', today: opts.today, lifePathNumber: prof.lifePathNumber });
   const ys = prof.bazi && prof.bazi.ok ? yongShen(prof.bazi) : null;
-  const L = prof.bazi && prof.bazi.ok ? buildLifeline({ bazi: prof.bazi, natal: prof.natal, birth: input.date, today: opts.today, gender: p.gender }) : null;
+  const L = prof.bazi && prof.bazi.ok ? buildLifeline({ bazi: prof.bazi, natal: prof.natal, birth: input.date, today: opts.today, gender: p.gender, mayaCount: opts.mayaCount }) : null;
   const years = L ? L.years : [];
   const timeline = C.careerTimeline(years, r.future);
   const age = opts.today.y - input.date.y - (opts.today.m < input.date.m || (opts.today.m === input.date.m && opts.today.d < input.date.d) ? 1 : 0);

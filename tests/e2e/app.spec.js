@@ -241,6 +241,38 @@ test('瑪雅合盤：每一對都有主要關係；老師解盤指名道姓（�
   await expect(code.locator('li', { hasText: '前世 A：我是' })).toContainText('媽媽是');
 });
 
+test('派別切換：合盤有算法對照（哪一種會被講成不合）；排盤設定連續切換不會收起；瑪雅曆切傳統馬雅曆後命盤和今日一起換；紫微派別、年分界存在設定', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-27T10:00:00+08:00'));
+  await seed(page, [ME, MOM]);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('maya');
+  // 算法對照：13 月亮曆是支持色；同一對人用傳統馬雅曆（混合做法）會落在挑戰
+  await page.locator('#maya-pair').getByRole('combobox', { name: '和誰合盤（銀河印記）' }).selectOption(MOM.id);
+  const methods = page.locator('#maya-methods');
+  const method = (name) => methods.locator('.method-list > li').filter({ has: page.locator('.method-head b', { hasText: new RegExp(`^${name}$`) }) });
+  await expect(method('13 月亮曆')).toContainText('支持色');
+  await expect(method('傳統馬雅曆')).toContainText('會被講成不合');
+  await expect(methods).toContainText('兩個 KIN 相加');
+  await expect(methods.locator('.gold')).toContainText('多半是用了這幾種算法');
+  // 排盤設定：切了整頁重畫，設定區要維持打開
+  await dv.locator('#chart-settings > summary').click();
+  await dv.getByRole('radiogroup', { name: '瑪雅曆算法' }).locator('label', { hasText: '傳統馬雅曆' }).click();
+  await expect(dv.locator('.kin-no')).toHaveText('KIN 56');
+  await expect(dv.locator('.maya-kin')).toContainText('混合做法');
+  await expect(dv.locator('#chart-settings')).toHaveAttribute('open', '');
+  await dv.getByRole('radiogroup', { name: '紫微派別' }).locator('label', { hasText: '中州派' }).click();
+  await dv.getByRole('radiogroup', { name: '紫微年分界' }).locator('label', { hasText: '立春' }).click();
+  const settings = await page.evaluate(() => JSON.parse(localStorage.getItem('star.v1.settings')));
+  expect(settings).toMatchObject({ mayaCount: 'traditional', ziweiSchool: 'zhongzhou', ziweiYear: 'exact' });
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('ziwei');
+  await expect(dv.locator('.ziwei-grid')).toBeVisible();
+  // 今日的瑪雅印記也用傳統曆：2026-11-27 是 KIN 49 行星紅月（13 月亮曆是 KIN 93）
+  await tab(page, 'today');
+  await expect(page.locator('#view-today')).toContainText('KIN 49・行星紅月');
+});
+
 test('姓名：藝名和本名並排比較（存在手機、可移除）；匿名試算不儲存、可比多個名字', async ({ page }) => {
   await seed(page);
   await page.goto('/');

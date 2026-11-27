@@ -3,7 +3,7 @@
 // 這裡每一句都帶入兩個人的名字和圖騰，講清楚「誰的長處補誰的卡點」、卡住時誰可以做什麼。
 // 文字由本 App 依 13 月亮曆的神諭規則和各圖騰的說明組成，參考就好。
 
-import { dayRelation, kinOf, kinInfo, validDate } from './maya-kin.js';
+import { dayRelation, kinOf, kinInfo, validDate, pairSummary, kinWithLeapDays, compositeKin } from './maya-kin.js';
 import { SEAL_TEXT, TONE_TEXT, COLOR_TEXT, PAIR_MAIN, PAIR_RELATION_TEXT, COLOR_PAIR_TEXT } from './maya-texts.js';
 
 // 句子裡只取第一段（「；」前面），整句放進引號太長
@@ -23,14 +23,14 @@ const DAY_NAME = { return: '銀河生日', analog: '支持', guide: '引導', oc
  * 接下來 days 天裡，兩個人都順的日子（最多 n 天，依日期排）。
  * @returns {{date:{y,m,d}, label:string, kin:number, title:string, a:string, b:string}[]}
  */
-export function sharedMayaDays(kinA, kinB, from, { days = 60, n = 3 } = {}) {
+export function sharedMayaDays(kinA, kinB, from, { days = 60, n = 3, count = 'dreamspell' } = {}) {
   if (!validDate(from)) return [];
   const list = [];
   const t0 = Date.UTC(from.y, from.m - 1, from.d);
   for (let i = 0; i < days; i += 1) {
     const dt = new Date(t0 + i * 86400000);
     const date = { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
-    const kin = kinOf(date);
+    const kin = kinOf(date, count);
     if (kin === null) continue;
     const ra = dayRelation(kin, kinA);
     const rb = dayRelation(kin, kinB);
@@ -182,3 +182,29 @@ export function mayaPairMaster({ a, b, sum, code = null, days = null }) {
   };
 }
 
+
+// 會被講成「不合」的關係：挑戰（圖騰差 10）和挑戰色（紅藍、白黃）
+const HARD = ['antipode', 'antipodeColor'];
+
+/**
+ * 同一對人用不同算法算一次（使用者回饋：別人用瑪雅算說兩人不合，這裡沒有）：
+ * 13 月亮曆、傳統馬雅曆（套用 13 月亮曆的神諭規則，是混合做法）、常見的算錯（把 2/29 也算進去）。
+ * 另外附兩個 KIN 相加的「關係印記」（民間做法，查不到原始出處）。哪一種會落在挑戰，就是哪一種會被講成不合。
+ * @param a、b：{ name, date }
+ */
+export function methodCompare(a, b) {
+  const row = (key, label, note, ka, kb) => {
+    if (ka === null || kb === null) return null;
+    const s = pairSummary(ka, kb);
+    return { key, label, note, a: kinInfo(ka), b: kinInfo(kb), main: s.main, mainLabel: PAIR_MAIN[s.main].label, hard: HARD.includes(s.main) };
+  };
+  const ds = row('dreamspell', '13 月亮曆', '台灣多數老師用的算法（本 App 預設）', kinOf(a.date), kinOf(b.date));
+  const leap = row('leapday', '把 2 月 29 日也算進去', '常見的算錯：13 月亮曆不算 2/29，計算器沒扣掉就會差幾天', kinWithLeapDays(a.date), kinWithLeapDays(b.date));
+  const rows = [
+    ds,
+    row('traditional', '傳統馬雅曆', "瓜地馬拉 K'iche' 族的日曆，同一天的圖騰常不同；關係用 13 月亮曆的神諭規則算（混合做法）", kinOf(a.date, 'traditional'), kinOf(b.date, 'traditional')),
+    // 兩個人都和 13 月亮曆一樣（生日離 2013 年很近）就不列，免得看起來像兩種算法
+    leap && ds && (leap.a.kin !== ds.a.kin || leap.b.kin !== ds.b.kin) ? leap : null,
+  ].filter(Boolean);
+  return { rows, composite: ds ? kinInfo(compositeKin(ds.a.kin, ds.b.kin)) : null };
+}

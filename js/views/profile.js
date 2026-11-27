@@ -8,6 +8,9 @@
  * @param opts { gender, sect, solarTime, today }
  * @param {{mayaTime?:{h,mi}|null, withName?:boolean}} extra
  */
+/** 紫微的派別設定（排盤設定裡選的）：子時換日和八字一致 */
+export const ziweiOpts = (opts) => ({ sect: opts.sect || 1, school: opts.ziweiSchool || 'default', yearDivide: opts.ziweiYear || 'normal' });
+
 export async function loadProfile(ctx, p, input, opts, { mayaTime = null, withName = true } = {}) {
   const [B, Z, M, C, CAL, R, NM] = await Promise.all([
     import('../core/bazi.js'), import('../core/ziwei.js'), import('../core/maya.js'), import('../core/chenggu.js'),
@@ -16,7 +19,7 @@ export async function loadProfile(ctx, p, input, opts, { mayaTime = null, withNa
   const natal = ctx.natalOf(p);
   const bz = B.buildBazi(input, opts);
   const bazi = bz.ok ? bz : null;
-  const zw = input.time && (p.gender === '男' || p.gender === '女') ? Z.buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today }) : null;
+  const zw = input.time && (p.gender === '男' || p.gender === '女') ? Z.buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today, ...ziweiOpts(opts) }) : null;
   let chenggu = null;
   if (input.time && bazi) {
     const clk = B.baziClock(input, { solarTime: opts.solarTime });
@@ -37,6 +40,7 @@ export async function loadProfile(ctx, p, input, opts, { mayaTime = null, withNa
   const reading = R.buildReading({
     natal, bazi, ziwei: zw && zw.ok ? zw : null, birth: input.date, maya, name, chenggu,
     today: opts.today, gender: p.gender || null, birthOrder: p.birthOrder || 0, twinMethod: ctx.getSettings().twinMethod, bloodType: p.bloodType || '',
+    mayaCount: opts.mayaCount || 'dreamspell',
   });
   // 多胞胎借宮後的紫微盤（綜合解讀內部也用這張）
   const ziwei = zw && zw.ok ? (reading.twins && reading.twins.shift ? R.rotateZiwei(zw, reading.twins.shift) : zw) : null;

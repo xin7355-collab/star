@@ -1126,6 +1126,9 @@ path.palm-line.pl-life, path.palm-line.pl-head, path.palm-line.pl-heart, path.pa
 /* 合盤的主要關係：標籤＋一句話結論，窄螢幕自動換行 */
 .pair-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 2px; }
 .pair-main .field-label { margin: 0; }
+/* 合盤的算法對照：每種算法一列，名稱、關係、「會被講成不合」擠不下時換行 */
+.method-list li + li { margin-top: 10px; }
+.method-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 2px; }
 .pair-kin figcaption { display: flex; flex-direction: column; font-size: 14px; }
 .kin-relation p { margin: 0 0 4px; }
 .kin-no { color: var(--gold); font-weight: 800; letter-spacing: 0.06em; }

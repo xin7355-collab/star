@@ -30,7 +30,7 @@ export function lichunOf(year) {
  *   lifeline、months 是畫面已經算好的 buildLifeline、monthsAhead 結果，給了就不重算（手機上省約 40 毫秒）
  * @returns {Array<{id,kind,date,end?,title,desc,alarm}>} 依日期排序；只有今天以後的
  */
-export function reminderEvents({ bazi = null, natal = null, birth, today, gender = '', personId = 'me', name = '', self = true, kinds = REMINDER_KINDS.map((k) => k.id), lifeline = null, months = null }) {
+export function reminderEvents({ bazi = null, natal = null, birth, today, gender = '', personId = 'me', name = '', self = true, kinds = REMINDER_KINDS.map((k) => k.id), lifeline = null, months = null, mayaCount = 'dreamspell' }) {
   const want = new Set(kinds);
   const who = self || !name ? '' : `（${name}）`;
   const todayIso = isoDate(today);
@@ -61,17 +61,17 @@ export function reminderEvents({ bazi = null, natal = null, birth, today, gender
     }
   }
   if (want.has('kin') && birth) {
-    const mine = mayaKin(birth);
+    const mine = mayaKin(birth, mayaCount);
     let from = today;
     for (let i = 0; mine && i < 3; i += 1) {
-      const nx = nextKinDate(from, mine.kin);
+      const nx = nextKinDate(from, mine.kin, mayaCount);
       if (!nx || dayMs(nx.date) > yearAhead) break;
       add('kin', nx.date, { title: `銀河生日${who}：KIN ${mine.kin} ${mine.title}`, desc: '260 天一次回到你的主印記：適合回顧這一輪、替下一輪許個願。', alarm: 'morning' });
       from = addDays(nx.date, 1);
     }
   }
   if (want.has('years') && bazi) {
-    const L = lifeline || buildLifeline({ bazi, natal, birth, today, gender, years: 10 });
+    const L = lifeline || buildLifeline({ bazi, natal, birth, today, gender, years: 10, mayaCount });
     for (const y of L.years) {
       if (y.level !== '注意' && y.level !== '小心') continue;
       const why = WARN_TAGS.filter((t) => y.tags.includes(t)).slice(0, 3).join('、') || y.tags[0] || '';

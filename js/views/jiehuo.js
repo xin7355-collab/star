@@ -133,7 +133,7 @@ export function mountJiehuo(root, ctx) {
     if (!input) return null;
     const settings = ctx.getSettings();
     const today = zoneToday(DEFAULT_TZ);
-    const opts = { gender: p.gender || null, sect: settings.sect, solarTime: settings.solarTime, today };
+    const opts = { gender: p.gender || null, sect: settings.sect, solarTime: settings.solarTime, today, mayaCount: settings.mayaCount, ziweiSchool: settings.ziweiSchool, ziweiYear: settings.ziweiYear };
     const [prof, { buildCareer }, T, { BLOOD }, F] = await Promise.all([
       loadProfile(ctx, p, input, opts, { withName: false }), import('../core/career.js'), import('../core/timing.js'), import('../core/blood.js'), import('../core/fengshui.js'),
     ]);

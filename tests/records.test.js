@@ -83,6 +83,12 @@ test('本名與多胞胎順序：只收中文 2～6 字、順序 0～5；舊備�
   assert.equal(old.birthOrder, 0);
   assert.equal(sanitizeSettings({ twinMethod: 'travel' }).twinMethod, 'travel');
   assert.equal(sanitizeSettings({ twinMethod: 'x' }).twinMethod, 'sibling');
+  // 派別：只收清單裡的值，其他一律回到預設
+  assert.deepEqual(sanitizeSettings({}).mayaCount, 'dreamspell');
+  assert.equal(sanitizeSettings({ mayaCount: 'traditional', ziweiSchool: 'zhongzhou', ziweiYear: 'exact' }).mayaCount, 'traditional');
+  assert.equal(sanitizeSettings({ ziweiSchool: 'zhongzhou' }).ziweiSchool, 'zhongzhou');
+  assert.equal(sanitizeSettings({ ziweiYear: 'exact' }).ziweiYear, 'exact');
+  assert.deepEqual([sanitizeSettings({ mayaCount: 'x', ziweiSchool: 1, ziweiYear: null })].map((o) => [o.mayaCount, o.ziweiSchool, o.ziweiYear])[0], ['dreamspell', 'default', 'normal']);
 });
 
 test('血型：只收 A、B、O、AB，其他（含小寫、Rh 寫法、物件）一律存成沒填', () => {

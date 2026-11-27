@@ -84,7 +84,7 @@ export function mountToday(root, ctx) {
     data.hourLines = T.hourSummary(data.hours);
     data.attention = T.attentionSummary(data.items, today);
     // 朗讀稿要的資料（按下朗讀時才組，畫面上看到什麼就唸什麼）
-    const dayKin = MK.kinOf(today);
+    const dayKin = MK.kinOf(today, ctx.getSettings().mayaCount);
     data.speechInput = () => ({
       title: person ? heroTitle(person) : '今天',
       dateLine: dateLine(data),
@@ -286,19 +286,21 @@ export function mountToday(root, ctx) {
     );
   }
 
-  // 今天的瑪雅印記（13 月亮曆）：今天的 KIN、今天問自己的問題、今天的圖騰落在你五大神諭的哪個位置、下次銀河生日
+  // 今天的瑪雅印記：今天的 KIN、今天問自己的問題、今天的圖騰落在你五大神諭的哪個位置、下次銀河生日
+  // （算法跟著「排盤設定」的瑪雅曆算法：13 月亮曆或傳統馬雅曆）
   function mayaCard(data, MK, MT, MG) {
     const { today, person } = data;
-    const dayKin = MK.kinOf(today);
+    const count = ctx.getSettings().mayaCount;
+    const dayKin = MK.kinOf(today, count);
     if (dayKin === null) return null;
     const day = MK.kinInfo(dayKin);
     const st = MT.SEAL_TEXT[day.seal.n];
-    const mine = person && data.birth ? MK.mayaKin(data.birth) : null;
+    const mine = person && data.birth ? MK.mayaKin(data.birth, count) : null;
     let relation = null;
     if (mine) {
       const type = MK.dayRelation(day.kin, mine.kin);
       const ct = MT.COLOR_TEXT[mine.seal.color];
-      const next = type === 'return' ? null : MK.nextKinDate(today, mine.kin);
+      const next = type === 'return' ? null : MK.nextKinDate(today, mine.kin, count);
       const when = next ? `${next.date.y === today.y ? '' : `${next.date.y}/`}${next.date.m}/${next.date.d}` : '';
       relation = h('div', { class: `kin-relation ${type}` },
         h('p', { text: type === 'color' ? `今天和你同屬${ct.name}家族（${ct.key}）：${MT.DAY_RELATION_TEXT.color}` : MT.DAY_RELATION_TEXT[type] }),

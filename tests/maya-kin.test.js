@@ -2,7 +2,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { kinOf, kinInfo, kinFrom, oracleOf, mayaKin, validDate, toneBarsDots, sealOf, toneOf, yearKin, dayRelation, nextKinDate, pairRelation, colorRelation, pairSummary, SEALS, TONES } from '../js/core/maya-kin.js';
+import { kinOf, kinInfo, kinFrom, oracleOf, mayaKin, validDate, toneBarsDots, sealOf, toneOf, yearKin, dayRelation, nextKinDate, pairRelation, colorRelation, pairSummary, kinWithLeapDays, compositeKin, SEALS, TONES } from '../js/core/maya-kin.js';
+import { MAYA_COUNTS } from '../js/core/schools.js';
 import { DAY_RELATION_TEXT, PAIR_RELATION_TEXT, PAIR_MAIN, COLOR_PAIR_TEXT, PAIR_HOWTO } from '../js/core/maya-texts.js';
 
 test('查證過的日期：年名、yokai.jp 的 KIN 34、2012 冬至', () => {
@@ -176,4 +177,34 @@ test('合盤：每一對都有主要關係——上一版約六成的配對只�
   assert.ok(none / total > 0.55 && none / total < 0.65, `沒有連結的比例 ${none / total}`);
   for (const m of Object.values(PAIR_MAIN)) assert.ok(m.label && m.head && m.tips.length >= 2);
   assert.ok(PAIR_HOWTO.some((t) => /兩個 KIN 相加/.test(t)), '說明沒採用的算法');
+});
+
+test('傳統馬雅曆：GMT 對照常數 584283，2012-12-21 是 13.0.0.0.0 4 Ajaw；每一天都算（2/29 也算），和 13 月亮曆同一天的圖騰常不同', () => {
+  assert.deepEqual(MAYA_COUNTS.map((x) => x.value), ['dreamspell', 'traditional']);
+  const end = kinOf({ y: 2012, m: 12, d: 21 }, 'traditional');
+  assert.equal(sealOf(end), 20); // Ajaw＝太陽
+  assert.equal(toneOf(end), 4);
+  // 傳統曆連續數：2/28、2/29、3/1 三天三個 KIN；13 月亮曆 2/29 和 2/28 同一個
+  const t = [28, 29].map((d) => kinOf({ y: 2024, m: 2, d }, 'traditional'));
+  assert.equal(t[1], (t[0] % 260) + 1);
+  assert.equal(kinOf({ y: 2024, m: 3, d: 1 }, 'traditional'), (t[1] % 260) + 1);
+  assert.equal(kinOf({ y: 2024, m: 2, d: 29 }), kinOf({ y: 2024, m: 2, d: 28 }));
+  // 同一天兩種算法不同（1990-08-15：13 月亮曆 KIN 109、傳統曆 KIN 56）
+  assert.equal(kinOf({ y: 1990, m: 8, d: 15 }), 109);
+  assert.equal(kinOf({ y: 1990, m: 8, d: 15 }, 'traditional'), 56);
+  // 2/29 的兩種用法只屬於 13 月亮曆；傳統曆的銀河生日剛好 260 天一次
+  assert.equal(mayaKin({ y: 2024, m: 2, d: 29 }).leapDay, true);
+  assert.equal(mayaKin({ y: 2024, m: 2, d: 29 }, 'traditional').leapDay, false);
+  const k = kinOf({ y: 2026, m: 11, d: 27 }, 'traditional');
+  assert.equal(nextKinDate({ y: 2026, m: 11, d: 28 }, k, 'traditional').days, 259);
+  assert.equal(yearKin({ y: 1990, m: 8, d: 15 }, { y: 2026, m: 11, d: 27 }, 'traditional').kin, kinOf({ y: 2026, m: 8, d: 15 }, 'traditional'));
+});
+
+test('算法對照用的兩種：把 2/29 也算進去的算錯版（離 2013 年越遠差越多）、兩個 KIN 相加（超過 260 減 260）', () => {
+  assert.equal(kinWithLeapDays({ y: 2013, m: 7, d: 26 }), 164);
+  // 1990 到 2013 之間有 6 個 2/29（1992、96、2000、04、08、12）→ 差 6 天
+  assert.equal(kinOf({ y: 1990, m: 8, d: 15 }) - kinWithLeapDays({ y: 1990, m: 8, d: 15 }), 6);
+  assert.equal(compositeKin(157, 24), 181);
+  assert.equal(compositeKin(200, 100), 40);
+  assert.equal(compositeKin(260, 260), 260);
 });

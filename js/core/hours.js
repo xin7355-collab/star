@@ -54,7 +54,7 @@ export function isDstDay(input) {
  * @param {{gender?:'男'|'女'|'', sect?:1|2, place?:{lat,lon}|null, today?:{y,m,d}}} o
  *   place：算上升星座用；沒填時間的人，出生地由畫面從名單的出生地帶入
  */
-export function hourCandidates(input, { gender = '', sect = 1, place = null, today = null } = {}) {
+export function hourCandidates(input, { gender = '', sect = 1, place = null, today = null, ziweiSchool = 'default', ziweiYear = 'normal' } = {}) {
   return HOUR_SLOTS.map((slot) => {
     const { utcMs, input: ci } = slotInput(input, slot);
     // 候選本身就是「標準時間的某個時辰」，用標準時間排（真太陽時的差別在畫面上另外說明）
@@ -84,7 +84,7 @@ export function hourCandidates(input, { gender = '', sect = 1, place = null, tod
     }
     let ziwei = null;
     if (gender === '男' || gender === '女') {
-      const zw = buildZiwei(ci, { gender, solarTime: 'standard' });
+      const zw = buildZiwei(ci, { gender, solarTime: 'standard', sect, school: ziweiSchool, yearDivide: ziweiYear });
       if (zw.ok) {
         const ming = zw.palaces.find((p) => p.name === '命宮');
         const body = zw.palaces.find((p) => p.isBody);

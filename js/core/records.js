@@ -183,6 +183,10 @@ export function sanitizeSettings(s) {
     solarTime: o.solarTime === 'true' ? 'true' : 'standard',
     // 多胞胎的紫微借宮看法：sibling＝弟妹依序借兄弟宮、travel＝老二借遷移宮
     twinMethod: o.twinMethod === 'travel' ? 'travel' : 'sibling',
+    // 派別：瑪雅曆算法（13 月亮曆／傳統馬雅曆）、紫微派別（通行／中州派）、紫微年分界（正月初一／立春）
+    mayaCount: o.mayaCount === 'traditional' ? 'traditional' : 'dreamspell',
+    ziweiSchool: o.ziweiSchool === 'zhongzhou' ? 'zhongzhou' : 'default',
+    ziweiYear: o.ziweiYear === 'exact' ? 'exact' : 'normal',
     // 動畫強度：full 完整（含抽牌儀式）、lite 輕量（只留短的轉場）、off 關閉（和系統「減少動態效果」一樣）
     motion: ['lite', 'off'].includes(o.motion) ? o.motion : 'full',
   };

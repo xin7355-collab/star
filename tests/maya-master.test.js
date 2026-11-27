@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { kinInfo, pairSummary, dayRelation, kinOf } from '../js/core/maya-kin.js';
-import { mayaPairMaster, sharedMayaDays } from '../js/core/maya-master.js';
+import { mayaPairMaster, sharedMayaDays, methodCompare } from '../js/core/maya-master.js';
 import { computeMaya, compareMaya, explainCompare } from '../js/core/maya.js';
 import { MAYA_KEYWORD_TEXT } from '../js/core/reading-texts.js';
 
@@ -57,4 +57,23 @@ test('每一種配對都組得出完整的解盤：沒有 undefined、斷語帶�
   assert.match(g.verdict, /^小華（紅地球）是你（紅月）的「引導」/);
   // 同調性：問題不重複列兩次
   assert.match(g.boosts.find((t) => /調性的問題|兩個問題/.test(t)), /一起問一次/);
+});
+
+test('算法對照：同一對人用不同算法各算一次，標出哪一種會落在挑戰（會被講成不合）；兩個 KIN 相加另外列', () => {
+  const c = methodCompare({ name: '你', date: { y: 1990, m: 8, d: 15 } }, { name: '媽媽', date: { y: 1962, m: 11, d: 20 } });
+  const by = Object.fromEntries(c.rows.map((x) => [x.key, x]));
+  assert.deepEqual(c.rows.map((x) => x.key), ['dreamspell', 'traditional', 'leapday']);
+  assert.equal(by.dreamspell.mainLabel, '支持色');
+  assert.equal(by.dreamspell.hard, false);
+  // 同一對人換成傳統馬雅曆（混合做法）或算錯閏日，就落在「挑戰」
+  assert.equal(by.traditional.a.kin, 56);
+  assert.equal(by.traditional.hard, true);
+  assert.equal(by.leapday.hard, true);
+  assert.equal(c.composite.kin, 235);
+  // 生日在 2013 年附近時算錯版和 13 月亮曆一樣，不另外列
+  const near = methodCompare({ name: '甲', date: { y: 2013, m: 8, d: 1 } }, { name: '乙', date: { y: 2013, m: 9, d: 1 } });
+  assert.ok(!near.rows.some((x) => x.key === 'leapday'));
+  // 兩人都順的日子也跟著算法換
+  const t = sharedMayaDays(56, 66, FROM, { count: 'traditional' });
+  for (const d of t) assert.equal(kinOf(d.date, 'traditional'), d.kin);
 });
