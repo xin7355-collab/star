@@ -5,10 +5,16 @@
 // 判斷依據：
 // - 適合程度和「新興產業」同一套（emerging.js）：工作性質（八字格局、紫微官祿、星座、生命靈數、血型投票排出的前 4 名）
 //   有沒有對上這個工作，加上這個工作的行業五行是不是你的喜用。
-// - 工作的性質、五行、AI 影響是本 App 依工作內容歸類的（2026 年台灣的情況），不是官方分類。
+// - 選單有兩種：常見工作（82 個，寫得最細）和官方職業分類的全部 380 個細類（occupations.js，使用者回饋「選單沒有包含全部」）。
+//   兩種都能選、能比；官方職業的性質、五行、AI 影響是本 App 依小類歸類的，同一種工作沿用常見工作的寫法（like）。
+// - 工作的性質、五行、AI 影響是本 App 依工作內容歸類的（2026 年台灣的情況），不是官方內容。
 // - 換跑道的時機看人生時間軸（lifeline.js）：變動的訊號（傷官、七殺、偏印、食神、偏財年，沖月支，交大運，
 //   生命靈數 1 的新循環）落在順的年份最好；注意、小心的年份不建議裸辭。
 // 文字不寫宿命、恐嚇、打包票的字（tests/wording.test.js）。
+
+import { SOC_NAMES, SOC_TREE, SOC_EDITION, MINOR, UNIT, SOC_OF, ALIASES, COMMON_ALIASES } from './occupations.js';
+
+export { SOC_TREE, SOC_EDITION };
 
 /** 十一種工作性質（career.js 各系統投票、新興產業、工作選單共用） */
 export const NATURES = {
@@ -36,9 +42,11 @@ const AI_NOTE = [
 /** 這份工作和 AI 的關係（給畫面用） */
 export const aiNoteOf = (job) => AI_NOTE[job.ai];
 
-const j = (id, name, natures, wx, skills, entry, ai, status = false) => ({ id, name, natures, wx, skills, entry, ai, status, long: LONG_TRAINING.has(id) });
-// 要相關科系加國考（或教師甄試）、養成期好幾年的工作：30 歲以上不放進「你可能沒想到的」推薦；自己選了就提醒養成期
-const LONG_TRAINING = new Set(['doctor', 'nurse', 'pharmacist', 'therapist', 'nutritionist', 'psych', 'lawyer', 'teacher', 'medtech']);
+const j = (id, name, natures, wx, skills, entry, ai, status = false) => ({ id, name, natures, wx, skills, entry, ai, status, long: LONG_TRAINING[id] || null });
+// 要相關科系加國考（或師資培育加教甄）、養成期好幾年的工作：30 歲以上不放進「你可能沒想到的」推薦；自己選了就提醒養成期
+const LONG_TRAINING = { doctor: 'exam', nurse: 'exam', pharmacist: 'exam', therapist: 'exam', nutritionist: 'exam', psych: 'exam', lawyer: 'exam', medtech: 'exam', teacher: 'teach' };
+// 養成期的說法：官方職業裡還有研究所、飛行訓練、司法官考試這幾種，全講成「國考」會講錯（機師、物理學家不考國考）
+const LONG_TEXT = { exam: '要相關科系和國考', teach: '要修師資培育、考教師資格和教甄', grad: '通常要研究所以上學歷', flight: '要飛行訓練和檢定', judge: '要法律系、司法官考試和受訓' };
 
 export const JOB_GROUPS = [
   { id: 'tech', name: '科技資訊', jobs: [
@@ -199,9 +207,95 @@ const traitsOf = (id) => {
   return t ? { pay: t[0], stab: t[1], free: t[2], bal: t[3], trend: t[4] } : { pay: 0, stab: 0, free: 0, bal: 0, trend: null };
 };
 
-const ALL = JOB_GROUPS.flatMap((g) => g.jobs.map((x) => ({ ...x, ...traitsOf(x.id), group: g.id, groupName: g.name })));
-const BY_ID = new Map(ALL.map((x) => [x.id, x]));
+// 學歷、證照門檻的層級（照官方大類的技術層次）：專業人員和主管 4、技術員 3、事務／服務／技藝／操作 2、基層勞力 1。
+// 轉換差多遠要看它：同一行的營建勞力工想當土木工程師，不是「內部轉調 3～6 個月」轉得過去
+const TIER = { 1: 4, 2: 4, 3: 3, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 1, 0: 2 };
+const tierOf = (code) => (code ? TIER[code[0]] : null);
+const GROUP_NAME = { ...Object.fromEntries(JOB_GROUPS.map((g) => [g.id, g.name])), science: '科學研究' };
+
+/** 常見工作（82 個＋4 種狀態）：寫得最細，也是「最適合你的職位」推薦的範圍 */
+const CURATED = JOB_GROUPS.flatMap((g) => g.jobs.map((x) => ({ ...x, ...traitsOf(x.id), group: g.id, groupName: g.name, official: false, soc: SOC_OF[x.id] || null, tier: tierOf(SOC_OF[x.id]) })));
+const CURATED_BY_ID = new Map(CURATED.map((x) => [x.id, x]));
+
+const traitsFrom = (t) => ({ pay: Math.floor(t / 1000), stab: Math.floor(t / 100) % 10, free: Math.floor(t / 10) % 10, bal: t % 10 });
+// 官方細類：小類的歸類 → 同一種工作沿用常見工作（like）→ 細類自己不一樣的地方
+function officialJob(code, name) {
+  const [group, natures, wx, t, ai, trend, skills, entry, long = null] = MINOR[code.slice(0, 3)];
+  const u = UNIT[code] || {};
+  const tpl = u.like ? CURATED_BY_ID.get(u.like) : null;
+  const x = tpl
+    ? { group: tpl.group, natures: tpl.natures, wx: tpl.wx, skills: tpl.skills, entry: tpl.entry, ai: tpl.ai, long: tpl.long, pay: tpl.pay, stab: tpl.stab, free: tpl.free, bal: tpl.bal, trend: tpl.trend }
+    : { group, natures: natures.split(' '), wx: wx.split(' '), skills, entry, ai, long, ...traitsFrom(t), trend: trend || null };
+  if (u.group) x.group = u.group;
+  if (u.n) x.natures = u.n.split(' ');
+  if (u.wx) x.wx = u.wx.split(' ');
+  if (u.t) Object.assign(x, traitsFrom(u.t));
+  if (u.ai !== undefined) x.ai = u.ai;
+  if (u.trend !== undefined) x.trend = u.trend || null;
+  if (u.skills) x.skills = u.skills;
+  if (u.entry) x.entry = u.entry;
+  if (u.long !== undefined) x.long = u.long;
+  return { id: code, name, status: false, official: true, soc: code, tier: tierOf(code), like: tpl ? tpl.id : null, ...x, groupName: GROUP_NAME[x.group] };
+}
+/** 官方職業分類的 380 個細類（代碼就是 id，例如 2512） */
+const OFFICIAL = [...SOC_NAMES].filter(([code]) => code.length === 4).map(([code, name]) => officialJob(code, name));
+const BY_ID = new Map([...CURATED, ...OFFICIAL].map((x) => [x.id, x]));
 export const jobOf = (id) => BY_ID.get(id) || null;
+export const COMMON_COUNT = CURATED.filter((x) => !x.status).length;
+export const OFFICIAL_COUNT = OFFICIAL.length;
+
+/**
+ * 一行說明：官方職業屬於哪個中類；常見工作屬於哪一類（detail＝也列出對應的官方細類，選項卡用）
+ */
+export function jobMeta(job, { detail = false } = {}) {
+  if (!job) return '';
+  if (job.status) return '目前狀態';
+  if (job.official) return `官方分類 ${job.id}・${SOC_NAMES.get(job.id.slice(0, 2))}`;
+  return detail && job.soc ? `常見工作・官方分類 ${job.soc} ${SOC_NAMES.get(job.soc)}` : `常見工作・${job.groupName}`;
+}
+
+// ── 搜尋：名稱、口語叫法、所屬類別都比對。全形半形（NFKC）、大小寫、空白不計
+const norm = (s) => String(s || '').normalize('NFKC').toLowerCase().replace(/[\s\u3000]+/g, '');
+const aliasList = (s) => (s ? s.split('、').map(norm).filter(Boolean) : []);
+const INDEX = [...CURATED, ...OFFICIAL].map((job, order) => ({
+  job,
+  order,
+  name: norm(job.name),
+  alias: aliasList(job.official ? ALIASES[job.id] : COMMON_ALIASES[job.id]),
+  // 所屬類別只比小類：中類名稱太廣（「會計、生產、運輸及有關事務人員」），打「會計」會帶出倉管、運務
+  ctx: job.official ? norm(SOC_NAMES.get(job.id.slice(0, 3))) : norm(job.groupName),
+}));
+function termScore(e, t) {
+  if (/^\d+$/.test(t)) return e.job.official && e.job.id.startsWith(t) ? (e.job.id === t ? 100 : 80) : 0;
+  // 英文詞只比開頭：打「uber」不該因為「youtuber」帶出自媒體
+  const latin = /^[a-z&]+$/.test(t);
+  let best = e.name === t ? 100 : e.name.startsWith(t) ? 90 : !latin && e.name.includes(t) ? 75 : 0;
+  for (const a of e.alias) best = Math.max(best, a === t ? 85 : a.startsWith(t) ? 70 : !latin && a.includes(t) ? 60 : 0);
+  if (!best && !latin && e.ctx.includes(t)) best = 30;
+  return best;
+}
+
+/**
+ * 搜尋工作（常見工作＋官方職業）。好幾個詞要全部對上；常見工作同分時排前面（名稱比較口語）。
+ * 也可以直接打官方代碼（例如 2512）
+ * @returns {{hits:{job:object, score:number}[], total:number}}
+ */
+export function searchJobs(q, { withStatus = false, limit = 30 } = {}) {
+  const terms = String(q || '').split(/[\s\u3000,，、]+/).map(norm).filter(Boolean);
+  if (!terms.length) return { hits: [], total: 0 };
+  const hits = [];
+  for (const e of INDEX) {
+    if (e.job.status && !withStatus) continue;
+    let score = Infinity;
+    for (const t of terms) {
+      score = Math.min(score, termScore(e, t));
+      if (!score) break;
+    }
+    if (score) hits.push({ job: e.job, score: score + (e.job.official ? 0 : 3), order: e.order });
+  }
+  hits.sort((a, b) => b.score - a.score || a.order - b.order);
+  return { hits: hits.slice(0, limit).map(({ job, score }) => ({ job, score })), total: hits.length };
+}
 
 /** 年資選項（換跑道的建議會看：做越久，越要帶著舊專業轉） */
 export const TENURES = [
@@ -231,7 +325,7 @@ export const RUNWAYS = [
   { value: 'year', label: '可以撐 1 年以上' },
 ];
 
-/** 存進名單前的白名單：只收選單裡有的代碼、最多 3 個想做的，不收自由輸入的文字 */
+/** 存進名單前的白名單：只收選單裡有的代碼（常見工作的代碼或官方細類的 4 碼）、最多 3 個想做的，不收自由輸入的文字 */
 export function sanitizeCareer(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const current = typeof raw.current === 'string' && BY_ID.has(raw.current) ? raw.current : '';
@@ -291,28 +385,38 @@ export function jobFit(job, { ranked = [], ys = null }) {
 
 /** 依適合程度排出你可能沒想到的工作（不含已經選的、不含狀態類） */
 export function suggestJobs({ ranked, ys, exclude = [], n = 3, age = null }) {
-  return ALL.filter((x) => !x.status && !exclude.includes(x.id) && !(x.long && age !== null && age >= 30))
+  // 只從常見工作推薦：官方細類有「金屬砂模及砂心製造人員」這種名稱，推給一般人看不懂
+  return CURATED.filter((x) => !x.status && !exclude.includes(x.id) && !(x.long && age !== null && age >= 30))
     .map((x) => ({ job: x, fit: jobFit(x, { ranked, ys }) }))
     // 同分時 AI 影響低的排前面（比較不怕被取代）
     .sort((a, b) => b.fit.score - a.fit.score || a.job.ai - b.job.ai)
     .slice(0, n);
 }
 
-/** 兩個工作差多遠：同一類＝相近；工作性質有重疊＝中等；都沒有＝跨很大 */
+/**
+ * 兩個工作差多遠：同一類（或同一個官方小類）＝相近；工作性質有重疊＝中等；都沒有＝跨很大。
+ * 學歷證照門檻往上跳兩級以上（基層 → 專業人員）再加一級難度，跳三級直接算跨很大
+ */
 function distanceOf(from, to) {
   if (!from || from.status) return 'start';
-  if (from.group === to.group) return 'near';
-  if (from.natures.some((k) => to.natures.includes(k))) return 'mid';
-  return 'far';
+  // 基層工作（官方大類 9）不用學歷證照：換過去難的是收入和體力，不是能力，給「門檻低」的步驟（不是跳板、作品集那一套）
+  if (to.tier === 1) return 'easy';
+  let d = from.group === to.group || (from.soc && to.soc && from.soc.slice(0, 3) === to.soc.slice(0, 3)) ? 'near'
+    : from.natures.some((k) => to.natures.includes(k)) ? 'mid' : 'far';
+  const up = stepUp(from, to);
+  if (up >= 3) d = 'far';
+  else if (up >= 2) d = d === 'near' ? 'mid' : 'far';
+  return d;
 }
-export const DISTANCE = { near: '相近', mid: '中等', far: '跨很大', start: '從頭開始' };
+const stepUp = (from, to) => (from && !from.status && from.tier && to.tier ? to.tier - from.tier : 0);
+export const DISTANCE = { near: '相近', mid: '中等', far: '跨很大', start: '從頭開始', easy: '門檻低' };
 
 // 每一類工作，轉行的人常見的「跳板」（門檻比較低、又能累積那一行的經驗）
 const GROUP_BRIDGE = {
   tech: ['data', 'it_admin', 'product'], semi: ['qa', 'pmc'], biz: ['project', 'admin'], sales: ['marketing', 'ecom'],
   finance: ['accountant', 'advisor'], creative: ['marketing', 'editor', 'video'], edu: ['tutor', 'trainer'], health: ['caregiver'],
   mind: ['social'], public: ['admin'], service: ['restaurant', 'hotel'], engineering: ['machinist'], logistics: ['logistics'],
-  arts: ['creator'], nature: ['pet'], freelance: ['freelancer'],
+  arts: ['creator'], nature: ['pet'], freelance: ['freelancer'], science: ['researcher', 'data'],
 };
 
 /**
@@ -330,6 +434,13 @@ function bridgeOf(from, to, { ranked, ys }) {
 // 換跑道的步驟（依差多遠）
 function planOf(dist, { from, to, bridge, tenure }) {
   const long = tenure === '5-10' || tenure === 'gt10';
+  if (to.tier === 1) {
+    return [
+      '門檻低，可以直接應徵，或先用兼職、打工試做一兩個月。',
+      '先確認體力、工時和收入能不能接受；簽約前看清楚有沒有保勞保、健保。',
+      dist !== 'start' && long ? `你在「${from.name}」累積很久，換過去經驗用不太上、收入可能變少；如果只是想喘口氣，也可以考慮同行換一個比較輕鬆的位子。` : '做順了再學一門技術或考證照，收入和穩定度會往上走。',
+    ];
+  }
   if (dist === 'start') {
     if (from && from.id === 'homemaker') return ['先從兼職或時間彈性的工作開始，讓家裡和自己都有時間調整。', `補能力：${to.skills}。`, '把照顧家庭練出來的能力（排程、協調、耐心）寫進履歷，那是真的經驗。'];
     if (from && from.id === 'retired') return ['先用志工、兼職或顧問的方式接觸，不用一開始就全職。', `把你過去的經驗帶進來：${to.skills}裡，哪些你本來就會？`];
@@ -396,13 +507,15 @@ export function careerPlan({ current = '', tenure = '', priority = '', runway = 
     const fit = jobFit(to, { ranked, ys });
     const dist = distanceOf(from, to);
     const bridge = dist === 'far' ? bridgeOf(from, to, { ranked, ys }) : null;
+    const plan = planOf(dist, { from, to, bridge, tenure });
+    if (stepUp(from, to) >= 2) plan.unshift(`「${to.name}」的入行門檻比現在高（通常要相關學歷或證照）：先查清楚要哪些資格，用在職進修、夜間部或職訓補上。`);
     return {
       job: to,
       fit,
       delta: curFit ? Math.round((fit.score - curFit.score) * 10) / 10 : null,
       distance: dist,
       bridge,
-      plan: planOf(dist, { from, to, bridge, tenure }),
+      plan,
       ai: { level: AI_LEVEL[to.ai], note: AI_NOTE[to.ai] },
     };
   }).sort((a, b) => b.fit.score - a.fit.score);
@@ -419,7 +532,7 @@ export function careerPlan({ current = '', tenure = '', priority = '', runway = 
       notes.push({ tone: 'info', text: `「${it.job.name}」對你要多花力氣：不是不能做，是要比別人花更多時間補能力。真的很想做，就從小規模試起。` });
     }
     if (it.job.ai === 2) notes.push({ tone: 'info', text: `「${it.job.name}」例行的部分容易被 AI 自動化：要去的話，練好「用 AI 做這份工作」的能力，或往需要判斷、溝通的那一端走。` });
-    if (it.job.long) notes.push({ tone: 'info', text: `「${it.job.name}」要相關科系和國考（或教師甄試），養成至少好幾年${age !== null && age >= 30 ? '；可以先從相關的輔助工作開始接觸（例如照顧、助理、行政），確定真的喜歡再投入' : ''}。` });
+    if (it.job.long) notes.push({ tone: 'info', text: `「${it.job.name}」${LONG_TEXT[it.job.long]}，養成至少好幾年${age !== null && age >= 30 ? '；可以先從相關的輔助工作開始接觸（例如助理、技術員、行政），確定真的喜歡再投入' : ''}。` });
   });
   if (items.length >= 2) {
     const groups = new Set(items.map((x) => x.job.group));
@@ -469,7 +582,7 @@ const goYearOf = (years) => {
 
 /**
  * 建議路線（現實不是只有「換」和「不換」）：
- * 留下往上走／先換環境不換行／副業先行／準備好再換／全力轉換／從頭開始。
+ * 留下往上走／先換環境不換行／副業先行／準備好再換／全力轉換／先試做（基層工作門檻低）／從頭開始。
  * 依適合度（加上你最在意的那一項）決定要不要換；依收入能撐多久決定怎麼換；依人生時間軸決定哪一年做。
  */
 function choosePath({ from, curFit, items, priority, runway, timing, years }) {
@@ -501,6 +614,10 @@ function choosePath({ from, curFit, items, priority, runway, timing, years }) {
   if (adj(best.job, best.fit) <= adj(from, curFit) + 0.5) {
     return { id: 'move', label: '先換環境', title: '先換環境，不急著換行', target: best.job, year: when,
       steps: ['先寫下想離開的原因：主管、薪水、工時，還是這一行本身。', at(when, `同行換公司或換部門，帶著「${from.name}」的經驗去更好的環境。`), `「${best.job.name}」可以先當興趣或副業接觸，真的更喜歡再說。`] };
+  }
+  if (best.distance === 'easy') {
+    return { id: 'try', label: '先試做', title: `先兼職試做「${best.job.name}」`, target: best.job, year: when,
+      steps: [at(thisYear, `用兼職、打工或假日班試做「${best.job.name}」一兩個月，確認體力、工時和收入能接受。`), at(when, '確定適合再正式轉換；同時學一門技術或考證照，讓收入和穩定度往上走。')] };
   }
   const bridge = best.bridge ? `跨很大：先到「${best.bridge.name}」累積經驗，再到「${best.job.name}」，比直接跳成功率高。` : null;
   // 你最在意的那一項，想去的工作偏低（最在意穩定卻想去自媒體）：除非存款撐得了一年，都先當副業

@@ -121,7 +121,7 @@ b, strong { font-weight: 700; }
 .birth-form { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .field label { font-size: 14px; color: var(--muted); }
-input[type="text"], input[type="time"], input[type="number"], select, textarea {
+input[type="text"], input[type="search"], input[type="time"], input[type="number"], select, textarea {
   width: 100%;
   /* WebKit 不把下拉選單、輸入框當「可壓縮」元素，最小寬度＝最長選項（「♐ 射手座（11/22–12/21）」），
      320 寬的 iPhone 會被撐出水平捲動（CI 的 WebKit 實測 57px）；Chromium 會自動壓縮所以看不出來 */
@@ -1261,6 +1261,32 @@ body.ar-open { overflow: hidden; }
 
 /* 工作與未來方向（js/views/tool-career.js） */
 .job-targets { display: grid; gap: 8px; }
+/* 工作挑選器（job-picker.js）：按鈕長得像下拉選單；打開後是搜尋框＋結果＋「從類別找」兩個下拉 */
+.job-pick {
+  position: relative; width: 100%; min-height: 46px; padding: 8px 30px 8px 12px; text-align: left;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  color: var(--text); background: var(--bg2); border: 1px solid var(--line); border-radius: var(--radius-s);
+  font: inherit; font-size: 16px; cursor: pointer;
+}
+/* ▼ 用偽元素畫（和下拉選單同大小）：畫在按鈕背景圖上，文字的對比度就量不到（design-qa CONTRAST_UNVERIFIED） */
+.job-pick::after { content: ''; position: absolute; right: 8px; top: 50%; margin-top: -2px; border: 5px solid transparent; border-top-color: var(--gold); border-bottom: 0; }
+.job-pick[aria-expanded="true"] { border-color: var(--gold); }
+.job-pick[aria-expanded="true"]::after { transform: rotate(180deg); }
+.job-pick-name { overflow-wrap: anywhere; }
+.job-pick-meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.job-panel { margin-top: 6px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--bg); }
+.job-panel > .muted { margin: 6px 2px 0; }
+.job-hits { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.job-hit {
+  width: 100%; min-height: 48px; padding: 8px 12px; text-align: left;
+  display: flex; flex-direction: column; gap: 2px;
+  color: var(--text); background: var(--bg2); border: 1px solid var(--line); border-radius: var(--radius-s);
+  font: inherit; font-size: 16px; cursor: pointer;
+}
+.job-hit b { overflow-wrap: anywhere; }
+.job-hit[aria-current="true"] { border-color: var(--gold); }
+.job-browse { display: grid; gap: 8px; }
+.opt-meta { margin: 0 0 6px; }
 .job-summary { margin: 6px 0 2px; color: var(--text); }
 .job-options .opt { padding: 12px 0; border-top: 1px solid var(--divider); }
 .job-options .opt:first-of-type { border-top: 0; }

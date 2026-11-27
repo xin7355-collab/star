@@ -667,11 +667,19 @@ test('工作與未來：照問題排——你的狀況（含最在意的、能�
   const form = page.locator('#job-plan');
   await expect(form.getByRole('heading', { name: '你的狀況' })).toBeVisible();
   await expect(form.locator('.job-summary')).toHaveText('還沒填：先選現在的工作，老師才能幫你比。');
-  await form.getByRole('combobox', { name: '目前的工作' }).selectOption('accountant');
+  // 目前的工作：打字搜尋（常見工作＋官方職業分類全部 380 種）
+  await form.getByRole('button', { name: /^目前的工作/ }).click();
+  await form.getByRole('searchbox', { name: '搜尋目前的工作' }).fill('會計');
+  await form.locator('.job-hit', { has: page.locator('b', { hasText: /^會計$/ }) }).click();
+  await expect(form.getByRole('button', { name: /^目前的工作/ })).toContainText('會計');
+  await expect(form.locator('.job-panel:visible')).toHaveCount(0);
   await form.getByRole('combobox', { name: '做了多久' }).selectOption('5-10');
   await form.getByRole('combobox', { name: '你最在意的' }).selectOption('stable');
   await form.getByRole('combobox', { name: '收入變少能撐多久' }).selectOption('none');
-  await form.getByRole('combobox', { name: '想做的工作 1' }).selectOption('ai_eng');
+  // 想做的工作：從類別找（先選類別、再選工作）
+  await form.getByRole('button', { name: /^想做的工作 1/ }).click();
+  await form.getByRole('combobox', { name: '想做的工作 1：類別' }).selectOption('common');
+  await form.getByRole('combobox', { name: '想做的工作 1：工作' }).selectOption('ai_eng');
   await expect(form.locator('.job-summary')).toHaveText('現在：會計（5～10 年）・最在意：穩定・收入：不能變少・想做：AI 工程師');
   // 老師總評：收入不能變少 → 副業先行
   const master = page.locator('#view-destiny section.master').filter({ has: page.getByRole('heading', { name: '老師總評' }) });
@@ -693,7 +701,7 @@ test('工作與未來：照問題排——你的狀況（含最在意的、能�
   const rec = talent.locator('.job-recs li').first();
   const recName = await rec.locator('b').textContent();
   await rec.getByRole('button', { name: '加到想做的工作' }).click();
-  await expect(form.getByRole('combobox', { name: '想做的工作 2' }).locator('option:checked')).toHaveText(recName);
+  await expect(form.getByRole('button', { name: /^想做的工作 2/ }).locator('.job-pick-name')).toHaveText(recName);
   await expect(talent.locator('summary', { hasText: '新興產業適不適合你' })).toBeVisible();
   // 工作運：10 年、衝穩守，標出建議轉換的那一年
   const tl = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '工作運：未來 10 年' }) });
@@ -721,7 +729,55 @@ test('工作與未來：照問題排——你的狀況（含最在意的、能�
   // 存過了：表單收起來，只留一行現況和「修改」
   await expect(form2.locator('details.job-form')).not.toHaveAttribute('open', '');
   await form2.locator('summary', { hasText: '修改' }).click();
-  await expect(form2.getByRole('combobox', { name: '想做的工作 1' })).toHaveValue('ai_eng');
+  await expect(form2.getByRole('button', { name: /^想做的工作 1/ })).toContainText('AI 工程師');
+});
+
+test('工作選單包含官方職業分類全部職業：口語搜尋、注音組字中不搜尋、找不到的提示、從大類找、存的是官方代碼、門檻高的提醒', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  await page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption('career');
+  const form = page.locator('#job-plan');
+  await form.getByRole('button', { name: /^目前的工作/ }).click();
+  const search = form.getByRole('searchbox', { name: '搜尋目前的工作' });
+  await expect(search).toBeFocused();
+  // 注音組字中：不搜尋（不然每打一個注音就跳「找不到」）
+  await search.dispatchEvent('compositionstart');
+  await search.fill('ㄨㄞˋ');
+  await expect(form.locator('.job-panel [role="status"]').first()).toHaveText('');
+  await search.fill('外送');
+  await search.dispatchEvent('compositionend');
+  const hit = form.locator('.job-hit', { has: page.locator('b', { hasText: '機車駕駛人員' }) });
+  await expect(hit).toContainText('官方分類 8321');
+  await hit.click();
+  await expect(form.locator('.job-summary')).toContainText('現在：機車駕駛人員');
+  // 找不到：給換說法的建議
+  await form.getByRole('button', { name: /^想做的工作 1/ }).click();
+  const s1 = form.getByRole('searchbox', { name: '搜尋想做的工作 1' });
+  await s1.fill('zzzz');
+  await expect(form.getByText('找不到「zzzz」')).toBeVisible();
+  // 鍵盤的「搜尋」鍵收起鍵盤（不自動選）
+  await s1.press('Enter');
+  await expect(s1).not.toBeFocused();
+  await expect(form.locator('.job-summary')).toContainText('現在：機車駕駛人員');
+  await s1.fill('土木');
+  await form.locator('.job-hit', { has: page.locator('b', { hasText: /^土木工程師$/ }) }).click();
+  // 從大類找：0 軍人
+  await form.getByRole('button', { name: /^想做的工作 2/ }).click();
+  await form.getByRole('combobox', { name: '想做的工作 2：類別' }).selectOption('0');
+  await form.getByRole('combobox', { name: '想做的工作 2：工作' }).selectOption('0100');
+  await expect(form.locator('.job-summary')).toContainText('想做：土木工程師、軍人');
+  // 選項比一比：官方職業標出分類；基層想轉專業人員，提醒入行門檻
+  const opts = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '你的選項比一比' }) });
+  await expect(opts.locator('.opt')).toHaveCount(3);
+  await expect(opts.locator('.opt', { hasText: '機車駕駛人員' }).locator('.opt-meta')).toHaveText('官方分類 8321・駕駛及移運設備操作人員');
+  const civil = opts.locator('.opt', { hasText: '土木工程師' });
+  await civil.locator('summary', { hasText: '怎麼轉' }).click();
+  await expect(civil).toContainText('入行門檻比現在高');
+  // 存的是官方代碼
+  await form.getByRole('button', { name: '存到我的資料' }).click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('star.v1.people'))[0].career);
+  expect(saved).toMatchObject({ current: '8321', targets: ['2142', '0100'] });
 });
 
 test('占卜：樂透選號（今日固定、隨機一組、機率表、存紀錄）', async ({ page }) => {

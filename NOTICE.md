@@ -35,6 +35,14 @@ i18next 以 `overrides` 從 iztro 預設的 23.x 升到 26.7.2，修掉 npm audi
 | `js/core/zh-data.js` | `scripts/gen-zh-map.py` 用 [OpenCC](https://github.com/BYVoid/OpenCC)（opencc-python-reimplemented 0.1.7）把 lunar-typescript 的簡體字串轉成台灣繁體 | 對照資料源自 OpenCC 字典，Apache-2.0，`LICENSES/opencc-Apache-2.0.txt` |
 | `js/core/kangxi-data.js` | `scripts/gen-kangxi.py` 由 Unicode Unihan 資料庫（經 npm 套件 [cjk-unihan](https://github.com/texh/cjk-unihan) 0.0.3 取得，下載時核對 sha512）的 kRSKangXi 換算康熙筆畫、kMandarin 改成數字聲調拼音；只收 Big5 範圍 13063 字 | Unihan © Unicode, Inc.，Unicode 授權，`LICENSES/unicode-LICENSE.txt`（資料已修改）；cjk-unihan 套件本身 MIT |
 
+## 政府公告的分類標準
+
+| 檔案 | 來源 | 收錄內容 |
+|---|---|---|
+| `js/core/occupations.js` | 中華民國職業標準分類（第 6 次修訂），行政院主計處 2010 年 5 月公告、同年 5 月 1 日起實施；2023 年 9 月起由勞動部統計處維護。取自勞動部統計處網站的「職業標準分類電子書」與「第 6 次修訂版與國際職業標準分類對照表」（PDF） | 10 大類、39 中類、125 小類、380 細類的代碼與名稱（照原文；PDF 抽出的相容字已轉成一般字）。搜尋用的口語叫法有一部分取自官方說明裡「某職稱應歸入某細類」的職稱，其餘為本 App 自編 |
+
+每個職業的工作性質、行業五行、收入／穩定／自由／生活平衡、AI 影響、入行方式，是本 App 依工作內容自行歸類，不是官方內容，與官方無關。
+
 ## 參考後以 JavaScript 重寫（MIT，保留原作者聲明）
 
 | 本專案檔案 | 參考來源 | 參考內容 |

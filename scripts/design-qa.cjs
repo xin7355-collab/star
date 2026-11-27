@@ -162,6 +162,12 @@ async function tour(browser, width, prefix, opts) {
   await tool(page, 'career');
   await page.waitForSelector('#view-destiny .career-years .cy');
   files.push(await snap(page, `${prefix}career`, width));
+  // 工作挑選器打開、有搜尋結果的樣子（結果按鈕的大小、對比、長名稱換行）
+  await page.locator('#job-plan').getByRole('button', { name: /^目前的工作/ }).click();
+  await page.locator('#job-plan').getByRole('searchbox', { name: '搜尋目前的工作' }).fill('紡織');
+  await page.waitForSelector('#job-plan .job-hit');
+  files.push(await snap(page, `${prefix}career-picker`, width));
+  await page.locator('#job-plan').getByRole('button', { name: '收起' }).click();
   await tool(page, 'fengshui');
   await page.waitForSelector('#view-destiny .luoshu');
   files.push(await snap(page, `${prefix}fengshui`, width));
