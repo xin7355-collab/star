@@ -300,10 +300,15 @@ AR 星空,data_view,long_content,DONE,code:css/app.css .ar-list-items 最多 28v
 搭配看按鈕,action,default,DONE,e2e:配對：老師怎麼看——（開運佈置按鈕切到命盤的開運佈置）,
 搭配看按鈕,action,focus_visible,DONE,code:按鈕用共用的 .btn 樣式,
 工作與換跑道,data_view,loading,NA,,和工作與未來方向同一次計算（命盤載入完才畫）
-工作與換跑道,data_view,empty,DONE,e2e:工作與未來：照問題排——你的狀況（含最在意的、能撐多久）→ 老師總評（建議路線）→ 選項比一比 → 你的天賦（一份推薦）→ 工作運 10 年；存檔、編輯資料不會洗掉,還沒填時現況寫「還沒填」，天賦卡照樣列推薦的職位
+工作與換跑道,data_view,empty,DONE,e2e:工作與未來：照問題排——你的狀況（含最在意的、能撐多久）→ 老師總評（建議路線）→ 選項比一比（綜合分數、月薪）→ 綜合推薦 → 你的天賦 → 工作運 10 年；存檔、編輯資料不會洗掉,還沒填時現況寫「還沒填」，綜合推薦照樣列（只用命理和 AI 與未來性）
 工作與換跑道,data_view,error,NA,,純計算；選單代碼經過白名單
-工作與換跑道,data_view,populated,DONE,e2e:工作與未來：照問題排——你的狀況（含最在意的、能撐多久）→ 老師總評（建議路線）→ 選項比一比 → 你的天賦（一份推薦）→ 工作運 10 年；存檔、編輯資料不會洗掉,
-工作與換跑道,data_view,long_content,DONE,code:js/views/tool-career.js 推薦先列 3 個、其餘收起；存過的表單收起只留一行現況；挑選器結果最多 30 個,
+工作與換跑道,data_view,populated,DONE,e2e:工作與未來：照問題排——你的狀況（含最在意的、能撐多久）→ 老師總評（建議路線）→ 選項比一比（綜合分數、月薪）→ 綜合推薦 → 你的天賦 → 工作運 10 年；存檔、編輯資料不會洗掉,
+工作與換跑道,data_view,long_content,DONE,code:js/views/tool-career.js 綜合推薦先列 5 個、其餘收起；存過的表單收起只留一行現況；挑選器結果最多 30 個,
+綜合推薦,data_view,loading,NA,,和工作與未來方向同一次計算（約 30 毫秒），沒有非同步載入
+綜合推薦,data_view,empty,DONE,code:js/views/tool-career.js 沒有可推薦的工作時整張卡不出現；沒做測驗、沒填技能、沒選最在意的時寫「還沒算進來」和去哪裡補,
+綜合推薦,data_view,error,NA,,純計算、不連網；薪資是內建資料
+綜合推薦,data_view,populated,DONE,e2e:工作與未來：（綜合推薦：這次一起比的、月薪、加到想做的工作、分數怎麼算）,
+綜合推薦,data_view,long_content,DONE,code:js/views/tool-career.js 先列 5 個、其餘收在「再看 N 個」；長職類名稱換行（320 寬截圖確認）,
 工作選擇存檔,action,default,DONE,e2e:工作與未來：（存到我的資料、重新整理還在）,沒變更時按鈕停用
 工作選擇存檔,action,disabled,DONE,code:js/views/tool-career.js 和存檔一樣時停用,
 工作選擇存檔,action,hover,NA,,觸控裝置為主
@@ -332,7 +337,7 @@ AR 星空,data_view,long_content,DONE,code:css/app.css .ar-list-items 最多 28v
 本事卡,data_view,populated,DONE,e2e:軍職海巡：（月退提醒、民間對照、轉換管道）,
 本事卡,data_view,long_content,DONE,code:js/views/tool-career.js 民間對照先列 4 個、搆得到的先列 3 個，其餘收起,
 興趣與性格測驗,data_view,loading,NA,,題目內建，沒有載入
-興趣與性格測驗,data_view,empty,DONE,e2e:興趣與性格測驗：一題一頁、可以上一題、先停下次接著做；做完自動存、結果投進天賦,還沒做時是說明和「開始測驗」；做到一半是「繼續作答（第 N 題）」
+興趣與性格測驗,data_view,empty,DONE,e2e:興趣與性格測驗：一題一頁、可以上一題、先停下次接著做；做完自動存、結果變成綜合推薦的興趣與性格兩項、看得到 E／I,還沒做時是說明和「開始測驗」；做到一半是「繼續作答（第 N 題）」
 興趣與性格測驗,data_view,error,DONE,code:js/views/quiz-card.js 存檔失敗跳出原因；作答進度壞掉時從頭開始,
 興趣與性格測驗,data_view,populated,DONE,e2e:興趣與性格測驗：（結果、興趣代碼、分數條）,
 興趣與性格測驗,data_view,long_content,DONE,code:js/views/quiz-card.js 一題一頁；說明收在摺疊,

@@ -13,12 +13,14 @@
 // 文字不寫宿命、恐嚇、打包票的字（tests/wording.test.js）。
 
 import { SOC_NAMES, SOC_TREE, SOC_EDITION, MINOR, UNIT, SOC_OF, ALIASES, COMMON_ALIASES } from './occupations.js';
+import { WAGE_ROWS, WAGE_FOR, NO_WAGE, WAGE_SOURCE } from './wages.js';
+import { interestFit, personalityFit, eiOf, hollandCode, RIASEC } from './quiz.js';
 import {
   norm, readinessOf, aiEaseOf, MIL_CIVIL, pensionOf, SERVICE_OF, asksService, pickCodes, hasSkill, hasCert, MAX_SKILLS, MAX_CERTS,
   MODES, SERVICES, MIL_ORGS, RANKS, YEARS, EDUS, MAJORS, STUDY_TIMES, WHENS,
 } from './work-profile.js';
 
-export { SOC_TREE, SOC_EDITION };
+export { SOC_TREE, SOC_EDITION, WAGE_SOURCE };
 
 /** 十一種工作性質（career.js 各系統投票、新興產業、工作選單共用） */
 export const NATURES = {
@@ -249,7 +251,7 @@ const TIER = { 1: 4, 2: 4, 3: 3, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 1, 0: 2 };
 const tierOf = (code) => (code ? TIER[code[0]] : null);
 const GROUP_NAME = { ...Object.fromEntries(JOB_GROUPS.map((g) => [g.id, g.name])), science: '科學研究' };
 
-/** 常見工作（82 個＋4 種狀態）：寫得最細，也是「最適合你的職位」推薦的範圍 */
+/** 常見工作（加上待業、學生這類狀態）：說明寫得最細；綜合推薦和官方職業一起排 */
 const CURATED = JOB_GROUPS.flatMap((g) => g.jobs.map((x) => ({ ...x, ...traitsOf(x.id), group: g.id, groupName: g.name, official: false, soc: SOC_OF[x.id] || null, tier: tierOf(SOC_OF[x.id]) })));
 const CURATED_BY_ID = new Map(CURATED.map((x) => [x.id, x]));
 
@@ -275,6 +277,46 @@ function officialJob(code, name) {
 }
 /** 官方職業分類的 380 個細類（代碼就是 id，例如 2512） */
 const OFFICIAL = [...SOC_NAMES].filter(([code]) => code.length === 4).map(([code, name]) => officialJob(code, name));
+// ── 薪資：勞動部職類別薪資調查（wages.js）。越細的代碼優先（細類 → 小類 → 中類）；
+// 收入的高中低改用真實月薪換算（4 萬以下低、5.5 萬以上高），不再只靠本 App 的判斷
+const WAGE_BY_CODE = new Map();
+const WAGE_BY_NAME = new Map();
+for (const [name, month, year, codes] of WAGE_ROWS) {
+  const row = { name, month, year };
+  WAGE_BY_NAME.set(name, row);
+  for (const c of codes.split(' ').filter(Boolean)) WAGE_BY_CODE.set(c, row);
+}
+// 法官、檢察官也是依俸表；5409「其他保安服務」有救生員這類民間工作，不算公職（沒有對到的資料就照實寫沒有）
+const GOV_SOC = ['1112', '2612', '2613', '5401', '5402', '5403'];
+const TEACHER_SOC = ['2310', '2320', '2331', '2340'];
+function wageOf(x) {
+  if (Object.prototype.hasOwnProperty.call(WAGE_FOR, x.id)) return WAGE_FOR[x.id] ? WAGE_BY_NAME.get(WAGE_FOR[x.id]) : { none: NO_WAGE.self };
+  if (x.soc === '0100') return { none: NO_WAGE.mil };
+  if (x.soc && (GOV_SOC.includes(x.soc) || x.soc.startsWith('335') || ['civil', 'police'].includes(x.id) || x.group === 'military')) return { none: NO_WAGE.gov };
+  if (x.soc && TEACHER_SOC.includes(x.soc)) return { none: NO_WAGE.teacher };
+  if (x.soc) for (const n of [4, 3, 2]) if (WAGE_BY_CODE.has(x.soc.slice(0, n))) return WAGE_BY_CODE.get(x.soc.slice(0, n));
+  return { none: x.soc ? NO_WAGE.none : NO_WAGE.broad };
+}
+for (const x of [...CURATED, ...OFFICIAL]) {
+  if (x.status) continue;
+  x.wage = wageOf(x);
+  if (x.wage.month) x.pay = x.wage.month < 40000 ? 1 : x.wage.month < 55000 ? 2 : 3;
+}
+// 沒有調查數字的工作（軍職、公職、接案…）比收入時，用本 App 判斷的高中低、換成同一級有數字的工作的月薪中位數：
+// 直接給 30／60／90 分的話，沒有資料的「高」（90）會贏過真的有 9.7 萬的電信工程師（85），兩把尺混在一起比
+const PAY_MONTH = [0, 1, 2, 3].map((lv) => {
+  const xs = [...CURATED, ...OFFICIAL].filter((x) => !x.status && x.wage.month && x.pay === lv).map((x) => x.wage.month).sort((a, b) => a - b);
+  return xs.length ? xs[Math.floor(xs.length / 2)] : 0;
+});
+const PAY_WORD = ['', '偏低', '中等', '偏高'];
+/** 薪資說明：「月薪約 4.3 萬、年薪約 61 萬」，或沒有資料的原因（加上本 App 估計的高中低；接案、創業差太多不估） */
+export function wageText(job) {
+  if (!job || !job.wage) return '';
+  if (!job.wage.month) return job.wage.none === NO_WAGE.self || !job.pay ? job.wage.none : `${job.wage.none}（本 App 估計收入${PAY_WORD[job.pay]}）`;
+  const wan = (n) => (Math.round(n / 1000) / 10).toFixed(1).replace(/\.0$/, '');
+  return `月薪約 ${wan(job.wage.month)} 萬、年薪約 ${Math.round(job.wage.year)} 萬（${job.wage.name}）`;
+}
+
 const BY_ID = new Map([...CURATED, ...OFFICIAL].map((x) => [x.id, x]));
 export const jobOf = (id) => BY_ID.get(id) || null;
 export const COMMON_COUNT = CURATED.filter((x) => !x.status).length;
@@ -440,13 +482,56 @@ export function jobFit(job, { ranked = [], ys = null }) {
   return { score, level, why, matched: matched.map((n) => n.key) };
 }
 
-/** 依適合程度排出你可能沒想到的工作（不含已經選的、不含狀態類） */
-export function suggestJobs({ ranked, ys, exclude = [], n = 3, age = null }) {
-  // 只從常見工作推薦：官方細類有「金屬砂模及砂心製造人員」這種名稱，推給一般人看不懂
-  return CURATED.filter((x) => !x.status && !exclude.includes(x.id) && !(x.long && age !== null && age >= 30))
-    .map((x) => ({ job: x, fit: jobFit(x, { ranked, ys }) }))
-    // 同分時 AI 影響低的排前面（比較不怕被取代）
-    .sort((a, b) => b.fit.score - a.fit.score || a.job.ai - b.job.ai)
+// ── 綜合分數：各項指標一起比（使用者回饋：「有把各項指標結合比對嗎？沒有推薦工作」）
+// 沒有的指標不算（沒做測驗就沒有興趣、性格；沒填技能就沒有準備度），權重按有的重新分配
+// desc 給畫面上的「分數怎麼算」用：權重和說明放在一起，改權重時說明不會漏改
+export const OVERALL_PARTS = {
+  talent: { label: '命理天賦', w: 0.25, desc: '八字、紫微、星座、生命靈數、血型投出的工作性質有沒有對上，加上行業五行是不是你的喜用。' },
+  interest: { label: '興趣相符', w: 0.2, desc: '測驗的何倫六型，和這個工作偏的類型比（工作的主要性質算兩倍）。' },
+  personality: { label: '性格相符', w: 0.1, desc: '五大性格裡這個工作最吃重的一兩項，例如業務看外向、行政看盡責。' },
+  ready: { label: '準備度', w: 0.2, desc: '你已經會的技能、證照、科系和相關經驗。' },
+  priority: { label: '你在意的', w: 0.15, desc: '選了收入就用真實月薪比；穩定、自由、生活平衡看這類工作在台灣的大致傾向。' },
+  future: { label: 'AI 與未來性', w: 0.1, desc: '被 AI 取代的程度越低、屬於成長中的產業，分數越高。' },
+};
+const TRAIT_PCT = [0, 30, 60, 90];
+// 月薪換成 0～100：3 萬是 0、12 萬是 100；取對數，3 萬到 4 萬的差別比 10 萬到 11 萬有感
+const wagePct = (m) => Math.max(0, Math.min(100, Math.round(((Math.log(m) - Math.log(30000)) / (Math.log(120000) - Math.log(30000))) * 100)));
+const futureOf = (job) => Math.min(100, [85, 65, 40][job.ai] + (job.trend ? 10 : 0));
+
+/**
+ * 一個工作的綜合分數（0～100）和每一項的分數。
+ * @param {{fit:object, readiness?:object|null, quiz?:object|null, priority?:object|null}} o priority：PRIORITIES 的那一項
+ */
+export function overallOf(job, { fit, readiness = null, quiz = null, priority = null }) {
+  const parts = [{ key: 'talent', value: fitPct(fit.score) }];
+  const it = interestFit(job.natures, quiz);
+  const ps = personalityFit(job.natures, quiz);
+  if (it) parts.push({ key: 'interest', value: it.score, detail: it.names.join('、') });
+  if (ps) parts.push({ key: 'personality', value: ps.score, detail: ps.names.join('、') });
+  if (readiness) parts.push({ key: 'ready', value: readiness.pct });
+  if (priority && priority.attr) {
+    const v = priority.attr === 'pay' ? wagePct(job.wage && job.wage.month ? job.wage.month : PAY_MONTH[job.pay]) : TRAIT_PCT[job[priority.attr]];
+    parts.push({ key: 'priority', value: v, detail: priority.label });
+  }
+  parts.push({ key: 'future', value: futureOf(job) });
+  const sw = parts.reduce((a, x) => a + OVERALL_PARTS[x.key].w, 0);
+  const score = Math.round(parts.reduce((a, x) => a + OVERALL_PARTS[x.key].w * x.value, 0) / sw);
+  return { score, parts: parts.map((x) => ({ ...x, label: x.key === 'priority' ? `你在意的${x.detail}` : OVERALL_PARTS[x.key].label })) };
+}
+
+/**
+ * 綜合推薦：全部工作（常見工作＋官方職業；沿用常見工作的官方細類不重複）依綜合分數排。
+ * 30 歲以上不推要從頭讀科系、考國考的工作；同分時常見工作（名稱口語）、AI 影響低的排前面
+ */
+export function recommendJobs({ ranked = [], ys = null, quiz = null, prof = {}, priority = null, exclude = [], age = null, n = 10 }) {
+  return [...CURATED, ...OFFICIAL]
+    .filter((x) => !x.status && !x.like && !exclude.includes(x.id) && !(x.long && age !== null && age >= 30))
+    .map((x) => {
+      const fit = jobFit(x, { ranked, ys });
+      const readiness = readinessOf(x, prof);
+      return { job: x, fit, readiness, overall: overallOf(x, { fit, readiness, quiz, priority }) };
+    })
+    .sort((a, b) => b.overall.score - a.overall.score || Number(a.job.official) - Number(b.job.official) || a.job.ai - b.job.ai)
     .slice(0, n);
 }
 
@@ -557,7 +642,7 @@ export function changeTiming(years = []) {
  */
 export function careerPlan({
   current = '', tenure = '', priority = '', runway = '', targets = [], ranked = [], ys = null, years = [], name = '你', age = null,
-  mode = '', service = '', rank = '', svcYears = '', edu = '', major = '', skills = [], certs = [], study = '', when = '',
+  mode = '', service = '', rank = '', svcYears = '', edu = '', major = '', skills = [], certs = [], study = '', when = '', quiz = null,
 }) {
   const W = name && name !== '你' ? name : '你';
   const base = jobOf(current);
@@ -573,6 +658,8 @@ export function careerPlan({
   const svc = service || SERVICE_OF(from);
   // 只有軍警公職才算月退（換成一般工作後殘留的年資不能拿來算）
   const pension = from && asksService(from) ? pensionOf({ service: svc, years: svcYears, thisYear: thisYear ? thisYear.year : null }) : null;
+  const pr = PRIORITIES.find((x) => x.value === priority) || null;
+  const curOverall = from && !from.status ? overallOf(from, { fit: curFit, quiz, priority: pr }) : null;
   const items = targets.map(jobOf).filter((x) => x && !x.status).map((to) => {
     const fit = jobFit(to, { ranked, ys });
     const readiness = readinessOf(to, prof);
@@ -593,6 +680,9 @@ export function careerPlan({
       job: to,
       fit,
       readiness,
+      overall: overallOf(to, { fit, readiness, quiz, priority: pr }),
+      // 值不值得換：和現在的工作比時不算準備度（現在的工作沒有「準備度」可比，算進去會變成只要準備好了就該換）
+      desire: overallOf(to, { fit, quiz, priority: pr }),
       ease: aiEaseOf(to),
       delta: curFit ? Math.round((fit.score - curFit.score) * 10) / 10 : null,
       distance: dist,
@@ -656,11 +746,22 @@ export function careerPlan({
     notes.push({ tone: 'info', text: '你每週能學新東西的時間不到 3 小時：跨很大的轉換可能要 2～3 年，先挑相近或準備度高的方向。' });
   }
   if (when === 'soon' && best0 && best0.readiness && best0.readiness.pct < 40) {
-    notes.push({ tone: 'bad', text: `你想半年內換，但「${best0.job.name}」的準備度還低（${best0.readiness.pct}）：先看下面「用你現在的本事可以去的工作」，或把時間拉長到一年以上。` });
+    notes.push({ tone: 'bad', text: `你想半年內換，但「${best0.job.name}」的準備度還低（${best0.readiness.pct}）：先看下面「用你現在的本事就搆得到的工作」，或把時間拉長到一年以上。` });
+  }
+
+  // 測驗：興趣對不上、E／I 和工作型態差很多，直接講（做了測驗才有）
+  const ei = eiOf(quiz);
+  for (const it of items) {
+    const interest = it.overall.parts.find((x) => x.key === 'interest');
+    if (interest && interest.value <= 35) notes.push({ tone: 'info', text: `興趣測驗：「${it.job.name}」偏「${interest.detail}」，你這幾型的分數不高（${interest.value}）：做得來，但可能不容易有成就感，先用副業或短期課程試試看。` });
+    else if (interest && interest.value >= 75) notes.push({ tone: 'good', text: `興趣測驗：「${it.job.name}」偏「${interest.detail}」，正是你喜歡的類型（${interest.value}）。` });
+    const people = it.job.natures.some((k) => ['public', 'sales', 'care'].includes(k));
+    const focus = !people && it.job.natures.some((k) => ['research', 'expert'].includes(k));
+    if (ei && ei.code === 'I' && people) notes.push({ tone: 'info', text: `「${it.job.name}」常要和很多人互動，你偏 I 人：做得來，但要排好獨處充電的時間，或挑幕後、專業型的位置。` });
+    if (ei && ei.code === 'E' && focus) notes.push({ tone: 'info', text: `「${it.job.name}」要長時間專注、獨立作業，你偏 E 人：挑有團隊討論、對外窗口的位置會比較順。` });
   }
 
   // 和「你最在意的事」對照：想去的工作在這一項偏低，直接講；現在的工作在這一項明顯比較好，也講
-  const pr = PRIORITIES.find((x) => x.value === priority) || null;
   if (pr && pr.attr) {
     const label = pr.label;
     for (const it of items) {
@@ -673,8 +774,9 @@ export function careerPlan({
   // 年資和月退最影響換不換（軍職差幾年滿 20 年），放第一條
   if (pension) notes.unshift({ tone: pension.tone, text: pension.text });
 
-  const suggest = suggestJobs({ ranked, ys, exclude: [current, ...targets], n: 6, age });
-  const path = choosePath({ from, curFit, items, priority: pr, runway, timing, years, pension, when });
+  // 綜合推薦：全部工作依綜合分數排（不含現在的、已選的）
+  const recommend = recommendJobs({ ranked, ys, quiz, prof, priority: pr, exclude: [current, ...targets], age, n: 10 });
+  const path = choosePath({ from, curFit, curOverall, items, priority: pr, runway, timing, years, pension, when });
   // 軍警專長在民間對應的工作；用你現在的本事（技能、證照、科系）就搆得到的工作
   const score = (x) => ({ job: x, fit: jobFit(x, { ranked, ys }), readiness: readinessOf(x, prof) });
   const byReady = (a, b) => (b.readiness ? b.readiness.pct : 0) - (a.readiness ? a.readiness.pct : 0) || b.fit.score - a.fit.score;
@@ -685,7 +787,9 @@ export function careerPlan({
     ? [...CURATED, ...OFFICIAL].filter((x) => !x.status && !x.like && x.id !== current && !targets.includes(x.id) && !related.includes(x.id)).map(score)
       .filter((r) => r.readiness && r.readiness.pct >= 60).sort(byReady).slice(0, 6)
     : [];
-  return { from, curFit, tenure, priority: pr && pr.value ? pr : null, runway, items, notes, timing, suggest, path, name: W, pension, civil, ready, filled, service: svc };
+  const code = hollandCode(quiz);
+  const quizInfo = quiz ? { code, names: code.split('').map((t) => RIASEC[t].name), ei } : null;
+  return { from, curFit, curOverall, tenure, priority: pr && pr.value ? pr : null, runway, items, notes, timing, recommend, path, name: W, pension, civil, ready, filled, service: svc, quiz: quizInfo };
 }
 
 const LOW_TRAIT = {
@@ -707,7 +811,7 @@ const goYearOf = (years) => {
  * 留下往上走／先換環境不換行／副業先行／準備好再換／全力轉換／先試做（基層工作門檻低）／撐到月退再轉（軍職快滿 20 年）／從頭開始。
  * 依適合度（加上你最在意的那一項）決定要不要換；依收入能撐多久決定怎麼換；依人生時間軸決定哪一年做。
  */
-function choosePath({ from, curFit, items, priority, runway, timing, years, pension = null, when: pref = '' }) {
+function choosePath({ from, curFit, curOverall = null, items, priority, runway, timing, years, pension = null, when: pref = '' }) {
   const thisYear = years[0] ? years[0].year : null;
   const soon = timing.soon && timing.soon.year !== thisYear ? timing.soon.year : null;
   // 想半年內換、今年又不是「小心」的年份：就排今年
@@ -715,32 +819,41 @@ function choosePath({ from, curFit, items, priority, runway, timing, years, pens
   const when = now || soon || (thisYear !== null ? thisYear + 1 : null);
   const at = (y, text) => (y !== null && y !== undefined ? `${y} 年：${text}` : text);
   const attr = priority && priority.attr;
-  // 你最在意的那一項：想去的比現在高就加分、低就扣分（沒有現職時和「中」比）
-  // 選路線的目標：適合度為主，加上準備度（填了技能證照才有）：準備度 80 的和 10 的，現實上差很多
-  const adj = (job, fit, readiness = null) => fit.score + (attr ? (job[attr] - (from && !from.status ? from[attr] : 2)) * 0.8 : 0)
-    + (readiness ? (readiness.pct - 50) / 20 : 0);
+  // 選哪一個目標用綜合分數（含準備度：準備度 80 和 10 的現實上差很多）；
+  // 值不值得換用不含準備度的分數和現在的工作比（兩邊同一把尺）
+  const byOverall = (a, b) => b.overall.score - a.overall.score;
   if (!from) {
     if (!items.length) return null;
   }
   if (!from || from.status) {
-    const best = items.length ? [...items].sort((a, b) => adj(b.job, b.fit, b.readiness) - adj(a.job, a.fit, a.readiness))[0] : null;
-    if (!best) return { id: 'explore', label: '先找方向', title: '先從推薦的職位挑一個試', target: null, year: null, steps: ['看下面「最適合你的職位」，挑一兩個加到想做的工作。', '每個方向用 3 個月的課程、實習或兼職試看看，再決定要不要投入。'] };
+    const best = items.length ? [...items].sort(byOverall)[0] : null;
+    if (!best) return { id: 'explore', label: '先找方向', title: '先從推薦的職位挑一個試', target: null, year: null, steps: ['看下面「綜合推薦」，挑一兩個加到想做的工作。', '每個方向用 3 個月的課程、實習或兼職試看看，再決定要不要投入。'] };
     return { id: 'start', label: '從頭開始', title: `從「${best.job.name}」開始`, target: best.job, year: when,
       steps: [at(thisYear, `用實習、兼職或短期課程試「${best.job.name}」，確定喜歡再投入。`), ...best.plan.slice(1), at(when, '正式投入，給自己一年站穩。')] };
   }
-  const best = items.length ? [...items].sort((a, b) => adj(b.job, b.fit, b.readiness) - adj(a.job, a.fit, a.readiness))[0] : null;
+  const sorted = [...items].sort(byOverall);
   const goYear = goYearOf(years);
-  if (!best) {
+  if (!sorted.length) {
     const steps = [`把你最強的工作性質用進現在的工作：多接你擅長的那一類任務，讓主管看到。`];
-    if (curFit && curFit.level === '要多花力氣') steps.push('現在的工作對你比較吃力：先在公司內找更適合的部門或專案；也可以看下面「最適合你的職位」。');
+    if (curFit && curFit.level === '要多花力氣') steps.push('現在的工作對你比較吃力：先在公司內找更適合的部門或專案；也可以看下面「綜合推薦」。');
     steps.push(goYear ? at(goYear, '衝的年份，爭取升遷、加薪或更好的位子。') : '每年檢查一次：能力、收入、成就感有沒有在進步。');
     if (from.ai === 2) steps.push('你的工作例行的部分容易被 AI 自動化：今年開始學會用 AI 做事，往需要判斷、溝通的內容靠。');
     return { id: 'stay', label: '留下往上走', title: `留在「${from.name}」，往上走`, target: null, year: goYear, steps };
   }
-  if (adj(best.job, best.fit, best.readiness) <= adj(from, curFit) + 0.5) {
+  // 值得換的：不含準備度的分數比現在高 5 分以上；一個都沒有才先換環境。
+  // 只看綜合第一名會出錯：準備度高、但不比現在好的目標，會蓋掉還沒準備、但明顯更適合的目標
+  // （海巡通電資訊同時選電信工程技術員和程式設計師時，程式設計師整個被忽略，路線變成「先換環境」）
+  const worth = curOverall ? sorted.filter((it) => it.desire.score > curOverall.score + 5) : sorted;
+  if (!worth.length) {
+    const best = sorted[0];
+    // 軍警公職的「換環境」是調單位、換職務；快滿 20 年的軍職再提醒一次月退的年份
+    const official = from.group === 'military' || from.group === 'public';
+    const change = official ? `申請調單位或換職務，帶著「${from.name}」的經驗去更適合的位置。` : `同行換公司或換部門，帶著「${from.name}」的經驗去更好的環境。`;
+    const wait = pension && pension.id === 'wait' ? at(pension.year, '服滿 20 年、可以領月退之後，再決定要不要轉到外面。') : null;
     return { id: 'move', label: '先換環境', title: '先換環境，不急著換行', target: best.job, year: when,
-      steps: ['先寫下想離開的原因：主管、薪水、工時，還是這一行本身。', at(when, `同行換公司或換部門，帶著「${from.name}」的經驗去更好的環境。`), `「${best.job.name}」可以先當興趣或副業接觸，真的更喜歡再說。`] };
+      steps: ['先寫下想離開的原因：主管、薪水、工時，還是這一行本身。', at(when, change), `「${best.job.name}」可以先當興趣或副業接觸，真的更喜歡再說。`, wait].filter(Boolean) };
   }
+  const best = worth[0];
   // 軍職再 8 年內滿 20 年：先準備、滿 20 年再轉（月退和一次退伍金差距大；careerPlan 的 waitPension 同一個條件）
   if (pension && pension.id === 'wait' && pension.toGo <= 8) {
     return { id: 'pension', label: '撐到月退再轉', title: `留在現職到 ${pension.year} 年，先把「${best.job.name}」準備好`, target: best.job, year: pension.year,
@@ -773,21 +886,27 @@ function choosePath({ from, curFit, items, priority, runway, timing, years, pens
 export function careerMaster(plan, natures = []) {
   const W = plan.name;
   const top = natures[0] || null;
-  const talent = top ? `天賦偏「${top.label}」，${top.desc}` : '';
+  const talent = top ? `命理看天賦偏「${top.label}」，${top.desc}` : '';
+  // 做了測驗：興趣代碼和 E／I 也講（命理和測驗是兩個依據，分開講）
+  const q = plan.quiz;
+  const tested = q ? `測驗看興趣${q.code ? `偏「${q.names.join('、')}」` : '沒有特別偏哪一型'}，${q.ei.label}。` : '';
+  const rec = plan.recommend && plan.recommend[0];
   const path = plan.path;
   const why = plan.notes.slice(0, 5);
   const remedies = [];
   const boosts = [];
   let verdict;
+  const top1 = rec ? `綜合各項指標，最推薦「${rec.job.name}」（綜合 ${rec.overall.score}）。` : '';
   if (!plan.from && !plan.items.length) {
-    verdict = `老師看${W}：${talent}先在上面填你的狀況（現在的工作、最在意的事、想做的工作），老師再幫你比、幫你排時間。`;
+    verdict = `老師看${W}：${talent}${tested}${top1}先在上面填你的狀況（現在的工作、最在意的事、想做的工作），老師再幫你比、幫你排時間。`;
   } else {
-    const now = plan.from && !plan.from.status && plan.curFit
-      ? `現在的「${plan.from.name}」適合度 ${fitPct(plan.curFit.score)}（${plan.curFit.level}）。`
+    const now = plan.from && !plan.from.status && plan.curOverall
+      ? `現在的「${plan.from.name}」綜合 ${plan.curOverall.score}（命理適合度 ${fitPct(plan.curFit.score)}，${plan.curFit.level}）。`
       : plan.from ? `現在是「${plan.from.name}」。` : '';
     const route = path ? `建議：${path.title}。` : '';
     const time = path && path.year ? (path.id === 'stay' ? `${path.year} 年是衝的年份。` : `${path.year} 年是比較好的時機。`) : '';
-    verdict = `老師看${W}：${talent}${now}${route}${time}`;
+    // 還沒選想做的工作，才把第一名推薦放進斷語（選了就講路線，不要兩件事搶）
+    verdict = `老師看${W}：${talent}${tested}${now}${plan.items.length ? '' : top1}${route}${time}`;
   }
   if (path) remedies.push({ title: `建議路線：${path.title}`, steps: path.steps });
   if (path && ['prep', 'switch', 'side'].includes(path.id) && plan.timing.avoid.length) {

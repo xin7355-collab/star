@@ -1295,6 +1295,8 @@ details.job-form[open] > summary::after { content: '▴'; }
 .job-hit[aria-current="true"] { border-color: var(--gold); }
 .job-browse { display: grid; gap: 8px; }
 .opt-meta { margin: 0 0 6px; }
+.opt-parts { margin: 4px 0 2px; }
+.opt-wage { margin: 2px 0 4px; }
 .ready-line { margin: 2px 0 8px; }
 /* 清單裡的小標籤不從中間斷行（「準備度 65」斷成兩行很難讀）；內容都是短字 */
 .job-ability .badge, .job-recs .badge { white-space: nowrap; }

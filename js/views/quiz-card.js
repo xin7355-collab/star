@@ -7,7 +7,7 @@ import { cardHead } from '../ui/icons.js';
 import { load, save, remove } from '../ui/storage.js';
 import {
   QUESTIONS, INTEREST_SCALE, PERSONALITY_SCALE, RIASEC, RIASEC_ORDER, BIG5, BIG5_ORDER, INTEREST_ITEMS,
-  scoreQuiz, hollandCode, big5Level,
+  scoreQuiz, hollandCode, big5Level, eiOf, mbtiOf,
 } from '../core/quiz.js';
 
 const DRAFT_KEY = 'quiz-draft';
@@ -109,9 +109,25 @@ export function quizCard({ p, who, ctx, today, pendingCareer = () => null }) {
         const text = lv === 'high' ? `${x.high}${x.workHigh}` : lv === 'low' ? `${x.low}${x.workLow}` : `${x.name}在中間：兩種情況都應付得來，看環境調整。`;
         return h('li', { class: lv === 'mid' ? 'tone-info' : 'tone-good' }, h('b', { text: `${x.name}${lv === 'high' ? '偏高' : lv === 'low' ? '偏低' : '中等'}：` }), h('span', { text }));
       })),
-      h('p', { class: 'hint', text: '上面「你的天賦」的工作性質已經把測驗算進去（興趣第一型 2 票，比單一命理系統重）。' }),
+      eiBlock(r),
+      h('p', { class: 'hint', text: '這份結果會用在上面的「綜合推薦」：每個工作各比一次興趣相符（例如業務看企業型）和性格相符（例如業務看外向、行政看盡責），不混進命理的天賦投票。' }),
       h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '重新測驗', onclick: () => { answers = []; keep(); ask(0); } })),
       note());
+  }
+
+  // E 人／I 人：使用者問「E 人 I 人有用嗎」。有用的部分是外向性（五大性格的一項），拿來挑工作型態；
+  // 類 MBTI 四個字母只當參考，中間的分數寫 X，不硬分兩類
+  function eiBlock(r) {
+    const ei = eiOf(r);
+    return [
+      h('h3', { text: 'E 人還是 I 人' }),
+      h('p', {}, h('b', { text: ei.label }), h('span', { text: `，外向性 ${ei.n}。` }),
+        h('span', { text: ei.code === 'E' ? '和人互動會讓你有精神：對外窗口、業務、帶團隊比較順。' : ei.code === 'I' ? '獨處、專心做事會讓你有精神：專業技術、幕後、研究型的位置比較順；要常和人互動的工作也做得來，記得排獨處充電的時間。' : '和人互動、獨立作業都應付得來，看工作內容調整就好。' })),
+      h('details', { class: 'more' }, h('summary', { text: 'E／I 有用嗎？類 MBTI 是什麼' }),
+        h('p', { class: 'small', text: 'E／I 就是五大性格的「外向性」。研究上，外向性和業務、管理這類常和人打交道的工作表現有關；但對大多數工作，影響最大的是盡責性。所以它適合拿來挑工作型態，不決定你能不能做。' }),
+        h('p', { class: 'small', text: `換算成類 MBTI：${mbtiOf(r)}（E/I 看外向性、N/S 看開放性、F/T 看親和性、J/P 看盡責性；X 是分數在中間，不硬分）。` }),
+        h('p', { class: 'small', text: '這不是正式的 MBTI 測驗。MBTI 把每個向度硬分成兩類，分數在中間的人重測很容易換類型，所以本 App 不用四個字母推薦工作，綜合推薦用的是上面的分數。' })),
+    ];
   }
 
   const bar = (label, n) => h('div', { class: 'quiz-row' },

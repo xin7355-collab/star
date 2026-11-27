@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { JOB_GROUPS, NATURES, jobOf, jobFit, sanitizeCareer, careerPlan, careerMaster, changeTiming, suggestJobs, MAX_TARGETS, TENURES, PRIORITIES, RUNWAYS, TRAIT_KEYS, fitPct, aiNoteOf } from '../js/core/jobs.js';
+import { JOB_GROUPS, NATURES, jobOf, jobFit, sanitizeCareer, careerPlan, careerMaster, changeTiming, recommendJobs, overallOf, MAX_TARGETS, TENURES, PRIORITIES, RUNWAYS, TRAIT_KEYS, fitPct, aiNoteOf } from '../js/core/jobs.js';
 import { NATURES as CAREER_NATURES, buildCareer, careerTimeline, TIMELINE_MODE } from '../js/core/career.js';
 import { EMERGING } from '../js/core/emerging.js';
 import { sanitizePerson } from '../js/core/records.js';
@@ -132,8 +132,8 @@ test('會計想轉 AI 工程師（跨很大）：先經過跳板工作（資料�
   assert.equal(r.path.id, 'prep');
   assert.equal(r.path.year, 2027);
   const m = careerMaster(r, [{ label: '專業技術型', desc: '把一門技術做深。', edge: '專精、可靠', trap: '只顧技術' }]);
-  assert.match(m.verdict, /^老師看你：天賦偏「專業技術型」/);
-  assert.match(m.verdict, /現在的「會計」適合度 \d+（要多花力氣）/);
+  assert.match(m.verdict, /^老師看你：命理看天賦偏「專業技術型」/);
+  assert.match(m.verdict, /現在的「會計」綜合 \d+（命理適合度 \d+，要多花力氣）/);
   assert.match(m.verdict, /建議：準備好再換到「AI 工程師」。2027 年是比較好的時機。/);
   assert.equal(m.badge, '準備好再換');
   assert.deepEqual(m.remedies.map((x) => x.title), ['建議路線：準備好再換到「AI 工程師」', '這幾年先別裸辭']);
@@ -202,12 +202,42 @@ test('還沒有工作（學生、全職照顧家庭、退休）：從頭開始�
   assert.ok(mid.items[0].plan.some((t) => /帶著舊專業轉/.test(t)));
 });
 
-test('推薦你可能沒想到的工作：不含已選的；30 歲以上不推要從頭讀科系、考國考的工作', () => {
-  const young = suggestJobs({ ranked: [{ key: 'care', label: '助人服務型', count: 3 }, { key: 'expert', label: '專業技術型', count: 2 }], ys: { primary: '木', secondary: '土', avoid: ['金'] }, n: 5, age: 20 });
+test('綜合推薦：不含已選的；30 歲以上不推要從頭讀科系、考國考的工作；依綜合分數排', () => {
+  const ranked = [{ key: 'care', label: '助人服務型', count: 3 }, { key: 'expert', label: '專業技術型', count: 2 }];
+  const ys = { primary: '木', secondary: '土', avoid: ['金'] };
+  const young = recommendJobs({ ranked, ys, n: 30, age: 20 });
   assert.ok(young.some((s) => s.job.long), '年輕人可以推醫護');
-  const older = suggestJobs({ ranked: [{ key: 'care', label: '助人服務型', count: 3 }, { key: 'expert', label: '專業技術型', count: 2 }], ys: { primary: '木', secondary: '土', avoid: ['金'] }, n: 5, age: 45, exclude: ['caregiver'] });
+  const older = recommendJobs({ ranked, ys, n: 30, age: 45, exclude: ['caregiver'] });
   assert.ok(older.every((s) => !s.job.long && s.job.id !== 'caregiver'));
-  for (let i = 1; i < older.length; i += 1) assert.ok(older[i - 1].fit.score >= older[i].fit.score);
+  for (let i = 1; i < older.length; i += 1) assert.ok(older[i - 1].overall.score >= older[i].overall.score);
+});
+
+test('綜合分數：沒有的指標不算、權重重新分配；在意收入時用真實月薪比，不是本 App 自己判斷的高中低', () => {
+  const ranked = [{ key: 'expert', label: '專業技術型', count: 3 }];
+  const tele = jobOf('2153');
+  const fit = jobFit(tele, { ranked, ys: null });
+  const base = overallOf(tele, { fit });
+  // 只有命理天賦（0.25）和 AI 與未來性（0.1）：按比例算，不是把沒有的當 0 分
+  const [talent, future] = base.parts.map((x) => x.value);
+  assert.equal(base.score, Math.round((0.25 * talent + 0.1 * future) / 0.35));
+  const income = PRIORITIES.find((x) => x.value === 'income');
+  const rich = overallOf(tele, { fit, priority: income }).parts.find((x) => x.key === 'priority');
+  assert.equal(rich.label, '你在意的收入');
+  assert.equal(rich.value, 85, '月薪 9.7 萬：3 萬到 12 萬之間取對數');
+  const courier = jobOf('8321');
+  assert.ok(overallOf(courier, { fit: jobFit(courier, { ranked }), priority: income }).parts.find((x) => x.key === 'priority').value < 20);
+  // 沒有調查數字（軍職、部分官方職業）：用本 App 判斷的高中低，換成同一級有數字工作的月薪中位數，和有數字的同一把尺。
+  // 上一版直接給 90 分，沒有資料的「偏高」會贏過真的月薪 9.7 萬的電信工程師
+  const incomeOf = (id) => overallOf(jobOf(id), { fit: jobFit(jobOf(id), { ranked }), priority: income }).parts.find((x) => x.key === 'priority').value;
+  assert.equal(jobOf('3155').pay, 3);
+  assert.ok(!jobOf('3155').wage.month);
+  assert.ok(incomeOf('3155') < incomeOf('2153'));
+  assert.ok(incomeOf('mil_comm') > 0);
+  // 在意收入的推薦，前 10 名的平均月薪比不填的高
+  const avg = (xs) => xs.filter((x) => x.job.wage.month).reduce((a, x, _, arr) => a + x.job.wage.month / arr.length, 0);
+  assert.ok(avg(recommendJobs({ ranked, priority: income })) > avg(recommendJobs({ ranked })));
+  // 推薦不含沿用常見工作的官方細類（同一個工作不出現兩次）
+  assert.ok(recommendJobs({ ranked, n: 60 }).every((x) => !x.job.like && !x.job.status));
 });
 
 test('用實際的命盤跑一次：每一行都是真的文字', () => {
@@ -225,6 +255,6 @@ test('用實際的命盤跑一次：每一行都是真的文字', () => {
   assert.ok(tl.every((y) => (y.mode === 'hold') === (y.level === '注意' || y.level === '小心')));
   const m = careerMaster(plan, r.natures);
   const lines = [m.verdict, ...m.why.map((w) => w.text), ...m.remedies.flatMap((x) => [x.title, ...x.steps]), ...m.boosts,
-    ...plan.items.flatMap((it) => [...it.fit.why, ...it.plan, it.ai.note]), ...plan.suggest.flatMap((s) => s.fit.why)];
+    ...plan.items.flatMap((it) => [...it.fit.why, ...it.plan, it.ai.note]), ...plan.recommend.flatMap((s) => s.fit.why)];
   for (const t of lines) assert.ok(typeof t === 'string' && t.length > 4 && !/undefined|null|NaN/.test(t), t);
 });

@@ -108,22 +108,34 @@ test('月退門檻（軍職服現役滿 20 年）：滿 20 年可領；10～19 �
   assert.ok(asksService(jobOf('5402')) && !asksService(jobOf('swe')));
 });
 
-test('海巡通電資訊、士官、13 年、會無線電和修電腦：路線是「撐到月退再轉」（2033），目標是準備度高的電信，不是準備度低的軟體；不再說明年轉', () => {
-  const r = careerPlan({
+test('海巡通電資訊、士官、13 年、會無線電和修電腦：電信技術員和現在的專長是同一種工作 → 不急著換行、調單位，滿 20 年（2033）再決定；同時選了明顯更適合的工作 → 撐到月退、先準備那一個', () => {
+  const profile = {
     current: 'mil_comm', service: 'mil', org: 'cga', rank: 'nco', svcYears: '13', mode: 'office',
     skills: ['radio_op', 'radio_maint', 'pc_repair', 'helpdesk'], certs: ['tc_pc'], edu: 'jc', major: 'ee',
-    targets: ['2512', '3522'], ranked: RANKED, ys: YS, years: LIFE, age: 35,
-  });
-  assert.equal(r.path.id, 'pension');
-  assert.equal(r.path.year, 2033);
+    ranked: RANKED, ys: YS, years: LIFE, age: 35,
+  };
+  const r = careerPlan({ ...profile, targets: ['3522'] });
+  // 值不值得換不算準備度：電信和現在同一種工作，綜合沒有高 5 分以上 → 先換環境（軍警是調單位、換職務）
   assert.equal(r.path.target.id, '3522');
+  assert.equal(r.path.id, 'move');
+  assert.ok(r.path.steps.some((t) => /申請調單位或換職務/.test(t)));
+  assert.ok(r.path.steps.some((t) => /^2033 年：服滿 20 年/.test(t)));
   assert.match(r.notes[0].text, /2033 年/);
-  assert.ok(!r.notes.some((n) => /再轉比較順/.test(n.text)), '和月退路線打架');
+  assert.ok(!r.notes.some((n) => /再轉比較順/.test(n.text)), '和月退打架');
   const tele = r.items.find((x) => x.job.id === '3522');
   assert.equal(tele.distance, 'near');
   assert.match(tele.plan[0], /你已經有：/);
   assert.ok(r.civil.length >= 6 && r.civil[0].readiness.pct >= r.civil.at(-1).readiness.pct);
   assert.ok(r.ready.every((x) => !MIL_CIVIL.mil_comm.includes(x.job.id)), '民間對照已經列過的不重複');
+  // 想去的明顯更好（軟體工程的天賦分數高很多），而且 8 年內滿 20 年 → 撐到月退再轉
+  const soft = careerPlan({ current: 'mil_comm', service: 'mil', rank: 'nco', svcYears: '13', targets: ['2512'], ranked: RANKED, ys: YS, years: LIFE, age: 35 });
+  assert.equal(soft.path.id, 'pension');
+  assert.equal(soft.path.year, 2033);
+  // 兩個一起選：準備度高、但和現在差不多的電信，不能蓋掉明顯更適合的軟體（上一版這樣會整個忽略軟體、變成先換環境）
+  const both = careerPlan({ ...profile, targets: ['2512', '3522'] });
+  assert.equal(both.path.id, 'pension');
+  assert.equal(both.path.target.id, '2512');
+  assert.match(both.path.steps[0], /下班時間準備「軟體開發及程式設計師」/);
   // 換成一般工作後殘留的年資不算月退
   assert.equal(careerPlan({ current: 'swe', service: 'mil', svcYears: '13', ranked: RANKED, years: LIFE }).pension, null);
 });

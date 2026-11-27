@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SOC_NAMES, SOC_TREE, MINOR, UNIT, SOC_OF, ALIASES, COMMON_ALIASES } from '../js/core/occupations.js';
 import {
-  JOB_GROUPS, NATURES, jobOf, jobFit, jobMeta, sanitizeCareer, careerPlan, searchJobs, suggestJobs, aiNoteOf, COMMON_COUNT, OFFICIAL_COUNT,
+  JOB_GROUPS, NATURES, jobOf, jobFit, jobMeta, sanitizeCareer, careerPlan, searchJobs, recommendJobs, aiNoteOf, COMMON_COUNT, OFFICIAL_COUNT,
 } from '../js/core/jobs.js';
 import { EMERGING } from '../js/core/emerging.js';
 
@@ -169,7 +169,9 @@ test('養成期的提醒照工作講對：機師是飛行訓練、物理學家�
   assert.ok(nurse.notes.some((n) => /「護理及助產專業人員」要相關科系和國考/.test(n.text)));
 });
 
-test('推薦還是只從常見工作挑（官方名稱太正式，推給一般人看不懂）', () => {
-  const s = suggestJobs({ ranked: RANKED, ys: YS, n: 20 });
-  assert.ok(s.every((x) => !x.job.official));
+test('綜合推薦從全部工作挑（常見工作＋官方職業），沿用常見工作的官方細類不重複列', () => {
+  const s = recommendJobs({ ranked: RANKED, ys: YS, n: 60 });
+  assert.ok(s.some((x) => x.job.official) && s.some((x) => !x.job.official));
+  assert.ok(s.every((x) => !x.job.like), '2512 這種沿用「軟體工程師」的不重複出現');
+  assert.equal(new Set(s.map((x) => x.job.id)).size, s.length);
 });

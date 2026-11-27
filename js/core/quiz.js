@@ -3,7 +3,9 @@
 //    題目是本 App 依何倫理論自己寫的 36 題（每型 6 題，台灣的工作情境）。最常用的 O*NET 興趣量表是 CC BY-ND 授權，
 //    不允許改作，翻成中文就違反授權，所以不用；自編題目沒有經過常模驗證，結果是「自我了解的參考」，畫面上照實標示。
 // 2. 性格：五大性格的 Mini-IPIP 20 題（Donnellan 等人 2006；IPIP 題庫為公開領域，可以自由翻譯使用），中文是本 App 自譯。
-// 結果只存在這支手機（名單的 quiz 欄位，只存分數）。命理是另一套：測驗量的是你現在的傾向，工作性質投票時權重比單一命理系統高。
+// 結果只存在這支手機（名單的 quiz 欄位，只存分數）。
+// 怎麼用：不混進命理的「天賦」投票（上一版那樣做，使用者看不出測驗有沒有算進去），
+// 而是變成兩個獨立的指標，和每一個工作直接比：興趣相符（何倫六型）、性格相符（五大性格），一起進「綜合推薦」。
 // 文字不寫宿命、恐嚇、打包票的字（tests/wording.test.js）。
 
 export const QUIZ_VERSION = 1;
@@ -104,25 +106,60 @@ export function hollandCode(result) {
 /** 五大性格的高低（60 以上偏高、40 以下偏低） */
 export const big5Level = (n) => (n >= 60 ? 'high' : n <= 40 ? 'low' : 'mid');
 
+// ── 和工作比：工作性質（jobs.js 的 NATURES）對到何倫六型、五大性格的哪幾項
+// 這是本 App 依工作內容的大致對照（例如「研究分析型」＝研究型 I），不是逐一職業的正式代碼
+const NATURE_RIASEC = { manage: 'E', expert: 'RI', create: 'A', sales: 'E', stable: 'C', care: 'S', research: 'I', free: 'AE', finance: 'CE', mobile: 'R', public: 'SE' };
+const NATURE_TRAITS = { manage: 'ES', expert: 'C', create: 'O', sales: 'E', stable: 'C', care: 'A', research: 'O', free: 'O', finance: 'C', mobile: 'S', public: 'E' };
+// 工作的第一個性質是主要的，權重 2、其他 1：業務的核心是說服人（企業型），「常在外面跑」只是附帶；
+// 平均算的話，討厭說服人但喜歡實作的人會拿到 50 分的「普通」，看不出來其實不合
+function weightsOf(natures, table) {
+  const w = new Map();
+  natures.forEach((k, i) => {
+    for (const t of (table[k] || '').split('')) w.set(t, Math.max(w.get(t) || 0, i === 0 ? 2 : 1));
+  });
+  return w;
+}
+const weightedMean = (w, scores) => {
+  let sum = 0;
+  let n = 0;
+  for (const [t, k] of w) { sum += scores[t] * k; n += k; }
+  return Math.round(sum / n);
+};
+
+/** 興趣相符（0～100）：這個工作偏哪幾型，你在那幾型的分數（主要性質加倍） */
+export function interestFit(natures, result) {
+  const w = result ? weightsOf(natures, NATURE_RIASEC) : new Map();
+  if (!w.size) return null;
+  const letters = [...w.keys()];
+  return { score: weightedMean(w, result.riasec), letters, names: letters.map((t) => RIASEC[t].name) };
+}
+
+/** 性格相符（0～100）：這個工作最吃重的性格面向（例如業務吃外向、行政吃盡責），你在那幾項的分數（主要性質加倍） */
+export function personalityFit(natures, result) {
+  const w = result ? weightsOf(natures, NATURE_TRAITS) : new Map();
+  if (!w.size) return null;
+  const traits = [...w.keys()];
+  return { score: weightedMean(w, result.big5), traits, names: traits.map((t) => BIG5[t].name) };
+}
+
 /**
- * 測驗投給工作性質的票（career.js buildCareer 用）：
- * 興趣第一型 2 票、第二型 1 票（各投它的兩種性質）；五大性格偏高或偏低且有對應性質的，各 1 票。
- * @returns {{keys:string[], source:string, w:number}[]}
+ * E 人／I 人：就是五大性格的外向性（研究上最穩定的一個面向）。60 以上偏 E、40 以下偏 I，中間是兩邊都行的中間型
+ * （硬分兩類會把 51 分和 49 分的人說成相反的人）
  */
-export function quizVotes(result) {
-  if (!result) return [];
-  const out = [];
-  const code = hollandCode(result);
-  if (code) {
-    out.push({ keys: RIASEC[code[0]].natures, source: `興趣測驗：${RIASEC[code[0]].name}`, w: 2 });
-    if (code[1]) out.push({ keys: RIASEC[code[1]].natures, source: `興趣測驗：${RIASEC[code[1]].name}`, w: 1 });
-  }
-  for (const t of BIG5_ORDER) {
-    const lv = big5Level(result.big5[t]);
-    const key = lv === 'mid' ? null : BIG5[t].nature[lv];
-    if (key) out.push({ keys: [key], source: `性格測驗：${BIG5[t].name}${lv === 'high' ? '高' : '低'}`, w: 1 });
-  }
-  return out;
+export function eiOf(result) {
+  if (!result) return null;
+  const n = result.big5.E;
+  return n >= 60 ? { code: 'E', label: '偏 E 人（外向）', n } : n <= 40 ? { code: 'I', label: '偏 I 人（內向）', n } : { code: 'X', label: '中間型（E、I 都行）', n };
+}
+
+/**
+ * 類 MBTI 四個字母（參考）：用五大性格換算——E/I＝外向性、N/S＝開放性、F/T＝親和性、J/P＝盡責性
+ * （McCrae & Costa 1989 發現 MBTI 四個向度和這四項有對應）。中間的分數寫 X，不硬分；不是正式的 MBTI 測驗
+ */
+export function mbtiOf(result) {
+  if (!result) return '';
+  const pick = (n, hi, lo) => (n >= 60 ? hi : n <= 40 ? lo : 'X');
+  return pick(result.big5.E, 'E', 'I') + pick(result.big5.O, 'N', 'S') + pick(result.big5.A, 'F', 'T') + pick(result.big5.C, 'J', 'P');
 }
 
 /** 存進名單前的白名單：只收分數（0～100 的整數）和日期 */

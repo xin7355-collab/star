@@ -659,7 +659,7 @@ test('配對：老師怎麼看——星盤＋八字合婚一起看，依關係�
   await expect(page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' })).toHaveValue('fengshui');
 });
 
-test('工作與未來：照問題排——你的狀況（含最在意的、能撐多久）→ 老師總評（建議路線）→ 選項比一比 → 你的天賦（一份推薦）→ 工作運 10 年；存檔、編輯資料不會洗掉', async ({ page }) => {
+test('工作與未來：照問題排——你的狀況（含最在意的、能撐多久）→ 老師總評（建議路線）→ 選項比一比（綜合分數、月薪）→ 綜合推薦 → 你的天賦 → 工作運 10 年；存檔、編輯資料不會洗掉', async ({ page }) => {
   await seed(page);
   await page.goto('/');
   await tab(page, 'destiny');
@@ -686,22 +686,34 @@ test('工作與未來：照問題排——你的狀況（含最在意的、能�
   await expect(master.locator('.master-verdict')).toContainText('建議：留著現職，「AI 工程師」先當副業');
   await expect(master.locator('.master-verdict .badge')).toHaveText('副業先行');
   await expect(master.locator('details.remedy summary').first()).toHaveText('建議路線：留著現職，「AI 工程師」先當副業');
-  // 選項比一比：現在和想做的並排，適合度 0～100 和現實面的傾向
+  // 選項比一比：現在和想做的並排，綜合分數（各項指標）、真實月薪和現實面的傾向
   const opts = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '你的選項比一比' }) });
   await expect(opts.locator('.opt')).toHaveCount(2);
   await expect(opts.locator('.opt').first()).toContainText('會計');
   await expect(opts.locator('.opt').first()).toContainText('現在');
   await expect(opts.locator('.opt').nth(1)).toContainText('想做');
-  await expect(opts.locator('.opt .bar-head').first()).toContainText('適合度');
+  await expect(opts.locator('.opt .bar-head').first()).toContainText('綜合');
+  await expect(opts.locator('.opt').first().locator('.opt-parts')).toHaveText(/^命理天賦 \d+・你在意的穩定 \d+・AI 與未來性 \d+$/);
+  await expect(opts.locator('.opt').first().locator('.opt-wage')).toHaveText('收入：月薪約 5.1 萬、年薪約 78 萬（會計人員）');
   await expect(opts.locator('.opt').nth(1).locator('.chip', { hasText: '收入 高' })).toBeVisible();
   await expect(opts.locator('.opt').nth(1)).toContainText('轉換：跨很大');
-  // 你的天賦：一份推薦，可以一鍵加到想做的工作
-  const talent = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '你的天賦' }) });
-  await expect(talent.getByRole('heading', { name: '最適合你的職位' })).toBeVisible();
-  const rec = talent.locator('.job-recs li').first();
-  const recName = await rec.locator('b').textContent();
+  // 綜合推薦：各項指標一起比、附月薪；說清楚哪些還沒算進來；可以一鍵加到想做的工作
+  const recCard = page.locator('#job-recommend');
+  await expect(recCard.getByRole('heading', { name: '你的綜合推薦' })).toBeVisible();
+  await expect(recCard).toContainText('這次一起比的：命理天賦、你在意的穩定、AI 與未來性。');
+  await expect(recCard).toContainText('還沒算進來：興趣、性格（做下面的測驗）；準備度');
+  await expect(recCard.locator(':scope > ul.reasons > li')).toHaveCount(5);
+  const rec = recCard.locator('li').first();
+  await expect(rec).toContainText('收入：');
+  await expect(rec.locator('.badge').first()).toHaveText(/^綜合 \d+$/);
+  const recName = await rec.locator('b').first().textContent();
   await rec.getByRole('button', { name: '加到想做的工作' }).click();
   await expect(form.getByRole('button', { name: /^想做的工作 2/ }).locator('.job-pick-name')).toHaveText(recName);
+  await recCard.locator('summary', { hasText: '分數怎麼算' }).click();
+  await expect(recCard).toContainText('勞動部 114 年職類別薪資調查');
+  // 你的天賦：只講工作性質（具體工作看綜合推薦）
+  const talent = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '你的天賦' }) });
+  await expect(talent.locator('.trait .count').first()).toHaveText(/\d 個系統/);
   await expect(talent.locator('summary', { hasText: '新興產業適不適合你' })).toBeVisible();
   // 工作運：10 年、衝穩守，標出建議轉換的那一年
   const tl = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '工作運：未來 10 年' }) });
@@ -836,16 +848,21 @@ test('軍職海巡：通電資訊專長、身分與年資（月退門檻）、�
   await form.getByRole('button', { name: /^想做的工作 1/ }).click();
   await form.getByRole('searchbox', { name: '搜尋想做的工作 1' }).fill('電信');
   await form.locator('.job-hit', { has: page.locator('b', { hasText: /^電信工程技術員$/ }) }).click();
-  // 老師總評：再 7 年滿 20 年 → 撐到月退再轉（2033 年）
+  // 老師總評：電信工程技術員和現在的專長是同一種工作，綜合分數沒有明顯比較高 → 不急著換行（調單位），2033 年滿 20 年再決定
   const master = page.locator('#view-destiny section.master').filter({ has: page.getByRole('heading', { name: '老師總評' }) });
-  await expect(master.locator('.master-verdict .badge')).toHaveText('撐到月退再轉');
-  await expect(master.locator('.master-verdict')).toContainText('留在現職到 2033 年');
+  await expect(master.locator('.master-verdict .badge')).toHaveText('先換環境');
+  await expect(master.locator('.master-verdict')).toContainText('先換環境，不急著換行');
   await expect(master.locator('ul.reasons li').first()).toContainText('再 7 年（2033 年）服滿 20 年才能請領月退俸');
-  // 選項比一比：多一條準備度，寫出你已經有的
+  await master.locator('details.remedy summary').first().click();
+  await expect(master.locator('details.remedy').first()).toContainText('申請調單位或換職務');
+  await expect(master.locator('details.remedy').first()).toContainText('2033 年：服滿 20 年、可以領月退之後，再決定要不要轉到外面。');
+  // 選項比一比：綜合分數多一項準備度，寫出你已經有的；月薪照調查，軍職照實寫不在調查裡
   const opts = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '你的選項比一比' }) });
   const tele = opts.locator('.opt', { hasText: '電信工程技術員' });
-  await expect(tele.locator('.bar-head', { hasText: '準備度' })).toBeVisible();
+  await expect(tele.locator('.opt-parts')).toContainText(/準備度 \d+/);
   await expect(tele.locator('.ready-line')).toContainText('你已經有無線電通訊操作');
+  await expect(tele.locator('.opt-wage')).toContainText('月薪約 6.4 萬、年薪約 116 萬（電信技術員）');
+  await expect(opts.locator('.opt').first().locator('.opt-wage')).toContainText('軍職依俸額表');
   // 本事卡：月退提醒、專長在民間對應的工作（有準備度）、轉換管道
   const ab = page.locator('#job-ability');
   await expect(ab.locator('.pension-note')).toContainText('再 7 年');
@@ -863,7 +880,7 @@ test('軍職海巡：通電資訊專長、身分與年資（月退門檻）、�
   await expect(page.locator('#job-plan .job-summary')).toContainText('現在：軍職：通信、電子、資訊・年資 13 年');
 });
 
-test('興趣與性格測驗：一題一頁、可以上一題、先停下次接著做；做完自動存、結果投進天賦', async ({ page }) => {
+test('興趣與性格測驗：一題一頁、可以上一題、先停下次接著做；做完自動存、結果變成綜合推薦的興趣與性格兩項、看得到 E／I', async ({ page }) => {
   await seed(page);
   await page.goto('/');
   await tab(page, 'destiny');
@@ -890,11 +907,20 @@ test('興趣與性格測驗：一題一頁、可以上一題、先停下次接�
     await quiz2.getByRole('button', { name: pick(i), exact: true }).click();
   }
   await expect(page.locator('#toast')).toContainText('測驗結果已存在這支手機');
-  // 結果：興趣代碼只列 40 分以上的（實作、研究），性格中等；天賦的工作性質把測驗算進去
+  // 結果：興趣代碼只列 40 分以上的（實作、研究），性格中等 → 中間型；綜合推薦多了興趣相符、性格相符兩項
   const result = page.locator('#quiz-card');
   await expect(result.locator('.master-verdict')).toContainText('興趣代碼 RI：實作型、研究型。');
   await expect(result.locator('.quiz-row', { hasText: '實作型 R' }).locator('.quiz-num')).toHaveText('100');
-  await expect(page.locator('#view-destiny .trait .muted', { hasText: '興趣測驗：實作型' }).first()).toBeVisible();
+  await expect(result.getByRole('heading', { name: 'E 人還是 I 人' })).toBeVisible();
+  await expect(result).toContainText('中間型（E、I 都行），外向性 50。');
+  await result.locator('summary', { hasText: 'E／I 有用嗎' }).click();
+  await expect(result).toContainText('換算成類 MBTI：XXXX');
+  const recCard = page.locator('#job-recommend');
+  await expect(recCard).toContainText('這次一起比的：命理天賦、興趣相符、性格相符、AI 與未來性。');
+  await expect(recCard).toContainText('測驗：興趣偏「實作型、研究型」，中間型（E、I 都行），外向性 50。');
+  await expect(recCard.locator('li').first()).toContainText(/興趣相符 \d+・性格相符 \d+/);
+  // 命理的天賦投票不再混進測驗
+  await expect(page.locator('#view-destiny .trait .muted', { hasText: '興趣測驗' })).toHaveCount(0);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('star.v1.people'))[0].quiz);
   expect(saved.riasec).toEqual({ R: 100, I: 100, A: 25, S: 25, E: 25, C: 25 });
   expect(saved.big5).toEqual({ E: 50, A: 50, C: 50, S: 50, O: 50 });
@@ -1054,7 +1080,7 @@ test('命盤：工作與方向、開運佈置（財庫、財位、九宮飛星�
   const tool = dv.getByRole('combobox', { name: '選擇命理工具' });
   await tool.selectOption('career');
   await expect(dv.getByRole('heading', { name: '最適合的工作性質' })).toBeVisible();
-  await expect(dv.locator('.trait .count').first()).toHaveText(/[2-9] 票/);
+  await expect(dv.locator('.trait .count').first()).toHaveText(/[2-9] 個系統/);
   // 工作運：10 年一條時間軸（以前分成未來三年、十年兩張卡）
   await expect(dv.locator('.career-years .cy')).toHaveCount(10);
   await expect(dv.locator('.career-years .cy').first()).toContainText('2026');

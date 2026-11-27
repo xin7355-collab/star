@@ -376,11 +376,16 @@ export function searchItems(list, q, limit = 30) {
   }).filter((r) => r.score).sort((a, b) => b.score - a.score).slice(0, limit).map((r) => r.x);
 }
 
-// 一個工作可以被哪些代碼對到：自己的代碼、官方細類的 1～4 碼、沿用的常見工作、類別
+// 一個工作可以被哪些代碼對到：自己的代碼、官方細類的 1～4 碼、沿用的常見工作、類別。
+// 每個工作只算一次：綜合推薦每選一次就對全部約 480 個工作 × 90 張證照比對，每次重建 Set 在手機上會卡
+const KEYS = new WeakMap();
 function keysOf(job) {
-  const k = new Set([job.id, `g:${job.group}`]);
+  let k = KEYS.get(job);
+  if (k) return k;
+  k = new Set([job.id, `g:${job.group}`]);
   if (job.soc) for (let n = 1; n <= 4; n += 1) k.add(job.soc.slice(0, n));
   if (job.like) k.add(job.like);
+  KEYS.set(job, k);
   return k;
 }
 /** 這個工作是不是在這些代碼裡（技能、證照、科系的 for） */

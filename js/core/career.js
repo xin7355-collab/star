@@ -2,7 +2,8 @@
 //
 // 1. 工作性質：八字（月令格局；十神最多的一組只當補充說明、不投票）、紫微（官祿宮主星）、占星（天頂與太陽星座）、生命靈數、血型
 //    各投兩種「工作性質」，兩個以上系統都投的才列為最適合；每一票都標出依據。
-//    做了興趣與性格測驗（quiz.js）的話，測驗也投票，興趣第一型一次 2 票：測驗量的是你現在的傾向，比單一命理系統更直接。
+//    興趣與性格測驗不在這裡投票：它是另外的「興趣相符」「性格相符」指標，和每個工作直接比（jobs.js 的綜合分數），
+//    混在命理的票裡，使用者看不出測驗有沒有算進去。
 // 2. 適合的行業：依喜用五行（bazi.js 的 yongShen）對照傳統的五行行業分類。
 // 3. 未來方向：每一年看八字流年十神（並對照喜用忌神）、生命靈數流年數、木星與土星走到的宮位；
 //    十年看八字大運與紫微大限。
@@ -17,7 +18,6 @@ import { geju } from './geju.js';
 import { dominantShishen, personalYearNumber, PERSONAL_YEAR } from './reading.js';
 import { SHISHEN_GROUPS, ZIWEI_STARS, LIFEPATH_DETAIL, SIGN_DETAIL, DECADE_FOCUS } from './reading-texts.js';
 import { BLOOD } from './blood.js';
-import { quizVotes } from './quiz.js';
 
 // 工作性質的定義搬到 jobs.js（工作選單也要用；jobs.js 不能依賴這個比較重的模組，名單存檔會用到它）
 export { NATURES };
@@ -93,15 +93,11 @@ function transitHouses(natal, year) {
  * @param {{natal?:object, bazi?:object, ziwei?:object, birth:{y,m,d}, bloodType?:string, today:{y,m,d}, lifePathNumber:number}} input
  *   ziwei 由呼叫端先處理好多胞胎借宮（和綜合解讀用同一張盤）
  */
-export function buildCareer({ natal = null, bazi = null, ziwei = null, birth, bloodType = '', today, lifePathNumber, quiz = null }) {
+export function buildCareer({ natal = null, bazi = null, ziwei = null, birth, bloodType = '', today, lifePathNumber }) {
   const votes = {};
-  const weight = {};
   const points = [];
-  const vote = (keys, source, w = 1) => {
-    for (const k of keys) {
-      (votes[k] ||= []).push(source);
-      weight[k] = (weight[k] || 0) + w;
-    }
+  const vote = (keys, source) => {
+    for (const k of keys) (votes[k] ||= []).push(source);
   };
 
   if (bazi && bazi.ok) {
@@ -139,14 +135,8 @@ export function buildCareer({ natal = null, bazi = null, ziwei = null, birth, bl
     points.push({ system: '血型', text: `${blood.work}常見適合：${blood.jobs.join('、')}。` });
   }
 
-  for (const q of quizVotes(quiz)) {
-    vote(q.keys, q.source, q.w);
-    points.push({ system: '測驗', text: `${q.source}（${q.w} 票）` });
-  }
-
-  // count＝票數（測驗有加權）；systems＝幾個依據
   const ranked = Object.entries(votes)
-    .map(([key, sources]) => ({ key, ...NATURES[key], count: weight[key], systems: sources.length, sources }))
+    .map(([key, sources]) => ({ key, ...NATURES[key], count: sources.length, sources }))
     .sort((a, b) => b.count - a.count);
   const consensus = ranked.filter((n) => n.count >= 2).slice(0, 3);
   const natures = consensus.length ? consensus : ranked.slice(0, 2);
