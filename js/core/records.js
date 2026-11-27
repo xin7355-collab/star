@@ -5,6 +5,7 @@
 import { sanitizePalm } from './palm.js';
 import { sanitizeQuiz } from './quiz.js';
 import { sanitizeCareer } from './jobs.js';
+import { sanitizeHourWindow } from './hour-windows.js';
 
 export const SCHEMA = 1;
 export const LIMITS = { people: 50, history: 300, name: 20, title: 60, summary: 400, detailBytes: 4000 };
@@ -139,6 +140,11 @@ export function sanitizePerson(p) {
     ...(() => {
       const quiz = sanitizeQuiz(p.quiz);
       return quiz ? { quiz } : {};
+    })(),
+    // 沒有出生時間時，家人記得的大概時段（時辰不確定模式用來縮小範圍）；填了時間就用不到，不存
+    ...(() => {
+      const hourWindow = raw.knowTime ? '' : sanitizeHourWindow(p.hourWindow);
+      return hourWindow ? { hourWindow } : {};
     })(),
     raw,
     createdAt: isoTime(p.createdAt) || new Date().toISOString(),

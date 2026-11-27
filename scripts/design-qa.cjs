@@ -156,6 +156,10 @@ async function tour(browser, width, prefix, opts) {
   await tool(page, 'ziwei');
   await page.waitForSelector('#view-destiny .ziwei-grid');
   files.push(await snap(page, `${prefix}ziwei`, width));
+  // 時辰對照：13 個時辰的對照表（snap 會打開摺疊）、大概時段的下拉
+  await tool(page, 'hours');
+  await page.waitForSelector('#hours-stable');
+  files.push(await snap(page, `${prefix}hours`, width));
   await tool(page, 'name');
   await page.waitForSelector('#view-destiny .grids, #view-destiny .card .warn');
   files.push(await snap(page, `${prefix}name`, width));

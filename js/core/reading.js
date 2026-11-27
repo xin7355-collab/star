@@ -140,28 +140,30 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
   const kin = mayaKin(birth);
   const zw = ziwei && ziwei.ok ? (twins && twins.shift ? rotateZiwei(ziwei, twins.shift) : ziwei) : null;
 
-  // ── 1. 收集特質標籤
+  // ── 1. 收集特質標籤（said：每個系統說了哪些特質，「說中與不像」拿來和測驗逐句對照）
   const votes = {};
-  const vote = (tags, source) => {
+  const said = [];
+  const vote = (system, tags, source) => {
+    said.push({ system, source, tags });
     for (const t of tags) (votes[t] ||= []).push(source);
   };
   const sun = natal ? natal.sun.sign : null;
-  if (sun !== null) vote(SIGN_DETAIL[sun].tags, `占星：太陽${signName(sun)}`);
-  if (natal && natal.rising !== undefined && natal.rising !== null) vote(SIGN_DETAIL[natal.rising].tags, `占星：上升${signName(natal.rising)}`);
+  if (sun !== null) vote('占星', SIGN_DETAIL[sun].tags, `占星：太陽${signName(sun)}`);
+  if (natal && natal.rising !== undefined && natal.rising !== null) vote('占星', SIGN_DETAIL[natal.rising].tags, `占星：上升${signName(natal.rising)}`);
   let dom = null;
   if (bazi && bazi.ok) {
-    vote(DAYMASTER[bazi.dayMaster.gan].tags, `八字：日主${bazi.dayMaster.gan}${bazi.dayMaster.wx}`);
+    vote('八字', DAYMASTER[bazi.dayMaster.gan].tags, `八字：日主${bazi.dayMaster.gan}${bazi.dayMaster.wx}`);
     dom = dominantShishen(bazi);
-    if (dom.value >= 1.5) vote(SHISHEN_GROUPS[dom.group].tags, `八字：${dom.group}較多`);
+    if (dom.value >= 1.5) vote('八字', SHISHEN_GROUPS[dom.group].tags, `八字：${dom.group}較多`);
   }
   if (zw) {
     const { stars } = palaceStars(zw, '命宮');
-    for (const s of stars) if (ZIWEI_STARS[s.name]) vote(ZIWEI_STARS[s.name].tags, `紫微：命宮${s.name}`);
+    for (const s of stars) if (ZIWEI_STARS[s.name]) vote('紫微', ZIWEI_STARS[s.name].tags, `紫微：命宮${s.name}`);
   }
-  vote(LIFEPATH_DETAIL[lp].tags, `生命靈數 ${lp}`);
-  if (kin) vote(SEAL_TAGS[kin.seal.n], `瑪雅：銀河印記${kin.title}`);
+  vote('生命靈數', LIFEPATH_DETAIL[lp].tags, `生命靈數 ${lp}`);
+  if (kin) vote('瑪雅', SEAL_TAGS[kin.seal.n], `瑪雅：銀河印記${kin.title}`);
   const blood = BLOOD[bloodType] || null;
-  if (blood) vote(blood.tags, `血型 ${bloodType} 型（流行文化）`);
+  if (blood) vote('血型', blood.tags, `血型 ${bloodType} 型（流行文化）`);
   const ranked = Object.entries(votes).map(([tag, sources]) => ({ tag, label: TAGS[tag].label, count: sources.length, sources })).sort((a, b) => b.count - a.count);
   const consensus = ranked.filter((t) => t.count >= 2).slice(0, 3);
   const top = consensus.length ? consensus : ranked.slice(0, 2);
@@ -283,7 +285,7 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
   if (yk) yearPoints.push({ system: '瑪雅', text: `流年印記是 KIN ${yk.kin}「${yk.title}」（${yk.from.y}/${yk.from.m}/${yk.from.d} 生日起的一年）：關鍵字「${SEAL_TEXT[yk.seal.n].keys.join('、')}」，這一年常問自己：${TONE_TEXT[yk.tone.n].q}` });
   add('year', `${today.y} 年重點`, yearPoints.length > 2 ? '把下面幾個系統的提醒合起來看：哪件事被提到兩次以上，就是今年最該花心思的地方。' : '', yearPoints);
 
-  return { traits: top, ranked, areas, twins, lifePathNumber: lp };
+  return { traits: top, ranked, said, areas, twins, lifePathNumber: lp };
 }
 
 function wuxingBalance(bazi) {

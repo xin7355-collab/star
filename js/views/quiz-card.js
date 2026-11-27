@@ -111,7 +111,10 @@ export function quizCard({ p, who, ctx, today, pendingCareer = () => null }) {
       })),
       eiBlock(r),
       h('p', { class: 'hint', text: '這份結果會用在上面的「綜合推薦」：每個工作各比一次興趣相符（例如業務看企業型）和性格相符（例如業務看外向、行政看盡責），不混進命理的天賦投票。' }),
-      h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '重新測驗', onclick: () => { answers = []; keep(); ask(0); } })),
+      h('div', { class: 'actions' },
+        // 綜合解讀的「說中與不像」：各系統說的個性和這份結果逐句對照
+        h('button', { type: 'button', class: 'btn small', text: '看各系統說中幾句', onclick: () => ctx.go('destiny', { tool: 'reading', focus: 'trait-check' }) }),
+        h('button', { type: 'button', class: 'btn small ghost', text: '重新測驗', onclick: () => { answers = []; keep(); ask(0); } })),
       note());
   }
 

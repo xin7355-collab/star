@@ -926,6 +926,74 @@ test('興趣與性格測驗：一題一頁、可以上一題、先停下次接�
   expect(saved.big5).toEqual({ E: 50, A: 50, C: 50, S: 50, O: 50 });
   expect(saved.answers).toBeUndefined();
   expect(await page.evaluate(() => localStorage.getItem('star.v1.quiz-draft'))).toBeNull();
+  // 測驗結果 → 綜合解讀的「說中與不像」：換工具、捲到那張卡
+  await result.getByRole('button', { name: '看各系統說中幾句' }).click();
+  await expect(page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' })).toHaveValue('reading');
+  await expect(page.locator('#trait-check')).toBeInViewport();
+  await expect(page.locator('#trait-check')).toContainText('說中與不像');
+});
+
+test('說中與不像：各系統說的個性和測驗逐句對照，固定順序、附「隨便挑也會說中多少」；沒做測驗時引導去做', async ({ page }) => {
+  const quiz = { v: 1, at: '2026-11-27', riasec: { R: 80, I: 75, A: 30, S: 35, E: 25, C: 60 }, big5: { E: 30, A: 55, C: 70, S: 60, O: 65 } };
+  const MOM = { ...ME, id: 'p-00000000000000aa', name: '媽媽', fullName: '', self: false, relation: 'parent', gender: '女' };
+  await seed(page, [{ ...ME, bloodType: 'O', quiz }, MOM]);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  const dv = page.locator('#view-destiny');
+  await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('reading');
+  const card = page.locator('#trait-check');
+  await expect(card.getByRole('heading', { name: '說中與不像' })).toBeVisible();
+  // 太陽獅子座說有主見、能帶頭；測驗企業型 25、外向性 30 → 不像
+  await expect(card.locator('li', { hasText: '太陽獅子座說你「有主見、能帶頭」' })).toContainText('不像（企業型 25、外向性 30）');
+  await expect(card).toContainText('隨便挑一個特質，也有大約 40% 會說中');
+  // 系統照固定順序，不依說中多少排
+  const order = await card.locator('.tc-sys h3').evaluateAll((els) => els.map((e) => e.firstChild.textContent.trim()));
+  expect(order).toEqual(['占星', '八字', '紫微', '生命靈數', '瑪雅', '血型']);
+  // 沒做測驗的人：引導去做，按了換到工作與未來方向的測驗卡
+  await page.locator('#who').selectOption({ label: '媽媽' });
+  await expect(card).toContainText('做了「興趣與性格測驗」');
+  await card.getByRole('button', { name: '去做測驗' }).click();
+  await expect(dv.getByRole('combobox', { name: '選擇命理工具' })).toHaveValue('career');
+  await expect(page.locator('#quiz-card')).toBeInViewport();
+});
+
+test('時辰不確定：不知道出生時間的人看 13 個時辰對照，只採用都一樣的結論；家人記得的大概時段會存起來、縮小範圍', async ({ page }) => {
+  const MOM = { ...ME, id: 'p-00000000000000aa', name: '媽媽', fullName: '', self: false, relation: 'parent', gender: '女',
+    raw: { ...ME.raw, year: 52, month: 3, day: 9, knowTime: false, time: '' } };
+  await seed(page, [ME, MOM]);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  await page.locator('#who').selectOption({ label: '媽媽' });
+  const dv = page.locator('#view-destiny');
+  const tool = dv.getByRole('combobox', { name: '選擇命理工具' });
+  // 紫微排不出來：直接給「看 13 個時辰對照」
+  await tool.selectOption('ziwei');
+  await expect(dv.getByText('紫微命盤需要出生時間')).toBeVisible();
+  await dv.getByRole('button', { name: '不知道時間？看 13 個時辰對照' }).click();
+  await expect(tool).toHaveValue('hours');
+  const stable = page.locator('#hours-stable');
+  const vary = page.locator('#hours-vary');
+  await expect(stable.locator('li', { hasText: '八字・年柱' })).toContainText('癸卯');
+  await expect(stable.locator('li', { hasText: '太陽星座' })).toContainText('雙魚座');
+  await expect(vary.locator('li', { hasText: '八字・時柱' })).toContainText('13 個時辰各不相同');
+  // 23 點換日：日柱只有晚子時不同
+  await expect(vary.locator('li', { hasText: '八字・日柱' })).toContainText('辛亥（辛金）：早子～亥時');
+  await vary.locator('summary', { hasText: '13 個時辰逐一看' }).click();
+  await expect(vary.locator('.hour-row')).toHaveCount(13);
+  // 家人記得是上午：存起來，範圍縮到辰、巳兩個時辰；日柱、喜用變成「都一樣」
+  await dv.getByRole('combobox', { name: '大概的時段' }).selectOption('morning');
+  await expect(page.locator('#toast')).toContainText('已記下大概時段');
+  await expect(stable.locator('li', { hasText: '八字・日柱' })).toContainText('辛亥');
+  await expect(vary.locator('li', { hasText: '八字・時柱' })).toContainText('壬辰：辰時');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('star.v1.people')).find((x) => x.name === '媽媽'));
+  expect(saved.hourWindow).toBe('morning');
+  expect(saved.raw.knowTime).toBe(false);
+  await page.reload();
+  await tab(page, 'destiny');
+  await expect(dv.getByRole('combobox', { name: '大概的時段' })).toHaveValue('morning');
+  // 說明：怎麼找到真正的時間、為什麼不幫你猜
+  await page.locator('#hours-help summary', { hasText: '為什麼不用個性或測驗幫我猜時辰' }).click();
+  await expect(page.locator('#hours-help')).toContainText('循環');
 });
 
 test('占卜：樂透選號（今日固定、隨機一組、機率表、存紀錄）', async ({ page }) => {

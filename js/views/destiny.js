@@ -30,6 +30,7 @@ const TOOLS = [
   { id: 'maya', label: '瑪雅曆（銀河印記、瑪雅密碼）' },
   { id: 'numerology', label: '生命靈數' },
   { id: 'chenggu', label: '袁天罡稱骨' },
+  { id: 'hours', label: '時辰不確定（13 個時辰對照）' },
   { id: 'palm', label: '掌紋（含斷掌）' },
 ];
 // 紫微某一宮要看星曜的哪一段白話
@@ -53,6 +54,15 @@ export function mountDestiny(root, ctx) {
   let mayaCodeOpen = load('mayaCodeOpen', null);
   const mayaTwinTime = (p, input) => (input.time && (twinOverride.has(p.id) ? twinOverride.get(p.id) : !!p.birthOrder) ? input.time : null);
   let token = 0;
+  // 換工具後要捲到的卡片（例如測驗結果的「看各系統說中幾句」）：工具是非同步畫的，畫完才捲得到
+  let focusAfter = null;
+  const switchTool = (id, focus = null) => {
+    tool = id;
+    save('destinyTool', tool);
+    focusAfter = focus;
+    render();
+    window.scrollTo(0, 0);
+  };
 
   function render() {
     token += 1;
@@ -106,6 +116,7 @@ export function mountDestiny(root, ctx) {
       family: () => import('./tool-family.js').then((m) => m.drawFamily(p, input, opts, kit)),
       blood: () => import('./tool-blood.js').then((m) => m.drawBlood(p, kit)),
       palm: () => import('./tool-palm.js').then((m) => m.drawPalm(p, kit)),
+      hours: () => import('./tool-hours.js').then((m) => m.drawHours(p, input, opts, kit)),
       name: () => drawName(p, input, opts),
       bazi: () => drawBazi(p, input, opts),
       liunian: () => drawLiunian(p, input, opts),
@@ -116,7 +127,13 @@ export function mountDestiny(root, ctx) {
     }[tool];
     draw()
       .then((nodes) => {
-        if (my === token) fill(out, ...reveal([].concat(nodes)));
+        if (my !== token) return;
+        fill(out, ...reveal([].concat(nodes)));
+        if (focusAfter) {
+          const id = focusAfter;
+          focusAfter = null;
+          requestAnimationFrame(() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ block: 'start' }); });
+        }
       })
       .catch((err) => {
         if (my === token) fill(out, warnCard(`計算失敗：${err && err.message ? err.message : '請確認網路後重新開啟 App'}`));
@@ -125,6 +142,12 @@ export function mountDestiny(root, ctx) {
 
   function warnCard(text, withEdit = false) {
     return h('section', { class: 'card' }, h('p', { class: 'warn', text }), withEdit ? h('button', { type: 'button', class: 'btn small', text: '到「我的」編輯資料', onclick: () => ctx.go('me') }) : null);
+  }
+  // 缺出生時間（紫微、稱骨排不出來）：除了去補時間，也可以先看 13 個時辰對照
+  const hoursBtn = () => h('button', { type: 'button', class: 'btn small', text: '不知道時間？看 13 個時辰對照', onclick: () => switchTool('hours') });
+  function noTimeCard(text) {
+    return h('section', { class: 'card' }, h('p', { class: 'warn', text }),
+      h('div', { class: 'actions' }, hoursBtn(), h('button', { type: 'button', class: 'btn small ghost', text: '到「我的」補時間', onclick: () => ctx.go('me') })));
   }
 
   function actions(p, type, title, summary, poster) {
@@ -464,7 +487,7 @@ export function mountDestiny(root, ctx) {
   async function drawZiwei(p, input, opts) {
     const [{ buildZiwei, STAR_TEXT }, { rotateZiwei, twinsInfo }, { PALACE_TEXT, ZIWEI_STARS, PALACE_DOMAIN, BRIGHTNESS_TEXT, mutagenIn }, { pairText, sanFang, mingPatterns }, { ziweiSummary }] = await Promise.all([import('../core/ziwei.js'), import('../core/reading.js'), import('../core/reading-texts.js'), import('../core/ziwei-pattern.js'), import('../core/ziwei-summary.js')]);
     const z0 = buildZiwei(input, { gender: p.gender, solarTime: opts.solarTime, at: opts.today });
-    if (!z0.ok) return warnCard(z0.error, true);
+    if (!z0.ok) return input.time ? warnCard(z0.error, true) : noTimeCard(z0.error);
     const twins = p.birthOrder ? twinsInfo({ birthOrder: p.birthOrder, hasTime: true, method: ctx.getSettings().twinMethod }) : null;
     const z = twins && twins.shift ? rotateZiwei(z0, twins.shift) : z0;
     const detail = h('div', { class: 'palace-detail' });
@@ -872,7 +895,7 @@ export function mountDestiny(root, ctx) {
 
   // ── 袁天罡稱骨
   async function drawChenggu(p, input, opts) {
-    if (!input.time) return warnCard('稱骨需要出生時間（時辰）。請到「我的」補上時間。', true);
+    if (!input.time) return noTimeCard('稱骨需要出生時間（時辰）。請到「我的」補上時間，或先看 13 個時辰各是多重。');
     const [{ buildBazi, baziClock }, { solarToLunar }, { chengGu, patternOf, bandOf, percentileOf, formatWeight }, { CHENGGU_PLAIN }] = await Promise.all([import('../core/bazi.js'), import('../core/calendar.js'), import('../core/chenggu.js'), import('../core/reading-texts.js')]);
     const clk = baziClock(input, { solarTime: opts.solarTime });
     if (!clk.ok) return warnCard(clk.error, true);
@@ -916,8 +939,32 @@ export function mountDestiny(root, ctx) {
 
 
   // ── 綜合解讀：星座、八字、紫微、生命靈數、瑪雅、姓名、稱骨一起看
+  // 說中與不像：各系統說的個性和測驗逐句對照（固定順序，不排行；附「隨便挑也會說中多少」）
+  function traitCheckCard(p, r, TC) {
+    const head = cardHead(h, 'sparkle', '說中與不像', '各系統說你的個性，和測驗逐句對照');
+    if (!p.quiz) {
+      return h('section', { class: 'card', id: 'trait-check' }, head,
+        h('p', { text: '做了「興趣與性格測驗」（56 題、約 6 分鐘）之後，這裡會逐句對照各系統說你的個性：哪幾句和測驗一樣、哪幾句不像。' }),
+        h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '去做測驗', onclick: () => switchTool('career', 'quiz-card') })));
+    }
+    const c = TC.traitCheck(r.said, p.quiz);
+    const total = c.counts.hit + c.counts.half + c.counts.miss + c.counts.na;
+    const counts = (x) => `說中 ${x.hit}・一半 ${x.half}・不像 ${x.miss}${x.na ? `・測不到 ${x.na}` : ''}`;
+    return h('section', { class: 'card', id: 'trait-check' }, head,
+      h('p', { text: `${total} 句裡：${counts(c.counts)}。` }),
+      h('p', { class: 'small', text: `對照：13 個特質裡測驗量得到 ${c.base.testable} 個，有 ${c.base.hits} 個和你相符——隨便挑一個特質，也有大約 ${c.base.pct}% 會說中。一個系統的說中比例沒有明顯高過這個數字，就和隨便猜差不多。` }),
+      c.systems.map((sys) => h('div', { class: 'tc-sys' },
+        h('h3', {}, sys.system, ' ', h('span', { class: 'muted small', text: counts(sys.counts) })),
+        h('ul', { class: 'reasons' }, sys.items.flatMap((it) => it.tags.map((t) => h('li', { class: TC.VERDICT[t.verdict].tone },
+          h('b', { text: `${it.source}說你「${t.label}」：` }), h('span', { text: TC.VERDICT[t.verdict].label }), h('span', { class: 'muted small', text: `（${t.detail}）` }))))))),
+      h('details', { class: 'more' }, h('summary', { text: '怎麼比的、能說明什麼' }),
+        h('p', { class: 'small', text: '每個特質對到測驗量得到的面向（例如「有主見、能帶頭」看企業型和外向性），換成「越高越像」的分數平均：60 以上說中、40 以下不像、中間一半一半。財運、桃花、獨立自主這類測驗量不到，標「測不到」。對照方式是本 App 整理的。' }),
+        h('p', { class: 'small', text: '用法：說中的建議可以多參考，不像的就當提醒、不用硬套。系統照固定順序列、不排名次：描述本來就模糊，比的句子越多，總有一個系統剛好說中很多，一個人的結果分不出是準還是運氣。上升星座、紫微命宮要有出生時間才會列進來；也不會反過來用測驗去猜時辰。' })),
+      h('p', { class: 'muted small', text: `測驗日期：${p.quiz.at || '（沒有紀錄）'}。` }));
+  }
+
   async function drawReading(p, input, opts) {
-    const prof = await loadProfile(ctx, p, input, opts, { mayaTime: mayaTwinTime(p, input) });
+    const [prof, TC] = await Promise.all([loadProfile(ctx, p, input, opts, { mayaTime: mayaTwinTime(p, input) }), import('../core/trait-check.js')]);
     const r = prof.reading;
     const { missing, edgeNote } = prof;
     const traitList = h('div', { class: 'traits' }, r.traits.map((t) => h(
@@ -934,8 +981,8 @@ export function mountDestiny(root, ctx) {
         a.summary ? h('p', { class: 'gold', text: a.summary }) : null,
         a.points.map((pt) => h('div', { class: 'point' }, h('span', { class: `sys sys-${pt.system}`, text: pt.system }), h('span', { text: pt.text }))),
         // 今年只是一年：要看哪幾年要注意、哪幾年順，直接跳到人生時間軸
-        a.id === 'year' ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '看未來 10 年的人生時間軸', onclick: () => { tool = 'liunian'; save('destinyTool', tool); render(); window.scrollTo(0, 0); } })) : null,
-        a.id === 'career' ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '看工作與未來方向（含新興產業）', onclick: () => { tool = 'career'; save('destinyTool', tool); render(); window.scrollTo(0, 0); } })) : null),
+        a.id === 'year' ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '看未來 10 年的人生時間軸', onclick: () => switchTool('liunian') })) : null,
+        a.id === 'career' ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '看工作與未來方向（含新興產業）', onclick: () => switchTool('career') })) : null),
     ));
     const cards = [
       h(
@@ -947,8 +994,11 @@ export function mountDestiny(root, ctx) {
         r.traits.length ? traitList : h('p', { class: 'muted', text: '資料還不夠多，補上出生時間與性別會更準。' }),
         h('p', { class: 'hint', text: '同一個特質被兩個以上的系統提到，代表比較可信；只出現一次的看法列在各面向裡當參考。' }),
         missing.length ? h('p', { class: 'warn', text: `補上這些資料會更完整：${missing.join('、')}。` }) : null,
-        missing.length ? h('button', { type: 'button', class: 'btn small', text: '到「我的」補資料', onclick: () => ctx.go('me') }) : null,
+        missing.length ? h('div', { class: 'actions' },
+          h('button', { type: 'button', class: 'btn small', text: '到「我的」補資料', onclick: () => ctx.go('me') }),
+          !input.time ? hoursBtn() : null) : null,
       ),
+      traitCheckCard(p, r, TC),
       h('section', { class: 'card' }, cardHead(h, 'star', '七個面向', '點開看各系統怎麼說'), areas, h('p', { class: 'hint', text: '解讀文字由本 App 撰寫，命理與星座僅供參考；健康相關請以醫師意見為準。' }),
         actions(p, 'reading', '綜合解讀', r.traits.map((t) => `${t.label}（${t.count} 系統）`).join('、') || '綜合解讀', { title: `${p.name}的綜合解讀`, subtitle: '多個命理系統的共同點', lines: [...r.traits.map((t) => `${t.label}｜${t.sources.join('、')}`), ...r.areas.slice(1, 4).map((a) => `${a.title}：${a.summary}`)] })),
     ];
@@ -1152,11 +1202,7 @@ export function mountDestiny(root, ctx) {
   return {
     // 其他分頁可以直接跳到某個工具（例如今日的「財位與開運擺設」）
     open(o) {
-      if (o && o.tool && TOOLS.some((t) => t.id === o.tool) && o.tool !== tool) {
-        tool = o.tool;
-        save('destinyTool', tool);
-        render();
-      }
+      if (o && o.tool && TOOLS.some((t) => t.id === o.tool) && o.tool !== tool) switchTool(o.tool, o.focus || null);
     },
   };
 }

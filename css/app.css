@@ -1300,6 +1300,13 @@ details.job-form[open] > summary::after { content: '▴'; }
 .ready-line { margin: 2px 0 8px; }
 /* 清單裡的小標籤不從中間斷行（「準備度 65」斷成兩行很難讀）；內容都是短字 */
 .job-ability .badge, .job-recs .badge { white-space: nowrap; }
+/* 時辰對照：每個時辰一列，時柱、上升、紫微命宮分兩行小字（320 寬放不下表格） */
+.hour-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.hour-row { padding: 10px 0; border-top: 1px solid var(--divider); }
+.hour-row.known { border-left: 3px solid var(--good); padding-left: 10px; }
+.hour-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 2px; }
+.tc-sys + .tc-sys { margin-top: 12px; }
+.tc-sys h3 { margin-bottom: 4px; }
 .pension-note { padding: 10px 12px; }
 /* 技能、證照的多選挑選器（multi-picker.js）：已選的排成小標籤，點 × 移除 */
 .multi-picker { display: grid; gap: 8px; justify-items: start; }
