@@ -66,6 +66,13 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
   const plain = (list) => list.map((t) => h('option', { value: t.value, text: t.label }));
   const summaryLine = h('p', { class: 'job-summary' });
   const saveBtn = h('button', { type: 'button', class: 'btn primary', text: `存到${p.name}的資料` });
+  // 全部清除重填：存過才有；清掉後整頁重畫，表單自動打開、回到還沒填
+  const clearBtn = h('button', { type: 'button', class: 'btn small ghost', text: '全部清除，重新填寫', onclick: () => {
+    if (!window.confirm('已存的工作、年資、技能、證照都會清掉，重新填寫（測驗結果不受影響）。確定？')) return;
+    const res = ctx.savePerson({ ...p, career: undefined });
+    if (!res.ok) return ctx.toast(res.error);
+    ctx.toast('已清除，可以重新填寫');
+  } });
   const savedHint = h('p', { class: 'muted small', role: 'status' });
   const targetBox = h('div', { class: 'job-targets' });
   const pickers = { open: null }; // 一次只開一個挑選器
@@ -121,7 +128,8 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
     cardHead(h, 'compass', `${who}的狀況`, '現在的工作、最在意的事、想做的工作；都可以不填'),
     summaryLine,
     h('details', { class: 'more job-form', id: 'job-form', open: !hasSaved },
-      h('summary', { text: hasSaved ? '修改' : '填寫你的狀況' }),
+      // 存過之後表單收起：按鈕要看得出能按（使用者回饋「存了之後沒有重新填寫的地方」，原本只有一行小字「修改」）
+      h('summary', { text: hasSaved ? '修改或重新填寫' : '填寫你的狀況' }),
       field('目前的工作', curSel),
       svcBox,
       field('這份工作做了多久', select('做了多久', plain(TENURES), state.tenure, (v) => { state.tenure = v; refresh(); })),
@@ -130,6 +138,8 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
       field(`想做的工作（最多 ${MAX_TARGETS} 個）`, targetBox),
       extraBox,
       h('div', { class: 'actions' }, saveBtn),
+      // 清除放下一列：和「存到…」擠一列時，320 寬的手機會把存檔按鈕擠成一個字一行
+      hasSaved ? h('div', { class: 'actions' }, clearBtn) : null,
       savedHint),
     h('p', { class: 'hint', text: '只存選單代碼（工作、技能、證照都是選單），存在這支手機。「最在意的」和「能撐多久」不影響適合度，會影響建議走哪一條路；技能證照影響「準備度」。' }));
   saveBtn.onclick = () => {
@@ -137,6 +147,7 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
     // 先帶上原本的資料：名單整筆覆蓋儲存，不帶的話掌紋、藝名這類別處存的欄位會被洗掉
     const res = ctx.savePerson({ ...p, career: career || undefined });
     if (!res.ok) return ctx.toast(res.error);
+    // 提示保持短：長的提示在 320 寬會折成三行，蓋住下面的欄位 3.5 秒（design-qa FOCUS_OBSCURED）
     ctx.toast('已存在這支手機');
   };
 

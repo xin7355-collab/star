@@ -1261,6 +1261,14 @@ body.ar-open { overflow: hidden; }
 
 /* 工作與未來方向（js/views/tool-career.js） */
 .job-targets { display: grid; gap: 8px; }
+/* 「填寫你的狀況／修改或重新填寫」做成按鈕的樣子：存檔後表單收起，原本只剩一行金色小字「修改」，使用者找不到 */
+details.job-form > summary {
+  justify-content: center; gap: 8px; margin: 8px 0 4px; padding: 10px 14px; list-style: none;
+  border: 1px solid var(--gold); border-radius: 14px; background: var(--accent-soft); color: var(--text); font-weight: 700; font-size: 16px;
+}
+details.job-form > summary::-webkit-details-marker { display: none; }
+details.job-form > summary::after { content: '▾'; color: var(--gold); }
+details.job-form[open] > summary::after { content: '▴'; }
 /* 工作挑選器（job-picker.js）：按鈕長得像下拉選單；打開後是搜尋框＋結果＋「從類別找」兩個下拉 */
 .job-pick {
   position: relative; width: 100%; min-height: 46px; padding: 8px 30px 8px 12px; text-align: left;

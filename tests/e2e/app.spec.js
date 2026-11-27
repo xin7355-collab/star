@@ -728,8 +728,17 @@ test('工作與未來：照問題排——你的狀況（含最在意的、能�
   await expect(form2.locator('.job-summary')).toContainText('現在：會計（5～10 年）・最在意：穩定');
   // 存過了：表單收起來，只留一行現況和「修改」
   await expect(form2.locator('details.job-form')).not.toHaveAttribute('open', '');
-  await form2.locator('summary', { hasText: '修改' }).click();
+  await form2.locator('summary', { hasText: '修改或重新填寫' }).click();
   await expect(form2.getByRole('button', { name: /^想做的工作 1/ })).toContainText('AI 工程師');
+  // 全部清除、重新填寫：先問一次，清掉後表單打開、回到還沒填（使用者回饋：存了之後找不到地方重填）
+  page.once('dialog', (d) => d.accept());
+  await form2.getByRole('button', { name: '全部清除，重新填寫' }).click();
+  await expect(page.locator('#toast')).toContainText('已清除，可以重新填寫');
+  expect((await people())[0].career).toBeUndefined();
+  const form3 = page.locator('#job-plan');
+  await expect(form3.locator('.job-summary')).toHaveText('還沒填：先選現在的工作，老師才能幫你比。');
+  await expect(form3.locator('details.job-form')).toHaveAttribute('open', '');
+  await expect(form3.getByRole('button', { name: '全部清除，重新填寫' })).toHaveCount(0);
 });
 
 test('工作選單包含官方職業分類全部職業：口語搜尋、注音組字中不搜尋、找不到的提示、從大類找、存的是官方代碼、門檻高的提醒', async ({ page }) => {

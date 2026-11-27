@@ -183,6 +183,12 @@ async function tour(browser, width, prefix, opts) {
   await page.locator('#quiz-card').getByRole('button', { name: '開始測驗' }).click();
   await page.waitForSelector('#quiz-card .quiz-opt');
   files.push(await snap(page, `${prefix}career-quiz`, width));
+  // 存過之後：「修改或重新填寫」按鈕、「全部清除，重新填寫」
+  await page.locator('#job-plan').getByRole('button', { name: /^存到.*的資料$/ }).click();
+  await page.waitForSelector('#job-plan details.job-form:not([open])');
+  // 等存檔提示（3.5 秒）消失再量：量的是存好之後的畫面，不是暫時的提示
+  await page.waitForSelector('#toast', { state: 'hidden' });
+  files.push(await snap(page, `${prefix}career-saved`, width));
   await tool(page, 'fengshui');
   await page.waitForSelector('#view-destiny .luoshu');
   files.push(await snap(page, `${prefix}fengshui`, width));
