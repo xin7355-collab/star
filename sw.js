@@ -3,7 +3,7 @@
 // 發佈新版時 VERSION 要跟 js/version.js 的 APP_VER、version.json 一致（tests/pwa.test.js 會檢查），
 // 舊快取會在新版啟用時清除。
 
-const VERSION = '2026.11.27-4';
+const VERSION = '2026.11.27-5';
 
 const ASSETS = [
   './',
@@ -35,6 +35,8 @@ const ASSETS = [
   './js/core/couple.js',
   './js/core/jobs.js',
   './js/core/occupations.js',
+  './js/core/work-profile.js',
+  './js/core/quiz.js',
   './js/core/master-texts.js',
   './js/core/sky.js',
   './js/core/palm-lines.js',
@@ -120,6 +122,8 @@ const ASSETS = [
   './js/views/tool-palm.js',
   './js/views/tool-career.js',
   './js/views/job-picker.js',
+  './js/views/multi-picker.js',
+  './js/views/quiz-card.js',
   './js/views/tool-fengshui.js',
   './js/views/tool-family.js',
   './js/views/lotto.js',

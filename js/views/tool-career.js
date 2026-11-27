@@ -1,10 +1,13 @@
 // 命盤 → 工作與未來方向。照使用者的問題排（不是照計算系統排），每個問題只回答一次：
 // 1. 你的狀況：現在的工作、做多久、最在意的事、收入變少能撐多久、想做的工作（都可以不填）。
 //    工作用 job-picker.js 挑：常見工作＋官方職業分類全部 380 種，打字搜尋或從類別找（上一版只有 82 個，使用者回饋沒有包含全部）
-// 2. 老師總評：天賦、現況、建議路線（留下往上走／先換環境／副業先行／準備好再換／全力轉換／從頭開始）、時機，並修正想法
-// 3. 選項比一比：現在的工作和想做的工作並排，適合度、收入、穩定、自由、生活平衡、AI 影響、轉換難度
-// 4. 你的天賦：各系統投票的工作性質＋最適合的職位（一份推薦，不再分成行業、新興產業、職位三份），細節收在摺疊裡
-// 5. 工作運：未來 10 年（把「未來三年」「十年大方向」「換跑道時機」合成一條：衝、穩、守）
+//    軍警公職多問身分、單位、階級、年資（月退門檻）；「讓分析更準」收著工作型態、學歷科系、技能、證照、學習時間、想換的時間
+// 2. 老師總評：天賦、現況、建議路線（留下往上走／先換環境／副業先行／準備好再換／全力轉換／撐到月退再轉／從頭開始）、時機，並修正想法
+// 3. 選項比一比：現在的工作和想做的工作並排，適合度、準備度、收入、穩定、自由、生活平衡、AI 影響、轉換難度
+// 4. 你的本事能去哪裡：軍警專長在民間對應的工作、轉換管道、用現有技能證照就搆得到的工作
+// 5. 興趣與性格測驗（quiz-card.js）
+// 6. 你的天賦：各系統投票的工作性質＋最適合的職位（一份推薦，不再分成行業、新興產業、職位三份），細節收在摺疊裡
+// 7. 工作運：未來 10 年（把「未來三年」「十年大方向」「換跑道時機」合成一條：衝、穩、守）
 // 上一版的問題（使用者回饋「沒有很完美」）：推薦分三份互相打架、時機講三次、只看命盤不看現實、分數看不懂、只有換或不換。
 
 import { h, fill, scoreBar } from '../ui/dom.js';
@@ -13,11 +16,17 @@ import { partsList } from '../ui/widgets.js';
 import { masterCard } from '../ui/master.js';
 import { loadProfile } from './profile.js';
 import { jobPicker } from './job-picker.js';
+import { multiPicker } from './multi-picker.js';
+import { quizCard } from './quiz-card.js';
 import { EMERGING, EMERGING_NOTE } from '../core/emerging.js';
 import {
   TENURES, PRIORITIES, RUNWAYS, MAX_TARGETS, TRAIT_KEYS, TRAIT_LEVEL,
   sanitizeCareer, careerPlan, careerMaster, fitPct, jobOf, jobMeta, aiNoteOf, DISTANCE,
 } from '../core/jobs.js';
+import {
+  MODES, SERVICES, MIL_ORGS, RANKS, YEARS, EDUS, MAJORS, STUDY_TIMES, WHENS, SKILL_GROUPS, CERT_GROUPS, MAX_SKILLS, MAX_CERTS,
+  MIL_CHANNELS, asksService, SERVICE_OF,
+} from '../core/work-profile.js';
 
 const FIT_CLASS = { 很適合: 'lv-high', 可以: 'lv-mid', 要多花力氣: 'lv-low' };
 const EM_FIT = { 很適合: 'lv-high', 可以試試: 'lv-mid', 要多花力氣: 'lv-low' };
@@ -29,12 +38,12 @@ const traitList = (job) => [...TRAIT_KEYS.map((t) => `${t.label} ${TRAIT_LEVEL[j
 const traitChips = (job) => chips(traitList(job));
 const traitLine = (job) => traitList(job).join('・');
 // 時間軸上標記建議路線的那一年
-const MARK_TEXT = { stay: '建議衝刺', move: '建議換環境', start: '正式投入', side: '建議轉換', prep: '建議轉換', switch: '建議轉換', try: '建議轉換' };
+const MARK_TEXT = { stay: '建議衝刺', move: '建議換環境', start: '正式投入', side: '建議轉換', prep: '建議轉換', switch: '建議轉換', try: '建議轉換', pension: '建議轉換' };
 
 export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
   const [prof, C, { buildLifeline }, { yongShen }] = await Promise.all([
     loadProfile(ctx, p, input, opts, { mayaTime, withName: false }), import('../core/career.js'), import('../core/lifeline.js'), import('../core/bazi.js')]);
-  const r = C.buildCareer({ natal: prof.natal, bazi: prof.bazi, ziwei: prof.ziwei, birth: input.date, bloodType: p.bloodType || '', today: opts.today, lifePathNumber: prof.lifePathNumber });
+  const r = C.buildCareer({ natal: prof.natal, bazi: prof.bazi, ziwei: prof.ziwei, birth: input.date, bloodType: p.bloodType || '', today: opts.today, lifePathNumber: prof.lifePathNumber, quiz: p.quiz || null });
   const ys = prof.bazi && prof.bazi.ok ? yongShen(prof.bazi) : null;
   const L = prof.bazi && prof.bazi.ok ? buildLifeline({ bazi: prof.bazi, natal: prof.natal, birth: input.date, today: opts.today, gender: p.gender }) : null;
   const years = L ? L.years : [];
@@ -43,7 +52,8 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
   const who = p.self ? '你' : p.name;
 
   const savedOf = () => sanitizeCareer(p.career) || EMPTY;
-  const state = { ...EMPTY, ...savedOf(), targets: [...savedOf().targets] };
+  const saved0 = savedOf();
+  const state = { ...EMPTY, ...saved0, targets: [...saved0.targets], skills: [...(saved0.skills || [])], certs: [...(saved0.certs || [])] };
   const clean = () => sanitizeCareer(state) || EMPTY;
   const planNow = () => careerPlan({ ...clean(), ranked: r.ranked, ys, years, name: who, age });
 
@@ -73,23 +83,55 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
   const curSel = jobPicker({ label: '目前的工作', value: state.current, withStatus: true, group: pickers, onPick: (v) => {
     state.current = v;
     state.targets = state.targets.filter((t) => t !== v);
+    // 換成不是軍警公職的工作：身分、年資清掉（不然會拿軍職的月退規則去算一般工作）
+    if (!asksService(jobOf(v))) Object.assign(state, { service: '', org: '', rank: '', svcYears: '' });
+    paintService();
     refresh(true);
   } }).el;
   const field = (label, el) => h('div', { class: 'field' }, h('span', { class: 'field-label', text: label }), el);
   const hasSaved = !!sanitizeCareer(p.career);
+
+  // 軍警公職：身分、單位、階級、年資（月退門檻、轉換難度都看它）
+  // 各區塊給 id：design-qa 用 CSS 路徑當元素代號，兩個結構一樣的區塊（身分、學歷那一列）會撞號，鍵盤巡覽就提早停
+  const svcBox = h('div', { class: 'svc-fields', id: 'job-svc' });
+  function paintService() {
+    const job = jobOf(state.current);
+    if (!asksService(job)) return fill(svcBox);
+    const svc = state.service || SERVICE_OF(job);
+    fill(svcBox,
+      field('身分', select('身分', plain(SERVICES), svc, (v) => { state.service = v; paintService(); refresh(); })),
+      svc === 'mil' ? h('div', { class: 'row2' },
+        field('單位', select('單位', plain(MIL_ORGS), state.org, (v) => { state.org = v; refresh(); })),
+        field('階級', select('階級', plain(RANKS), state.rank, (v) => { state.rank = v; refresh(); }))) : null,
+      field(svc === 'mil' ? '服役年資（總共）' : '任職年資（總共）', select('年資', plain(YEARS), state.svcYears, (v) => { state.svcYears = v; refresh(); })));
+  }
+  // 選填的背景：準備度、作息、學習時間的提醒都看它
+  const extraBox = h('details', { class: 'more job-extra', id: 'job-extra' },
+    h('summary', { text: '讓分析更準（選填）：學歷、技能、證照…' }),
+    field('現在的工作型態', select('工作型態', plain(MODES), state.mode, (v) => { state.mode = v; refresh(); })),
+    h('div', { class: 'row2' },
+      field('學歷', select('學歷', plain(EDUS), state.edu, (v) => { state.edu = v; refresh(); })),
+      field('科系', select('科系', plain(MAJORS), state.major, (v) => { state.major = v; refresh(); }))),
+    field('會的技能（工作、軍中、興趣學的都算）', multiPicker({ label: '技能', groups: SKILL_GROUPS, value: state.skills, max: MAX_SKILLS, group: pickers, onChange: (ids) => { state.skills = ids; refresh(); } }).el),
+    field('證照', multiPicker({ label: '證照', groups: CERT_GROUPS, value: state.certs, max: MAX_CERTS, group: pickers, onChange: (ids) => { state.certs = ids; refresh(); } }).el),
+    field('每週能花多少時間學新東西', select('每週能學多久', plain(STUDY_TIMES), state.study, (v) => { state.study = v; refresh(); })),
+    field('想在什麼時候換', select('想什麼時候換', plain(WHENS), state.when, (v) => { state.when = v; refresh(); })),
+    h('p', { class: 'hint', text: '技能、證照、科系決定「準備度」：你已經會的，轉過去就比較近。軍中的專長也算，例如無線電、修電腦、帶人、裝備保養。' }));
   const formCard = h('section', { class: 'card feature', id: 'job-plan' },
     cardHead(h, 'compass', `${who}的狀況`, '現在的工作、最在意的事、想做的工作；都可以不填'),
     summaryLine,
-    h('details', { class: 'more job-form', open: !hasSaved },
+    h('details', { class: 'more job-form', id: 'job-form', open: !hasSaved },
       h('summary', { text: hasSaved ? '修改' : '填寫你的狀況' }),
       field('目前的工作', curSel),
-      field('做了多久', select('做了多久', plain(TENURES), state.tenure, (v) => { state.tenure = v; refresh(); })),
+      svcBox,
+      field('這份工作做了多久', select('做了多久', plain(TENURES), state.tenure, (v) => { state.tenure = v; refresh(); })),
       field('你最在意的', select('你最在意的', plain(PRIORITIES), state.priority, (v) => { state.priority = v; refresh(); })),
       field('換工作時收入變少，能撐多久', select('收入變少能撐多久', plain(RUNWAYS), state.runway, (v) => { state.runway = v; refresh(); })),
       field(`想做的工作（最多 ${MAX_TARGETS} 個）`, targetBox),
+      extraBox,
       h('div', { class: 'actions' }, saveBtn),
       savedHint),
-    h('p', { class: 'hint', text: '只存選單代碼（常見工作或官方職業分類的代碼），存在這支手機。「最在意的」和「能撐多久」不會影響適合度，會影響建議走哪一條路。' }));
+    h('p', { class: 'hint', text: '只存選單代碼（工作、技能、證照都是選單），存在這支手機。「最在意的」和「能撐多久」不影響適合度，會影響建議走哪一條路；技能證照影響「準備度」。' }));
   saveBtn.onclick = () => {
     const career = sanitizeCareer(state);
     // 先帶上原本的資料：名單整筆覆蓋儲存，不帶的話掌紋、藝名這類別處存的欄位會被洗掉
@@ -99,10 +141,24 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
   };
 
   // ── 2～3. 老師總評、選項比一比（跟著選擇更新）
-  const masterBox = h('div', { class: 'job-master' });
-  const optionsBox = h('div', { class: 'job-options' });
+  const masterBox = h('div', { class: 'job-master', id: 'job-master' });
+  const optionsBox = h('div', { class: 'job-options', id: 'job-options' });
   const recBox = h('div', { class: 'job-recs' });
   const timelineList = h('ol', { class: 'career-years' });
+
+  const readyLine = (rd) => {
+    const have = [...rd.haveSkills, ...rd.haveCerts];
+    return `${rd.level}${have.length ? `：你已經有${have.join('、')}` : ''}${rd.gaps.length ? `。${rd.gaps.join('')}` : '。'}`;
+  };
+  // 加到想做的工作（推薦、本事卡片共用）
+  const addTarget = (id) => (state.targets.length < MAX_TARGETS && !state.targets.includes(id) && id !== state.current
+    ? h('button', { type: 'button', class: 'btn small', text: '加到想做的工作', onclick: () => {
+      state.targets = [...state.targets, id];
+      formCard.querySelector('details.job-form').open = true;
+      refresh(true);
+    } })
+    : null);
+  const abilityBox = h('div', { class: 'job-ability' });
 
   function optionBlock(job, { tag, fit, item }) {
     return h('div', { class: 'opt' },
@@ -110,6 +166,7 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
         item && item.distance !== 'start' ? h('span', { class: 'muted small', text: `轉換：${DISTANCE[item.distance]}` }) : null),
       h('p', { class: 'muted small opt-meta', text: jobMeta(job, { detail: true }) }),
       scoreBar('適合度', fitPct(fit.score)),
+      item && item.readiness ? [scoreBar('準備度', item.readiness.pct), h('p', { class: 'small ready-line', text: readyLine(item.readiness) })] : null,
       traitChips(job),
       h('details', { class: 'more' },
         h('summary', { text: item ? '為什麼、怎麼轉、怎麼入行' : '為什麼' }),
@@ -131,9 +188,12 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
     // 一句話的現況（摺疊收起時看這行就知道填了什麼）
     const bits = [];
     if (res.from) bits.push(`現在：${res.from.name}${c.tenure ? `（${TENURES.find((t) => t.value === c.tenure).label}）` : ''}`);
+    if (c.svcYears) bits.push(`年資 ${YEARS.find((t) => t.value === c.svcYears).label}`);
     if (c.priority) bits.push(`最在意：${PRIORITIES.find((t) => t.value === c.priority).label}`);
     if (c.runway) bits.push(`收入：${RUNWAYS.find((t) => t.value === c.runway).label}`);
     if (c.targets.length) bits.push(`想做：${c.targets.map((t) => jobOf(t).name).join('、')}`);
+    if (c.skills) bits.push(`技能 ${c.skills.length} 項`);
+    if (c.certs) bits.push(`證照 ${c.certs.length} 張`);
     summaryLine.textContent = bits.length ? bits.join('・') : '還沒填：先選現在的工作，老師才能幫你比。';
     const dirty = JSON.stringify(c) !== JSON.stringify(savedOf());
     saveBtn.disabled = !dirty;
@@ -160,7 +220,32 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
     fill(optionsBox, blocks.length ? h('section', { class: 'card' },
       cardHead(h, 'star', '你的選項比一比', '適合度、收入、穩定、自由、生活平衡、AI 影響'),
       blocks,
-      h('p', { class: 'hint', text: '適合度看命盤（你最強的工作性質有沒有對上、行業五行是不是喜用）。收入、穩定、自由、生活平衡是台灣 2026 年這類工作的大致傾向，實際看公司和個人。' })) : null);
+      h('p', { class: 'hint', text: '適合度看天賦（命盤，做了測驗也算進去：你最強的工作性質有沒有對上、行業五行是不是喜用）；準備度看你已經會的（技能、證照、科系、相關經驗）。收入、穩定、自由、生活平衡是台灣 2026 年這類工作的大致傾向，實際看公司和個人。' })) : null);
+
+    // 你的本事能去哪裡：軍警專長對應的民間工作、轉換管道；用現有技能證照就搆得到的工作
+    const abilityItem = (s) => h('li', { class: 'tone-good' },
+      h('b', { text: s.job.name }), ' ', h('span', { class: `badge ${FIT_CLASS[s.fit.level]}`, text: s.fit.level }),
+      s.readiness ? h('span', { class: 'badge alt', text: `準備度 ${s.readiness.pct}` }) : null,
+      h('div', { class: 'muted small', text: jobMeta(s.job) }),
+      s.readiness && (s.readiness.haveSkills.length || s.readiness.haveCerts.length)
+        ? h('div', { class: 'small', text: `你已經有：${[...s.readiness.haveSkills, ...s.readiness.haveCerts].join('、')}` }) : null,
+      addTarget(s.job.id));
+    const list = (rows, n = 4) => [
+      h('ul', { class: 'reasons' }, rows.slice(0, n).map(abilityItem)),
+      rows.length > n ? h('details', { class: 'more' }, h('summary', { text: `再看 ${rows.length - n} 個` }), h('ul', { class: 'reasons' }, rows.slice(n).map(abilityItem))) : null,
+    ];
+    const milSide = res.from && (res.from.group === 'military' || res.service === 'mil');
+    fill(abilityBox, res.from || res.filled ? h('section', { class: 'card', id: 'job-ability' },
+      cardHead(h, 'compass', `${who}的本事能去哪裡`, '你已經會的，在外面值多少'),
+      res.pension ? h('p', { class: 'ai-box pension-note', text: res.pension.text }) : null,
+      res.civil.length ? [h('h3', { text: `「${res.from.name}」在民間對應的工作` }), list(res.civil)] : null,
+      milSide ? h('details', { class: 'more' }, h('summary', { text: '軍職轉換的管道' }),
+        h('ul', { class: 'reasons' }, MIL_CHANNELS.map((x) => h('li', { class: 'tone-info' }, h('b', { text: `${x.title}：` }), h('span', { text: x.text })))),
+        h('p', { class: 'hint', text: '名額、類科、補助以當年的簡章和退輔會公告為準。' })) : null,
+      res.ready.length ? [h('h3', { text: '用你現在的本事就搆得到的工作' }), list(res.ready, 3)] : null,
+      !res.filled ? h('p', { class: 'muted', text: '在上面「讓分析更準」選你會的技能、證照、學歷，這裡會列出你現在就搆得到的工作，每個想做的工作也會多一個「準備度」。' })
+        : !res.ready.length && !res.civil.some((x) => x.readiness && x.readiness.pct >= 60)
+          ? h('p', { class: 'muted', text: '目前選的技能、證照還沒有準備度到 60 的工作：再補幾項你會的（軍中、興趣學的都算），或看想做的工作「可以考的證照」。' }) : null) : null);
 
     // 最適合你的職位：排除已經選的；先列 3 個，其餘收起來（6 個全展開在手機上太長）；有空位就能一鍵加到想做的工作
     const recItem = (s) => h('li', { class: 'tone-good' },
@@ -168,11 +253,7 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
       s.job.trend ? h('span', { class: 'badge alt', text: `趨勢：${TREND_NAME[s.job.trend]}` }) : null,
       h('div', { class: 'small', text: s.fit.why[0] }),
       h('div', { class: 'muted small', text: traitLine(s.job) }),
-      state.targets.length < MAX_TARGETS ? h('button', { type: 'button', class: 'btn small', text: '加到想做的工作', onclick: () => {
-        state.targets = [...state.targets, s.job.id];
-        formCard.querySelector('details.job-form').open = true;
-        refresh(true);
-      } }) : null);
+      addTarget(s.job.id));
     fill(recBox,
       h('ul', { class: 'reasons' }, res.suggest.slice(0, 3).map(recItem)),
       res.suggest.length > 3 ? h('details', { class: 'more' }, h('summary', { text: `再看 ${res.suggest.length - 3} 個` }), h('ul', { class: 'reasons' }, res.suggest.slice(3).map(recItem))) : null);
@@ -193,7 +274,7 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
 
   // ── 4. 你的天賦（一份推薦；行業、新興產業、各系統的依據收在摺疊裡）
   const natureCards = h('div', { class: 'traits' }, r.natures.map((n) => h('div', { class: 'trait' },
-    h('div', { class: 'trait-head' }, h('b', { text: n.label }), h('span', { class: 'count', text: `${n.count} 個系統` })),
+    h('div', { class: 'trait-head' }, h('b', { text: n.label }), h('span', { class: 'count', text: `${n.count} 票` })),
     h('p', { text: n.desc }),
     h('ul', { class: 'reasons' }, h('li', { class: 'tone-good', text: `優勢：${n.edge}` }), h('li', { class: 'tone-bad', text: `小心：${n.trap}` })),
     h('div', { class: 'muted small', text: n.sources.join('・') }))));
@@ -203,8 +284,8 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
     h('ul', { class: 'reasons' }, e.why.map((w) => h('li', { class: e.level === '要多花力氣' ? 'tone-info' : 'tone-good', text: w }))),
     h('p', {}, h('b', { text: '你可以做的角色：' }), h('span', { text: e.role })),
     h('p', {}, h('b', { text: '怎麼開始：' }), h('span', { text: e.entry })))));
-  const talentCard = h('section', { class: 'card' },
-    cardHead(h, 'sparkle', `${who}的天賦`, '八字・紫微・星座・生命靈數・血型一起投票'),
+  const talentCard = h('section', { class: 'card', id: 'job-talent' },
+    cardHead(h, 'sparkle', `${who}的天賦`, p.quiz ? '八字・紫微・星座・生命靈數・血型・測驗一起投票' : '八字・紫微・星座・生命靈數・血型一起投票'),
     h('h3', { text: r.consensus ? '最適合的工作性質' : '各系統看法比較分散，票數最多的是' }),
     natureCards,
     h('h3', { text: '最適合你的職位' }),
@@ -228,7 +309,7 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
   }
   if (f.decade && f.decade.current) decadeLines.push(h('li', { class: 'tone-info' }, h('span', { class: 'sys sys-紫微', text: '紫微' }), h('span', { text: `現在大限（${f.decade.current.ages}）走到「${f.decade.current.palace}」：${f.decade.current.focus}` })));
   const summary = `${r.natures.map((n) => n.label).join('、')}；${timeline.slice(0, 3).map((y) => `${y.year} ${C.TIMELINE_MODE[y.mode].label}`).join('、')}`;
-  const timelineCard = h('section', { class: 'card' },
+  const timelineCard = h('section', { class: 'card', id: 'job-timeline' },
     cardHead(h, 'calendar', '工作運：未來 10 年', '衝、穩、守：哪一年做什麼'),
     decadeLines.length ? h('ul', { class: 'reasons' }, decadeLines) : null,
     timeline.length ? timelineList : h('p', { class: 'muted', text: '時間軸需要八字：到「我的」確認生日資料。' }),
@@ -236,7 +317,11 @@ export async function drawCareer(p, input, opts, { ctx, actions, mayaTime }) {
     h('p', { class: 'hint', text: '和「人生時間軸」同一套：流年十神決定那一年工作的重點；順、小順又有升遷或變動的訊號是「衝」，注意、小心是「守」。命理是參考，真正決定方向的，是你願意花時間累積的能力。' }),
     actions(p, 'career', '工作與方向', summary));
 
+  // 興趣與性格測驗：做完自動存；工作表單有沒存的變更就一起存（存檔會整頁重畫）
+  const quizEl = quizCard({ p, who, ctx, today: opts.today, pendingCareer: () => (JSON.stringify(clean()) !== JSON.stringify(savedOf()) ? sanitizeCareer(state) : null) });
+
   paintTargets();
+  paintService();
   refresh();
-  return [formCard, masterBox, optionsBox, talentCard, timelineCard];
+  return [formCard, masterBox, optionsBox, abilityBox, quizEl, talentCard, timelineCard];
 }

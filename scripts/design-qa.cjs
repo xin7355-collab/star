@@ -167,7 +167,22 @@ async function tour(browser, width, prefix, opts) {
   await page.locator('#job-plan').getByRole('searchbox', { name: '搜尋目前的工作' }).fill('紡織');
   await page.waitForSelector('#job-plan .job-hit');
   files.push(await snap(page, `${prefix}career-picker`, width));
-  await page.locator('#job-plan').getByRole('button', { name: '收起' }).click();
+  // 軍職專長＋身分年資＋技能：本事卡（月退提醒、民間對照、準備度）
+  await page.locator('#job-plan').getByRole('searchbox', { name: '搜尋目前的工作' }).fill('通電資訊');
+  await page.locator('#job-plan .job-hit').first().click();
+  await page.locator('#job-plan').getByRole('combobox', { name: '年資' }).selectOption('13');
+  // snap() 已經把所有摺疊打開過，用點的會反而收起來：直接設成打開
+  await page.locator('#job-plan details.job-extra').evaluate((d) => { d.open = true; });
+  await page.locator('#job-plan').getByRole('button', { name: /加技能/ }).click();
+  await page.locator('#job-plan').getByRole('searchbox', { name: '搜尋技能' }).fill('無線電');
+  await page.locator('#job-plan .job-hit').first().click();
+  await page.locator('#job-plan').getByRole('button', { name: '完成' }).click();
+  await page.waitForSelector('#job-ability .pension-note');
+  files.push(await snap(page, `${prefix}career-mil`, width));
+  // 測驗：作答中的一題
+  await page.locator('#quiz-card').getByRole('button', { name: '開始測驗' }).click();
+  await page.waitForSelector('#quiz-card .quiz-opt');
+  files.push(await snap(page, `${prefix}career-quiz`, width));
   await tool(page, 'fengshui');
   await page.waitForSelector('#view-destiny .luoshu');
   files.push(await snap(page, `${prefix}fengshui`, width));

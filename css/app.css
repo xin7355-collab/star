@@ -1287,6 +1287,28 @@ body.ar-open { overflow: hidden; }
 .job-hit[aria-current="true"] { border-color: var(--gold); }
 .job-browse { display: grid; gap: 8px; }
 .opt-meta { margin: 0 0 6px; }
+.ready-line { margin: 2px 0 8px; }
+/* 清單裡的小標籤不從中間斷行（「準備度 65」斷成兩行很難讀）；內容都是短字 */
+.job-ability .badge, .job-recs .badge { white-space: nowrap; }
+.pension-note { padding: 10px 12px; }
+/* 技能、證照的多選挑選器（multi-picker.js）：已選的排成小標籤，點 × 移除 */
+.multi-picker { display: grid; gap: 8px; justify-items: start; }
+.pick-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.pick-chips:empty { display: none; }
+.pick-chip { display: inline-flex; align-items: center; gap: 2px; padding: 0 0 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg2); font-size: 14px; max-width: 100%; }
+.pick-chip span { overflow-wrap: anywhere; }
+.chip-x { min-width: 44px; min-height: 44px; border: 0; background: none; color: var(--muted); font-size: 18px; cursor: pointer; font-family: inherit; }
+.multi-picker .job-panel { justify-self: stretch; }
+/* 測驗（quiz-card.js）：一題一頁，答案是一排大按鈕 */
+.quiz-track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 4px 0 10px; }
+.quiz-fill { height: 100%; background: var(--gold); }
+.quiz-q { font-size: 18px; line-height: 1.5; margin: 8px 0 12px; }
+.quiz-options { display: grid; gap: 8px; }
+.quiz-opt { width: 100%; text-align: left; }
+.quiz-opt[aria-pressed="true"] { border-color: var(--gold); background: var(--accent-soft); font-weight: 700; }
+.quiz-bars { display: grid; gap: 6px; margin: 6px 0 10px; }
+.quiz-row { display: grid; grid-template-columns: 6.5em minmax(0, 1fr) 2.2em; align-items: center; gap: 8px; font-size: 14px; }
+.quiz-num { text-align: right; }
 .job-summary { margin: 6px 0 2px; color: var(--text); }
 .job-options .opt { padding: 12px 0; border-top: 1px solid var(--divider); }
 .job-options .opt:first-of-type { border-top: 0; }

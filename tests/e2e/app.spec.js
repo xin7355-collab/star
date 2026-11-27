@@ -783,6 +783,116 @@ test('工作選單包含官方職業分類全部職業：口語搜尋、注音�
   expect(saved).toMatchObject({ current: '8321', targets: ['2142', '0100'] });
 });
 
+test('軍職海巡：通電資訊專長、身分與年資（月退門檻）、技能證照（準備度）、民間對照與轉換管道，存檔後還在', async ({ page }) => {
+  // 月退的年份照今年算：固定時鐘
+  await page.clock.setFixedTime(new Date('2026-11-27T10:00:00+08:00'));
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  await page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption('career');
+  const form = page.locator('#job-plan');
+  await form.getByRole('button', { name: /^目前的工作/ }).click();
+  await form.getByRole('searchbox', { name: '搜尋目前的工作' }).fill('通電資訊');
+  await form.locator('.job-hit').first().click();
+  await expect(form.getByRole('button', { name: /^目前的工作/ })).toContainText('軍職：通信、電子、資訊');
+  // 軍警公職才問身分、單位、階級、年資；身分預設軍職
+  await expect(form.getByRole('combobox', { name: '身分' })).toHaveValue('mil');
+  await form.getByRole('combobox', { name: '單位' }).selectOption('cga');
+  await form.getByRole('combobox', { name: '階級' }).selectOption('nco');
+  await form.getByRole('combobox', { name: '年資' }).selectOption('13');
+  // 讓分析更準：技能（搜尋、點一下加入）、證照（從類別找）、移除再加回
+  await form.locator('summary', { hasText: '讓分析更準' }).click();
+  await form.getByRole('combobox', { name: '工作型態' }).selectOption('office');
+  await form.getByRole('button', { name: /加技能/ }).click();
+  const skill = form.getByRole('searchbox', { name: '搜尋技能' });
+  await skill.fill('無線電');
+  await form.locator('.job-hit', { hasText: '無線電通訊操作' }).click();
+  await form.locator('.job-hit', { hasText: '無線電與通信設備維修' }).click();
+  await skill.fill('電腦');
+  await form.locator('.job-hit', { hasText: '電腦組裝與維修' }).click();
+  await expect(form.locator('.job-hit', { hasText: '電腦組裝與維修' })).toHaveAttribute('aria-pressed', 'true');
+  await form.getByRole('button', { name: '完成' }).click();
+  await expect(form.locator('.pick-chip')).toHaveCount(3);
+  await form.getByRole('button', { name: '移除「電腦組裝與維修」' }).click();
+  await expect(form.locator('.pick-chip')).toHaveCount(2);
+  await form.getByRole('button', { name: /再加技能/ }).click();
+  await form.getByRole('combobox', { name: '技能：類別' }).selectOption('it');
+  await form.getByRole('combobox', { name: '技能：項目' }).selectOption('pc_repair');
+  await form.getByRole('button', { name: '完成' }).click();
+  await form.getByRole('button', { name: /加證照/ }).click();
+  await form.getByRole('combobox', { name: '證照：類別' }).selectOption('tech');
+  await form.getByRole('combobox', { name: '證照：項目' }).selectOption('tc_pc');
+  await form.getByRole('button', { name: '完成' }).click();
+  await expect(form.locator('.job-summary')).toContainText('年資 13 年・技能 3 項・證照 1 張');
+  await form.getByRole('button', { name: /^想做的工作 1/ }).click();
+  await form.getByRole('searchbox', { name: '搜尋想做的工作 1' }).fill('電信');
+  await form.locator('.job-hit', { has: page.locator('b', { hasText: /^電信工程技術員$/ }) }).click();
+  // 老師總評：再 7 年滿 20 年 → 撐到月退再轉（2033 年）
+  const master = page.locator('#view-destiny section.master').filter({ has: page.getByRole('heading', { name: '老師總評' }) });
+  await expect(master.locator('.master-verdict .badge')).toHaveText('撐到月退再轉');
+  await expect(master.locator('.master-verdict')).toContainText('留在現職到 2033 年');
+  await expect(master.locator('ul.reasons li').first()).toContainText('再 7 年（2033 年）服滿 20 年才能請領月退俸');
+  // 選項比一比：多一條準備度，寫出你已經有的
+  const opts = page.locator('#view-destiny section.card').filter({ has: page.getByRole('heading', { name: '你的選項比一比' }) });
+  const tele = opts.locator('.opt', { hasText: '電信工程技術員' });
+  await expect(tele.locator('.bar-head', { hasText: '準備度' })).toBeVisible();
+  await expect(tele.locator('.ready-line')).toContainText('你已經有無線電通訊操作');
+  // 本事卡：月退提醒、專長在民間對應的工作（有準備度）、轉換管道
+  const ab = page.locator('#job-ability');
+  await expect(ab.locator('.pension-note')).toContainText('再 7 年');
+  await expect(ab.getByRole('heading', { name: '「軍職：通信、電子、資訊」在民間對應的工作' })).toBeVisible();
+  await expect(ab.locator('.badge', { hasText: /^準備度 \d+$/ }).first()).toBeVisible();
+  await ab.locator('summary', { hasText: '軍職轉換的管道' }).click();
+  await expect(ab).toContainText('退除役特考');
+  // 存檔：只存代碼；重新整理還在
+  await form.getByRole('button', { name: '存到我的資料' }).click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('star.v1.people'))[0].career);
+  expect(saved).toMatchObject({ current: 'mil_comm', org: 'cga', rank: 'nco', svcYears: '13', mode: 'office', certs: ['tc_pc'], targets: ['3522'] });
+  expect([...saved.skills].sort()).toEqual(['pc_repair', 'radio_maint', 'radio_op']);
+  await page.reload();
+  await tab(page, 'destiny');
+  await expect(page.locator('#job-plan .job-summary')).toContainText('現在：軍職：通信、電子、資訊・年資 13 年');
+});
+
+test('興趣與性格測驗：一題一頁、可以上一題、先停下次接著做；做完自動存、結果投進天賦', async ({ page }) => {
+  await seed(page);
+  await page.goto('/');
+  await tab(page, 'destiny');
+  await page.locator('#view-destiny').getByRole('combobox', { name: '選擇命理工具' }).selectOption('career');
+  const quiz = page.locator('#quiz-card');
+  await quiz.getByRole('button', { name: '開始測驗' }).click();
+  await expect(quiz.locator('.quiz-progress')).toHaveText('第 1／56 題・職業興趣');
+  // 固定的答法：實作、研究的活動「很喜歡」，其他「不太喜歡」；性格每題「一半一半」
+  const pick = (i) => (i < 36 ? (i % 6 < 2 ? '很喜歡' : '不太喜歡') : '一半一半');
+  await quiz.getByRole('button', { name: pick(0), exact: true }).click();
+  await expect(quiz.locator('.quiz-progress')).toContainText('第 2／56 題');
+  await quiz.getByRole('button', { name: '上一題' }).click();
+  await expect(quiz.getByRole('button', { name: pick(0), exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await quiz.getByRole('button', { name: pick(0), exact: true }).click();
+  for (let i = 1; i < 10; i += 1) await quiz.getByRole('button', { name: pick(i), exact: true }).click();
+  await quiz.getByRole('button', { name: '先停在這裡' }).click();
+  // 重新整理：作答進度還在
+  await page.reload();
+  await tab(page, 'destiny');
+  const quiz2 = page.locator('#quiz-card');
+  await quiz2.getByRole('button', { name: '繼續作答（第 11 題）' }).click();
+  for (let i = 10; i < 56; i += 1) {
+    if (i === 36) await expect(quiz2.locator('.quiz-progress')).toHaveText('第 37／56 題・性格');
+    await quiz2.getByRole('button', { name: pick(i), exact: true }).click();
+  }
+  await expect(page.locator('#toast')).toContainText('測驗結果已存在這支手機');
+  // 結果：興趣代碼只列 40 分以上的（實作、研究），性格中等；天賦的工作性質把測驗算進去
+  const result = page.locator('#quiz-card');
+  await expect(result.locator('.master-verdict')).toContainText('興趣代碼 RI：實作型、研究型。');
+  await expect(result.locator('.quiz-row', { hasText: '實作型 R' }).locator('.quiz-num')).toHaveText('100');
+  await expect(page.locator('#view-destiny .trait .muted', { hasText: '興趣測驗：實作型' }).first()).toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('star.v1.people'))[0].quiz);
+  expect(saved.riasec).toEqual({ R: 100, I: 100, A: 25, S: 25, E: 25, C: 25 });
+  expect(saved.big5).toEqual({ E: 50, A: 50, C: 50, S: 50, O: 50 });
+  expect(saved.answers).toBeUndefined();
+  expect(await page.evaluate(() => localStorage.getItem('star.v1.quiz-draft'))).toBeNull();
+});
+
 test('占卜：樂透選號（今日固定、隨機一組、機率表、存紀錄）', async ({ page }) => {
   await seed(page);
   await page.goto('/');
@@ -935,7 +1045,7 @@ test('命盤：工作與方向、開運佈置（財庫、財位、九宮飛星�
   const tool = dv.getByRole('combobox', { name: '選擇命理工具' });
   await tool.selectOption('career');
   await expect(dv.getByRole('heading', { name: '最適合的工作性質' })).toBeVisible();
-  await expect(dv.locator('.trait .count').first()).toHaveText(/[2-9] 個系統/);
+  await expect(dv.locator('.trait .count').first()).toHaveText(/[2-9] 票/);
   // 工作運：10 年一條時間軸（以前分成未來三年、十年兩張卡）
   await expect(dv.locator('.career-years .cy')).toHaveCount(10);
   await expect(dv.locator('.career-years .cy').first()).toContainText('2026');

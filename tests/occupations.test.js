@@ -33,7 +33,9 @@ test('官方清單完整：10 大類、39 中類、125 小類、380 細類；每
   assert.equal(SOC_TREE.reduce((a, m) => a + m.subs.reduce((b, s) => b + s.units.length, 0), 0), 380);
   assert.equal(SOC_TREE.at(-1).code, '0'); // 軍人排最後（照官方）
   assert.equal(OFFICIAL_COUNT, 380);
-  assert.equal(COMMON_COUNT, 82);
+  // 常見工作：原本 82 個＋AI 應用開發＋軍警海巡專長 21 個（官方的軍人只有一個細類）
+  assert.equal(COMMON_COUNT, JOB_GROUPS.flatMap((g) => g.jobs).filter((x) => !x.status).length);
+  assert.ok(COMMON_COUNT >= 100);
 });
 
 test('官方名稱乾淨：沒有相容字（打「經理」才搜得到）、沒有 PDF 頁首殘字、沒有空白數字', () => {

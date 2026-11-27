@@ -315,3 +315,18 @@ AR 星空,data_view,long_content,DONE,code:css/app.css .ar-list-items 最多 28v
 工作挑選器,data_view,error,NA,,純計算、不連網；存檔只收選單代碼（白名單）
 工作挑選器,data_view,populated,DONE,e2e:工作選單包含官方職業分類全部職業,
 工作挑選器,data_view,long_content,DONE,code:js/views/job-picker.js 最多列 30 個並提示多打幾個字；長名稱換行（css/app.css .job-hit b）,
+技能證照挑選器,data_view,loading,NA,,同步比對清單，沒有非同步載入
+技能證照挑選器,data_view,empty,DONE,e2e:軍職海巡：通電資訊專長、身分與年資（月退門檻）、技能證照（準備度）、民間對照與轉換管道，存檔後還在,沒選時按鈕寫「＋ 加技能」；找不到時建議換說法
+技能證照挑選器,data_view,error,NA,,純計算、不連網；只收選單代碼
+技能證照挑選器,data_view,populated,DONE,e2e:軍職海巡：（加入、移除、從類別找）,
+技能證照挑選器,data_view,long_content,DONE,code:js/core/work-profile.js 技能最多 40、證照最多 30；標籤長名稱換行（css/app.css .pick-chip span）,
+本事卡,data_view,loading,NA,,同步計算
+本事卡,data_view,empty,DONE,code:js/views/tool-career.js 沒填技能證照時提示去「讓分析更準」填,
+本事卡,data_view,error,NA,,純計算
+本事卡,data_view,populated,DONE,e2e:軍職海巡：（月退提醒、民間對照、轉換管道）,
+本事卡,data_view,long_content,DONE,code:js/views/tool-career.js 民間對照先列 4 個、搆得到的先列 3 個，其餘收起,
+興趣與性格測驗,data_view,loading,NA,,題目內建，沒有載入
+興趣與性格測驗,data_view,empty,DONE,e2e:興趣與性格測驗：一題一頁、可以上一題、先停下次接著做；做完自動存、結果投進天賦,還沒做時是說明和「開始測驗」；做到一半是「繼續作答（第 N 題）」
+興趣與性格測驗,data_view,error,DONE,code:js/views/quiz-card.js 存檔失敗跳出原因；作答進度壞掉時從頭開始,
+興趣與性格測驗,data_view,populated,DONE,e2e:興趣與性格測驗：（結果、興趣代碼、分數條）,
+興趣與性格測驗,data_view,long_content,DONE,code:js/views/quiz-card.js 一題一頁；說明收在摺疊,

@@ -3,6 +3,7 @@
 // 匯入的備份檔視為不受信任的輸入：只收白名單欄位、檢查型別與長度、限制筆數，其餘一律丟棄。
 
 import { sanitizePalm } from './palm.js';
+import { sanitizeQuiz } from './quiz.js';
 import { sanitizeCareer } from './jobs.js';
 
 export const SCHEMA = 1;
@@ -133,6 +134,11 @@ export function sanitizePerson(p) {
     ...(() => {
       const career = sanitizeCareer(p.career);
       return career ? { career } : {};
+    })(),
+    // 興趣與性格測驗的分數（只有 0～100 的分數和日期，不存每一題的答案）；沒做就不多存這一欄
+    ...(() => {
+      const quiz = sanitizeQuiz(p.quiz);
+      return quiz ? { quiz } : {};
     })(),
     raw,
     createdAt: isoTime(p.createdAt) || new Date().toISOString(),

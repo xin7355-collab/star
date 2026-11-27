@@ -43,6 +43,15 @@ i18next 以 `overrides` 從 iztro 預設的 23.x 升到 26.7.2，修掉 npm audi
 
 每個職業的工作性質、行業五行、收入／穩定／自由／生活平衡、AI 影響、入行方式，是本 App 依工作內容自行歸類，不是官方內容，與官方無關。
 
+## 心理測驗題目
+
+| 檔案 | 來源 | 授權 |
+|---|---|---|
+| `js/core/quiz.js`（性格 20 題） | Mini-IPIP（Donnellan, Oswald, Baird & Lucas, 2006, *Psychological Assessment*），題目出自 [International Personality Item Pool（IPIP）](https://ipip.ori.org/) | IPIP 題目為公開領域；中文由本 App 翻譯 |
+| `js/core/quiz.js`（職業興趣 36 題） | 本 App 依何倫（Holland）職業興趣理論自行撰寫 | 本專案 |
+
+常用的 O*NET Interest Profiler 是 CC BY-ND 4.0（不允許改作），翻成中文就違反授權，所以沒有使用它的題目。
+
 ## 參考後以 JavaScript 重寫（MIT，保留原作者聲明）
 
 | 本專案檔案 | 參考來源 | 參考內容 |
