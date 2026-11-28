@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { kinInfo, pairSummary, dayRelation, kinOf } from '../js/core/maya-kin.js';
-import { mayaPairMaster, sharedMayaDays, methodCompare } from '../js/core/maya-master.js';
+import { kinInfo, pairSummary, dayRelation, kinOf, mayaKin, yearKin } from '../js/core/maya-kin.js';
+import { mayaPairMaster, sharedMayaDays, methodCompare, mayaSelfMaster, mayaCodeMaster } from '../js/core/maya-master.js';
+import { SEAL_SELF, TONE_HOW, YEAR_KIN_TEXT, CODE_KW } from '../js/core/maya-texts.js';
+import { KEYWORDS } from '../js/core/maya.js';
 import { computeMaya, compareMaya, explainCompare } from '../js/core/maya.js';
 import { MAYA_KEYWORD_TEXT } from '../js/core/reading-texts.js';
 
@@ -76,4 +78,66 @@ test('算法對照：同一對人用不同算法各算一次，標出哪一種�
   // 兩人都順的日子也跟著算法換
   const t = sharedMayaDays(56, 66, FROM, { count: 'traditional' });
   for (const d of t) assert.equal(kinOf(d.date, 'traditional'), d.kin);
+});
+
+test('個人盤的老師解盤：260 個 KIN 都講得出「你是誰、誰幫你、你缺什麼、迷惘時往哪走」，沒有空值', () => {
+  assert.equal(Object.keys(SEAL_SELF).length, 20);
+  assert.equal(Object.keys(TONE_HOW).length, 13);
+  for (const k of Object.keys(YEAR_KIN_TEXT)) assert.ok(YEAR_KIN_TEXT[k], k);
+  for (let kin = 1; kin <= 260; kin += 1) {
+    const mine = kinInfo(kin);
+    const m = mayaSelfMaster(mine, {});
+    assert.match(m.verdict, new RegExp(`^老師看你的銀河印記：你是「${mine.title}」`));
+    assert.match(m.verdict, /最好的幫手是擅長「.+」的人（支持位），最大的功課是「.+」（挑戰位）/);
+    for (const t of [m.verdict, ...m.why.map((w) => w.text), ...m.remedies.flatMap((r) => [r.title, ...r.steps]), ...m.boosts]) assert.ok(t && !/undefined|null|NaN/.test(t), `KIN ${kin}：${t}`);
+  }
+});
+
+test('個人盤的特殊位置：調性 1、6、11 的引導是自己；調性 1 是波符的第一天；流年印記落在哪個位置', () => {
+  // KIN 157 磁性紅地球：調性 1 → 引導就是自己、紅地球波符第一天；支持白風、挑戰藍手、隱藏推動黃種子
+  const m = mayaSelfMaster(kinInfo(157), {});
+  assert.match(m.verdict, /迷惘時相信自己就好（引導位是自己）/);
+  assert.match(m.verdict, /最好的幫手是擅長「溝通表達」的人（支持位），最大的功課是「動手實作、把事做完」（挑戰位）/);
+  assert.ok(m.why.some((w) => /^引導位就是你自己/.test(w.text)));
+  assert.ok(m.why.some((w) => /^出生在紅地球波符的第一天/.test(w.text)));
+  assert.ok(m.why.some((w) => /^隱藏推動「宇宙黃種子」/.test(w.text)));
+  // KIN 109 超頻紅月（調性 5）：引導是別的圖騰，波符是紅蛇第 5 天
+  const r = mayaSelfMaster(kinInfo(109), { name: '媽媽' });
+  assert.match(r.verdict, /^老師看媽媽的銀河印記/);
+  assert.match(r.verdict, /迷惘時往「抓時機、帶方向」的方向走（引導位）/);
+  assert.ok(r.why.some((w) => /^出生在「紅蛇波符」的第 5 天/.test(w.text)));
+  // 流年印記：1990/8/15 生日起的一年（2026/8/15–2027/8/14）是 KIN 109＋365×36 天的那一格，和本命同圖騰
+  const birth = { y: 1990, m: 8, d: 15 };
+  const yk = yearKin(birth, { y: 2026, m: 11, d: 28 });
+  const withYear = mayaSelfMaster(mayaKin(birth), { yearKin: yk });
+  assert.equal(withYear.yearRel, dayRelation(yk.kin, 109));
+  assert.ok(withYear.why.some((w) => w.text.includes(`流年印記「${yk.title}」`) && w.text.includes(YEAR_KIN_TEXT[withYear.yearRel])));
+});
+
+test('瑪雅密碼的老師解盤：重複的關鍵字是主題；外表和內心一不一樣；天生的習慣和這輩子的課題；例外年份 A、B 不適用', () => {
+  assert.deepEqual(Object.keys(CODE_KW).sort(), [...KEYWORDS].sort());
+  for (const [k, v] of Object.entries(CODE_KW)) for (const f of ['look', 'core', 'gift', 'lesson', 'drive', 'verb', 'practice']) assert.ok(v[f], `${k}.${f}`);
+  // 1990/8/15：A 9 圓滿、B 0 本源、C 9 圓滿、D＝E 6 承擔 → 主題「圓滿」（A、C）；D、E 一樣
+  const m = mayaCodeMaster(computeMaya({ y: 1990, m: 8, d: 15 }));
+  assert.equal(m.theme, '圓滿');
+  assert.match(m.verdict, /「圓滿」出現在前世 A、潛意識 C，是你這套密碼的主題/);
+  assert.match(m.verdict, /外表和內心一致（表象 D、小宇宙 E 都是「承擔」）/);
+  assert.match(m.verdict, /卡關時別只用「包容、把事情收好尾」這個老方法，改成「回到初心想清楚」看看/);
+  assert.deepEqual(m.remedies.map((r) => r.title), ['卡關時：練「本源」']);
+  // 只有 D、E 一樣時不另外當成主題（上面那句已經講了）
+  for (let y = 1950; y <= 2025; y += 1) {
+    for (const [mm, dd] of [[1, 3], [6, 18], [12, 29]]) {
+      const c = computeMaya({ y, m: mm, d: dd });
+      const r = mayaCodeMaster(c);
+      for (const t of [r.verdict, ...r.why.map((w) => w.text), ...r.remedies.flatMap((x) => [x.title, ...x.steps]), ...r.boosts]) assert.ok(t && !/undefined|null|NaN/.test(t), `${y}/${mm}/${dd}：${t}`);
+      const [D, E] = ['D', 'E'].map((k) => c.items.find((x) => x.key === k).keyword);
+      if (D !== E) assert.match(r.verdict, /外表看起來.+（表象 D「.+」），內心其實.+（小宇宙 E「.+」）/);
+      if (r.theme) assert.ok(c.items.filter((x) => x.keyword === r.theme).length >= 2);
+    }
+  }
+  // 2015 年（例外年份）：A、B 不適用，斷語不講前世今生
+  const ex = mayaCodeMaster(computeMaya({ y: 2015, m: 6, d: 9 }), { name: '妹妹' });
+  assert.match(ex.verdict, /^老師看妹妹的瑪雅密碼/);
+  assert.ok(!/前世 A「/.test(ex.verdict));
+  assert.equal(ex.why.filter((w) => /不適用/.test(w.text)).length, 2);
 });

@@ -1256,6 +1256,10 @@ body.ar-open { overflow: hidden; }
 .palm-step b.pl-name::before { content: ''; display: inline-block; width: 12px; height: 3px; margin-right: 5px; border-radius: 2px; background: currentColor; vertical-align: middle; }
 
 /* 「老師怎麼看」：各工具共用的講解區塊（js/ui/master.js） */
+/* 放在別張卡片裡的老師解盤（瑪雅密碼）：用分隔線和上面的內容分開，不再多包一層卡片 */
+.master-inline { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+/* 綜合解讀的老師解盤：說法不一致、只有一個系統說的 */
+.master .syn-conflicts { margin-top: 6px; }
 .master .master-verdict { margin: 8px 0 4px; padding: 10px 12px; border-left: 3px solid var(--gold); border-radius: var(--radius-s); background: var(--track); font-size: 16px; line-height: 1.75; }
 .master details.remedy { margin-top: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-s); }
 .master details.remedy summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--gold); font-size: 15px; font-weight: 600; }

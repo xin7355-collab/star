@@ -2,7 +2,15 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dailyMaster, periodMaster, yearMaster, baziMaster, ziweiMaster, TAISUI_FIX, JI_FIX, WX_BOOST, LIUHE, liuheAnimal, FIXED_DATE_FIX } from '../js/core/master-texts.js';
+import { dailyMaster, periodMaster, yearMaster, baziMaster, ziweiMaster, numerologyMaster, roleOf, ROLE_NEED, ROLE_TOO_MUCH, TAISUI_FIX, JI_FIX, WX_BOOST, LIUHE, liuheAnimal, FIXED_DATE_FIX } from '../js/core/master-texts.js';
+import { ganzhiTone } from '../js/core/bazi.js';
+import { geju } from '../js/core/geju.js';
+import { buildZiwei } from '../js/core/ziwei.js';
+import { ziweiSummary } from '../js/core/ziwei-summary.js';
+import { mingPatterns, sanFang } from '../js/core/ziwei-pattern.js';
+import { dominantShishen, PERSONAL_YEAR } from '../js/core/reading.js';
+import { lifePath, grid, MEANINGS, MISSING_TEXT, MANY_TEXT } from '../js/core/numerology.js';
+import { LIFEPATH_DETAIL } from '../js/core/reading-texts.js';
 import { dailyIndex, luckyItems } from '../js/core/daily.js';
 import { buildBazi, yongShen } from '../js/core/bazi.js';
 import { hourGuide } from '../js/core/timing.js';
@@ -119,4 +127,72 @@ test('擇日：日子改不了時有做法（吉時、拆步驟、準備、民�
   assert.ok(FIXED_DATE_FIX.steps.length >= 4);
   assert.ok(FIXED_DATE_FIX.steps.some((t) => /吉時/.test(t)));
   assert.ok(FIXED_DATE_FIX.steps.some((t) => /民俗/.test(t)));
+});
+
+test('八字讀盤版：喜用五行換成十神講白話（需要貴人、夥伴、舞台、資源、目標）；十神最多的是忌神就講負擔；換運前提醒', () => {
+  assert.equal(roleOf('木', '水'), '印');
+  assert.equal(roleOf('木', '木'), '比劫');
+  assert.equal(roleOf('木', '火'), '食傷');
+  assert.equal(roleOf('木', '土'), '財');
+  assert.equal(roleOf('木', '金'), '官殺');
+  for (const r of ['印', '比劫', '食傷', '財', '官殺']) {
+    assert.equal(ROLE_NEED[r].act.length, 2, r);
+    assert.ok(ROLE_TOO_MUCH[r], r);
+  }
+  // 1990/8/15 06:20 男：日主壬水身強、喜火（財）、比劫最多（水是忌神）、偏印格成格、2028 換戊子運
+  const today = { y: 2026, m: 11, d: 28 };
+  const b = buildBazi({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, lat: 25.04, lon: 121.5, tz: 'Asia/Taipei' }, { gender: '男', today });
+  const ys = yongShen(b);
+  const g = geju(b);
+  const cur = b.yun.list.find((d) => d.current);
+  const next = b.yun.list[b.yun.list.indexOf(cur) + 1];
+  const m = baziMaster({
+    ys, gejuStatus: g.status, dayun: { ganzhi: cur.ganzhi, tone: ganzhiTone(b, cur.ganzhi) },
+    dm: b.dayMaster, image: '像大江大海', dom: dominantShishen(b), geju: g, nextYun: { ganzhi: next.ganzhi, startYear: next.startYear, tone: ganzhiTone(b, next.ganzhi) }, year: 2026,
+  });
+  assert.match(m.verdict, /^老師看你的八字：日主壬水（像大江大海），而且力量很足，所以最需要的是「火」——對你來說是「財」，也就是資源、金錢和實際成果。/);
+  assert.match(m.verdict, /命盤裡最多的是比劫，偏偏太多反而是負擔/);
+  assert.match(m.verdict, /格局是偏印格（成格）/);
+  assert.match(m.verdict, /2028 年換戊子（逆風運）/);
+  assert.equal(m.remedies[0].title, '補「火」（財）：把能力變現、務實累積');
+  assert.deepEqual(m.remedies[0].steps, ROLE_NEED.財.act);
+  assert.ok(m.remedies.some((r) => /^補運：多接觸「火」/.test(r.title)), '傳統的顏色方位補法還在');
+  for (const line of [m.verdict, ...m.why.map((w) => w.text), ...m.remedies.flatMap((r) => [r.title, ...r.steps])]) assert.ok(line && !/undefined|null/.test(line), line);
+});
+
+test('紫微讀盤版：命宮主星、格局和三方四正一起講、生年祿忌（宮名寫全）、強弱宮、現在的大限', () => {
+  const z = buildZiwei({ date: { y: 1990, m: 8, d: 15 }, time: { h: 6, mi: 20 }, tz: 'Asia/Taipei', place: { lon: 121.5, lat: 25.04 } }, { gender: '男', at: { y: 2026, m: 11, d: 28 } });
+  const S = ziweiSummary(z);
+  const m = ziweiMaster({ natalJi: { star: '天同', palace: '財帛' }, summary: S, mingTone: sanFang(z, z.palaces.find((q) => q.name === '命宮')).tone, pattern: mingPatterns(z)[0] });
+  assert.match(m.verdict, /^老師看你的紫微盤：命宮天機、天梁/);
+  assert.match(m.verdict, /命宮有機月同梁（吉格），但三方四正煞星也多：底子好，過程要多磨練。/);
+  assert.match(m.verdict, /生年化祿在夫妻宮、化忌在財帛宮：感情是你的福氣，錢是你的功課。/);
+  assert.match(m.verdict, /現在走田宅宮大限（34–43 歲）/);
+  assert.equal(m.badge, '命宮天機天梁');
+  assert.ok(m.why.some((w) => /^身宮在遷移宮/.test(w.text)));
+  assert.ok(m.boosts.some((t) => /^化祿在夫妻宮：感情是你的福氣來源/.test(t)));
+  assert.ok(!/undefined|null/.test(m.verdict));
+});
+
+test('生命靈數的老師解盤：主命數在九宮格空缺 → 從零練起，不同時給相反的建議；出現太多 → 小心過頭；天賦數空缺要刻意練', () => {
+  const run = (date) => {
+    const lp = lifePath(date);
+    const g = grid(date);
+    return numerologyMaster({ lp, grid: g, py: 6, meanings: MEANINGS, missingText: MISSING_TEXT, manyText: MANY_TEXT, pyText: PERSONAL_YEAR, detail: LIFEPATH_DETAIL });
+  };
+  // 1990/8/15：33／6，九宮格空缺 2、3、4、6、7 → 主命數 6 空缺、天賦數 3 也空缺
+  const a = run({ y: 1990, m: 8, d: 15 });
+  assert.match(a.verdict, /^老師看你的生命靈數：主命數 6「照顧者」/);
+  assert.match(a.verdict, /天賦數 33 帶著「表達者」的能力/);
+  assert.match(a.verdict, /主命數 6 在九宮格裡是空缺/);
+  assert.ok(!a.remedies.some((r) => r.title === '主命數 6 的功課'), '空缺時不給「別把責任都扛在身上」');
+  assert.ok(a.remedies.some((r) => r.title === '主命數 6 從零練起'));
+  assert.ok(a.why.some((w) => /^天賦數裡有 3，九宮格卻空缺/.test(w.text)));
+  // 1940/4/4：22／4，4 出現 3 次 → 主命數太多
+  const b = run({ y: 1940, m: 4, d: 4 });
+  assert.match(b.verdict, /主命數 4 在九宮格出現 3 次：特質非常鮮明，要小心過頭/);
+  // 1982/3/14：28／10／1，1 出現 2 次 → 主命數正常，給一般的功課
+  const c = run({ y: 1982, m: 3, d: 14 });
+  assert.ok(c.remedies.some((r) => r.title === '主命數 1 的功課'));
+  for (const m of [a, b, c]) for (const line of [m.verdict, ...m.why.map((w) => w.text), ...m.remedies.flatMap((r) => [r.title, ...r.steps]), ...m.boosts]) assert.ok(line && !/undefined|null|NaN/.test(line), line);
 });

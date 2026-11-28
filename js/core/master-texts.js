@@ -247,12 +247,52 @@ export function yearMaster({ name = '你', year, animal, zodiacZhi, taisui = [],
   };
 }
 
-// ── 八字：用喜用神補運（傳統說法「缺什麼補什麼」：補的是讓命盤平衡的五行，不是缺的就補）
+// ── 八字：先讀盤（日主、強弱、喜用是哪一種十神、十神最多的是什麼、格局、大運），再講怎麼補
+// 使用者回饋「看不懂、只是各別加起來」：以前斷語只講「最需要木」，沒有說木對你來說是什麼。
+// 喜用五行換成它和日主的關係（印、比劫、食傷、財、官殺），就能講成白話：需要貴人、需要夥伴、需要舞台……
+const GEN = { 木: '火', 火: '土', 土: '金', 金: '水', 水: '木' }; // 相生：木生火……
+const CTRL = { 木: '土', 土: '水', 水: '火', 火: '金', 金: '木' }; // 相剋：木剋土……
+/** 某個五行對日主是哪一類十神 */
+export function roleOf(dmWx, wx) {
+  if (wx === dmWx) return '比劫';
+  if (GEN[wx] === dmWx) return '印';
+  if (GEN[dmWx] === wx) return '食傷';
+  if (CTRL[dmWx] === wx) return '財';
+  return '官殺';
+}
+/** 反過來：這一類十神對日主是哪個五行 */
+const WX_OF_ROLE = (dmWx, role) => ['木', '火', '土', '金', '水'].find((wx) => roleOf(dmWx, wx) === role);
+/** 喜用是這一類十神時：需要的是什麼、怎麼走、做得到的事 */
+export const ROLE_NEED = {
+  印: { what: '貴人、學習和長輩的支持', how: '先充實自己、找到靠山，路會越走越順', act: ['定期請教前輩或老師，遇到難題先問人。', '進修、考證照：學歷和專業是你最好的護身符。'] },
+  比劫: { what: '朋友、夥伴和自信', how: '找夥伴一起做，比一個人硬撐好', act: ['找志同道合的夥伴合作，或加入社群、同業公會。', '多運動、練體力：身體是你的本錢。'] },
+  食傷: { what: '表達、才華和作品', how: '把會的東西展現出來，靠作品說話', act: ['經營一個展現才華的出口：寫作、做影片、教課、作品集。', '工作上主動提案、上台，讓別人看見你的能力。'] },
+  財: { what: '資源、金錢和實際成果', how: '把能力變現、務實累積', act: ['把專長變成收入：接案、副業或爭取績效獎金。', '訂好理財計畫，每月固定存、固定投資。'] },
+  官殺: { what: '目標、規範和責任', how: '給自己明確的目標和制度，反而發揮得最好', act: ['替自己訂期限和目標，寫下來、找人監督。', '進制度清楚的組織，或爭取需要扛責任的位置。'] },
+};
+/** 十神最多的偏偏是忌神時，太多會變成什麼負擔 */
+export const ROLE_TOO_MUCH = {
+  印: '想太多、依賴別人、光學不做', 比劫: '朋友借錢、合夥糾紛、和人硬碰硬', 食傷: '話太多、太衝、容易得罪人',
+  財: '為錢操勞、投資貪多', 官殺: '壓力太大、被管太多、責任扛不完',
+};
+const YUN_WORD = { good: '順風運', bad: '逆風運', mixed: '好壞參半的運', neutral: '平穩的運' };
+/** 干支喜忌 → 好壞（同 reading.js）：有喜有忌是好壞參半，喜加平算順、忌加平算逆 */
+function gzWord(t) {
+  if (!t) return 'neutral';
+  const p = [t.gan, t.zhi];
+  const g = p.includes('喜');
+  const b = p.includes('忌');
+  return g && b ? 'mixed' : g ? 'good' : b ? 'bad' : 'neutral';
+}
+
 /**
- * @param {{name?:string, ys:object, gejuStatus?:string|null, dayun?:{ganzhi:string, tone:object|null}|null}} o
- *   ys：yongShen；gejuStatus：geju 的狀態（成格、破格…）；dayun：目前大運和它對你的喜忌（ganzhiTone）
+ * @param {{name?:string, ys:object, gejuStatus?:string|null, dayun?:{ganzhi:string, tone:object|null}|null,
+ *   dm?:{gan:string, wx:string}|null, image?:string, dom?:{group:string}|null, geju?:object|null,
+ *   nextYun?:{ganzhi:string, startYear:number, tone:object|null}|null, year?:number|null}} o
+ *   ys：yongShen；gejuStatus：geju 的狀態（成格、破格…）；dayun：目前大運和它對你的喜忌（ganzhiTone）；
+ *   dm、image、dom、geju、nextYun：有給就把斷語改成讀盤（日主像什麼、喜用是哪一種十神、十神最多的是幫手還是負擔、格局主軸、換運）
  */
-export function baziMaster({ name = '你', ys, gejuStatus = null, dayun = null }) {
+export function baziMaster({ name = '你', ys, gejuStatus = null, dayun = null, dm = null, image = '', dom = null, geju = null, nextYun = null, year = null }) {
   const W = who(name);
   const b = WX_BOOST[ys.primary];
   const b2 = WX_BOOST[ys.secondary];
@@ -289,11 +329,45 @@ export function baziMaster({ name = '你', ys, gejuStatus = null, dayun = null }
       why.push({ tone: 'info', text: `目前大運 ${dayun.ganzhi}：${t.text}` });
     }
   }
+  let verdict = `老師看${W}的八字：${ys.primary === ys.secondary ? `最需要的是「${ys.primary}」` : `最需要的是「${ys.primary}」，其次是「${ys.secondary}」`}。命是先天的底，運是後天的路：缺的不用怕，補得到；走順的方向，事半功倍。`;
+  if (dm) {
+    // 讀盤版：日主 → 強弱 → 喜用是哪一種十神（白話）→ 十神最多的是幫手還是負擔 → 格局主軸 → 大運
+    const need = roleOf(dm.wx, ys.primary);
+    const N = ROLE_NEED[need];
+    const strength = { 身強: '而且力量很足', 身弱: '但力量偏弱', 中和: '力量不強不弱' }[ys.strength] || '';
+    const parts = [`老師看${W}的八字：日主${dm.gan}${dm.wx}${image ? `（${image}）` : ''}，${strength}，所以最需要的是「${ys.primary}」——對${W}來說是「${need}」，也就是${N.what}。`];
+    why.unshift({ tone: 'info', text: `喜用「${ys.primary}」對日主${dm.wx}是${need}：${W}的路是${N.how}。` });
+    if (dom && dom.group) {
+      const domWx = WX_OF_ROLE(dm.wx, dom.group);
+      if (dom.group === need || domWx === ys.secondary) {
+        parts.push(`命盤裡最多的正好是${dom.group}，天生的資源站在${W}這邊。`);
+        boosts.push(`十神最多的${dom.group}正好是你需要的：把它當成主要的武器。`);
+      } else if (ys.avoid.includes(domWx)) {
+        parts.push(`命盤裡最多的是${dom.group}，偏偏太多反而是負擔：要小心${ROLE_TOO_MUCH[dom.group]}。`);
+        why.push({ tone: 'bad', text: `十神最多的是${dom.group}（五行${domWx}），是忌神：太多時容易${ROLE_TOO_MUCH[dom.group]}。` });
+      }
+    }
+    if (geju) parts.push(`格局是${geju.name}（${geju.status}），一生的主軸在「${geju.info.core}」${geju.status === '成格' ? '，先天條件不錯' : geju.status === '破格' || geju.status === '成中帶忌' ? '，但有缺口，要靠後天補' : ''}。`);
+    if (dayun && dayun.tone) {
+      const w = gzWord(dayun.tone);
+      let t = `目前大運${dayun.ganzhi}是${YUN_WORD[w]}`;
+      if (nextYun && year && nextYun.startYear > year && nextYun.startYear - year <= 5) {
+        const nw = gzWord(nextYun.tone);
+        if (nw !== w) {
+          t += `，${nextYun.startYear} 年換${nextYun.ganzhi}（${YUN_WORD[nw]}）`;
+          why.push({ tone: nw === 'good' ? 'good' : nw === 'bad' ? 'bad' : 'info', text: `${nextYun.startYear} 年起換大運${nextYun.ganzhi}：從${YUN_WORD[w]}轉為${YUN_WORD[nw]}，${nw === 'bad' ? '這幾年先存糧、打底' : '想做的事可以開始準備'}。` });
+        }
+      }
+      parts.push(`${t}。`);
+    }
+    verdict = parts.join('');
+    remedies.unshift({ title: `補「${ys.primary}」（${need}）：${N.how}`, steps: N.act, note: '這是把喜用神換成生活上做得到的事；下面的顏色、方位是傳統的補法。' });
+  }
   return {
     badge: `喜${ys.primary}`,
-    verdict: `老師看${W}的八字：${ys.primary === ys.secondary ? `最需要的是「${ys.primary}」` : `最需要的是「${ys.primary}」，其次是「${ys.secondary}」`}。命是先天的底，運是後天的路：缺的不用怕，補得到；走順的方向，事半功倍。`,
+    verdict,
     why,
-    remedies: remedies.slice(0, 4),
+    remedies: remedies.slice(0, dm ? 5 : 4),
     boosts,
     combos: [
       { label: '工作與未來方向', why: '用喜用五行挑行業和工作環境', go: ['destiny', { tool: 'career' }] },
@@ -320,13 +394,21 @@ export const JI_FIX = {
   父母: '和長輩、主管的溝通多一點耐心：先聽完再回應，重要的事當面談。',
 };
 
+const PALACE_DOMAIN_SHORT = { 命宮: '自己的狀態', 兄弟: '兄弟和夥伴', 夫妻: '感情', 子女: '子女和晚輩', 財帛: '錢', 疾厄: '身體', 遷移: '出外發展', 僕役: '朋友和人脈', 交友: '朋友和人脈', 官祿: '事業', 田宅: '家和不動產', 福德: '心情和興趣', 父母: '長輩和上司' };
+const dom = (p) => PALACE_DOMAIN_SHORT[p] || p;
+const bare = (p) => (p && p !== '命宮' ? p.replace(/宮$/, '') : p);
+const pal = (p) => (bare(p) === '命宮' ? '命宮' : `${bare(p)}宮`);
+
 /**
- * @param {{name?:string, natalJi?:{star:string, palace:string}|null, yearJi?:{star:string, palace:string}|null, year?:number}} o
+ * @param {{name?:string, natalJi?:{star:string, palace:string}|null, yearJi?:{star:string, palace:string}|null, year?:number,
+ *   summary?:object|null, mingTone?:'good'|'mid'|'bad'|null, pattern?:{name:string, tone:string}|null}} o
+ *   summary：ziweiSummary 的結果；有給就把斷語改成讀盤（命宮主星、三方四正、身宮、生年祿忌、強弱宮、現在的大限）
  */
-export function ziweiMaster({ name = '你', natalJi = null, yearJi = null, year = null }) {
+export function ziweiMaster({ name = '你', natalJi = null, yearJi = null, year = null, summary = null, mingTone = null, pattern = null }) {
   const W = who(name);
   const why = [];
   const remedies = [];
+  const boosts = [];
   if (natalJi && natalJi.palace) {
     why.push({ tone: 'bad', text: `本命化忌（${natalJi.star}）在${natalJi.palace}：這一宮管的事，是${W}這一生最容易牽掛、最要用心的地方。` });
     if (JI_FIX[natalJi.palace]) remedies.push({ title: `化解：化忌在${natalJi.palace}`, steps: [JI_FIX[natalJi.palace], '化忌不是壞，是「執著」：在這件事上多花心思，往往也是你最有成就的地方。'] });
@@ -335,15 +417,108 @@ export function ziweiMaster({ name = '你', natalJi = null, yearJi = null, year 
     why.push({ tone: 'bad', text: `${year ? `${year} 年` : '今年'}流年化忌（${yearJi.star}）在${yearJi.palace}：這方面今年要多花心力。` });
     if (JI_FIX[yearJi.palace] && (!natalJi || yearJi.palace !== natalJi.palace)) remedies.push({ title: `今年的化解：流年化忌在${yearJi.palace}`, steps: [JI_FIX[yearJi.palace]] });
   }
+  let verdict = `老師看${W}的紫微盤：${natalJi && natalJi.palace ? `化忌在${natalJi.palace}，那是你的功課，也是你的修練場。功課做好了，這一宮反而最穩。` : '四化分布平均，沒有特別卡的地方；照命宮主星的個性去發揮就好。'}`;
+  let badge = null;
+  if (summary) {
+    // 讀盤版：命宮（是誰）→ 三方四正（先天條件）→ 生年祿忌（福氣與功課）→ 強弱宮 → 身宮 → 現在的大限
+    const S = summary;
+    const parts = [`老師看${W}的紫微盤：命宮${S.ming.borrowed ? '沒有主星、借對宮的' : ''}${S.ming.stars.join('、')}，${S.ming.text.split('。')[0]}。`];
+    // 命宮格局和三方四正一起講：吉格配上煞星多，是「底子好、過程要磨」，不是單純的好或壞
+    const pg = pattern && pattern.tone === 'good';
+    const pb = pattern && pattern.tone === 'bad';
+    if (mingTone === 'bad' && pg) parts.push(`命宮有${pattern.name}（吉格），但三方四正煞星也多：底子好，過程要多磨練。`);
+    else if (mingTone === 'good' && pb) parts.push(`命宮的三方四正偏吉，但有${pattern.name}要小心：條件好，別在老地方跌倒。`);
+    else if (mingTone === 'good') parts.push(`命宮的三方四正偏吉${pg ? `，還有${pattern.name}（吉格）` : ''}，先天條件不錯。`);
+    else if (mingTone === 'bad') parts.push(`命宮的三方四正煞星較多${pb ? `，又有${pattern.name}` : ''}，先天比較辛苦，靠後天努力會越來越好。`);
+    else if (pattern) parts.push(`命宮格局是${pattern.name}${pg ? '（吉格）' : pb ? '（要小心的格局）' : ''}。`);
+    const lu = S.mutagens.find((m) => m.mutagen === '化祿');
+    const ji = S.mutagens.find((m) => m.mutagen === '化忌');
+    if (lu && ji) {
+      parts.push(bare(lu.palace) === bare(ji.palace)
+        ? `生年化祿和化忌都在${pal(lu.palace)}：${dom(bare(lu.palace))}是你最大的福氣，也是最放不下的地方。`
+        : `生年化祿在${pal(lu.palace)}、化忌在${pal(ji.palace)}：${dom(bare(lu.palace))}是你的福氣，${dom(bare(ji.palace))}是你的功課。`);
+      // 交叉看：福氣所在的宮整體偏弱、功課所在的宮整體偏強，講法不一樣
+      if (S.weak.includes(lu.palace)) why.push({ tone: 'info', text: `化祿在${pal(lu.palace)}，但這一宮的三方四正偏弱：機會會來，要把握、別揮霍。` });
+      if (S.strong.includes(ji.palace)) why.push({ tone: 'info', text: `化忌在${pal(ji.palace)}，但這一宮的三方四正還算強：壓力大，也做得出成績。` });
+      boosts.push(`化祿在${pal(lu.palace)}：${dom(bare(lu.palace))}是你的福氣來源，多投入在這裡。`);
+    }
+    if (S.strong.length) parts.push(`強項是${S.strong.slice(0, 3).map(dom).join('、')}${S.weak.length ? `；要多花心力的是${S.weak.slice(0, 3).map(dom).join('、')}` : ''}。`);
+    const now = S.decades.find((d) => d.current);
+    if (now) parts.push(`現在走${pal(now.palace)}大限（${now.from}–${now.to} 歲），${{ good: '是順的十年', bad: '是辛苦的十年', mid: '是平穩的十年' }[now.tone]}：重心在${now.focus.replace(/。$/, '')}。`);
+    verdict = parts.join('');
+    if (S.body) why.unshift({ tone: 'info', text: S.body.text });
+    if (pattern && pattern.text) why.push({ tone: pattern.tone === 'good' ? 'good' : pattern.tone === 'bad' ? 'bad' : 'info', text: `命宮格局${pattern.name}：${pattern.text}` });
+    badge = S.ming.stars.length ? `命宮${S.ming.stars.join('')}` : null;
+  }
   return {
-    badge: null,
-    verdict: `老師看${W}的紫微盤：${natalJi && natalJi.palace ? `化忌在${natalJi.palace}，那是你的功課，也是你的修練場。功課做好了，這一宮反而最穩。` : '四化分布平均，沒有特別卡的地方；照命宮主星的個性去發揮就好。'}`,
+    badge,
+    verdict,
     why,
     remedies,
-    boosts: [],
+    boosts,
     combos: [
       { label: '綜合解讀', why: '八字、紫微、星盤一起看，哪些說法一致', go: ['destiny', { tool: 'reading' }] },
       { label: '人生時間軸', why: '大限、流年哪幾年要注意', go: ['destiny', { tool: 'liunian' }] },
+    ],
+  };
+}
+
+// ── 生命靈數：主命數、天賦數、九宮格的連線與空缺、太多的數字、流年數合起來講
+// 交叉看的重點（台灣常見的看法，本 App 整理）：主命數在九宮格裡是空缺數 → 課題要從零練起；
+// 天賦數在九宮格裡也空缺 → 天賦要刻意練才會出來；主命數在九宮格出現三次以上 → 特質強到容易過頭。
+/**
+ * @param {{name?:string, lp:object, grid:object, py:number, meanings:object, missingText:object, manyText:object, pyText:object, detail:object}} o
+ *   lp：lifePath；grid：grid；py：流年數；其他是 numerology.js、reading.js、reading-texts.js 的文字表（由畫面傳進來，這裡不載入）
+ */
+export function numerologyMaster({ name = '你', lp, grid, py, meanings, missingText, manyText, pyText, detail }) {
+  const W = who(name);
+  const n = lp.number;
+  const why = [];
+  const remedies = [];
+  const boosts = [];
+  const head = meanings[n].text.split('；');
+  const parts = [`老師看${W}的生命靈數：主命數 ${n}「${meanings[n].title}」——${head[0]}。`];
+  const talent = [...new Set(lp.talent)].filter((t) => t >= 1);
+  if (talent.length) {
+    parts.push(`天賦數 ${lp.total} 帶著${talent.map((t) => `「${meanings[t].title}」`).join('和')}的能力，是天生比較不費力的地方。`);
+  }
+  const lpMissing = grid.missing.includes(n);
+  const lpMany = grid.many.includes(n);
+  if (lpMissing) {
+    parts.push(`主命數 ${n} 在九宮格裡是空缺：這輩子的課題要從零練起，常要花比別人多的力氣，但練成了就是${W}的招牌。`);
+    why.push({ tone: 'bad', text: `主命數 ${n} 沒有出現在生日數字裡（九宮格空缺）：${missingText[n]}` });
+    remedies.push({ title: `主命數 ${n} 從零練起`, steps: [missingText[n].split('；').slice(-1)[0].replace(/。$/, '') + '。', `每天做一件和「${meanings[n].title}」有關的小事，累積一個月再回頭看。`] });
+  } else if (lpMany) {
+    parts.push(`主命數 ${n} 在九宮格出現 ${grid.counts[n]} 次：特質非常鮮明，要小心過頭。`);
+    why.push({ tone: 'bad', text: `${n} 出現 ${grid.counts[n]} 次：${manyText[n]}` });
+  }
+  const gaps = talent.filter((t) => grid.missing.includes(t) && t !== n);
+  if (gaps.length) why.push({ tone: 'info', text: `天賦數裡有 ${gaps.join('、')}，九宮格卻空缺：天賦要靠刻意練習才會出來，不練就只是潛力。` });
+  if (grid.lines.length) {
+    const L = grid.lines;
+    parts.push(`九宮格有${L.map((l) => l.name).join('、')}，${L[0].text.split('，')[0]}。`);
+    for (const l of L) boosts.push(`${l.name}（${l.nums.join('-')}）：${l.text}`);
+  } else {
+    why.push({ tone: 'info', text: '九宮格沒有完整的連線：特質分散、不偏向某一種，彈性大，也比較需要自己找方向。' });
+  }
+  for (const m of grid.missing.filter((x) => x !== n).slice(0, 3)) why.push({ tone: 'info', text: `缺 ${m}：${missingText[m]}` });
+  for (const m of grid.many.filter((x) => x !== n)) {
+    why.push({ tone: 'bad', text: `${m} 出現 ${grid.counts[m]} 次：${manyText[m].split('平衡：')[0]}` });
+    remedies.push({ title: `${m} 太多：怎麼平衡`, steps: [manyText[m].split('平衡：')[1] || manyText[m]] });
+  }
+  why.unshift({ tone: 'info', text: `事業：${detail[n].career}感情：${detail[n].love}` });
+  // 主命數在九宮格空缺時，功課是「從零練起」（上面已列）；一般主命數的功課（例如 6「別把責任都扛在身上」）講的是特質太強，兩個說法相反，不能一起給
+  if (head[1] && !lpMissing) remedies.unshift({ title: `主命數 ${n} 的功課`, steps: [`${head[1].replace(/。$/, '')}。`] });
+  parts.push(`今年流年數 ${py}：${pyText[py]}`);
+  return {
+    badge: `主命數 ${n}`,
+    verdict: parts.join(''),
+    why,
+    remedies: remedies.slice(0, 3),
+    boosts,
+    combos: [
+      { label: '綜合解讀', why: '生命靈數和八字、紫微、星盤一起看，哪些說法一致', go: ['destiny', { tool: 'reading' }] },
+      { label: '工作與未來方向', why: '適合的工作、薪水和準備度', go: ['destiny', { tool: 'career' }] },
     ],
   };
 }

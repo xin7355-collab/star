@@ -14,10 +14,11 @@ const TONE = { good: 'tone-good', bad: 'tone-bad', info: 'tone-info' };
  *   remedies?:{title:string, steps:string[], note?:string}[], boosts?:string[], extra?:Node[], combos?:{label:string, why:string, go:any[]}[],
  *   onGo?:(view:string, opts:object)=>void}} o
  */
-export function masterCard({ title = '老師怎麼看', sub = '斷語、原因、化解，一次講清楚', badge = null, verdict, lead = [], why = [], remedies = [], boosts = [], extra = [], combos = [], onGo = null, whyTitle = '為什麼這樣說', remedyTitle = '怎麼化解' }) {
+/* inline：放在別的卡片裡面（例如瑪雅密碼的摺疊區塊），不再包一層卡片；id 給 design-qa 和捲動定位用 */
+export function masterCard({ title = '老師怎麼看', sub = '斷語、原因、化解，一次講清楚', badge = null, verdict, lead = [], why = [], remedies = [], boosts = [], extra = [], combos = [], onGo = null, whyTitle = '為什麼這樣說', remedyTitle = '怎麼化解', boostTitle = '好的地方怎麼用', inline = false, id = null }) {
   return h(
-    'section',
-    { class: 'card master' },
+    inline ? 'div' : 'section',
+    { class: inline ? 'master master-inline' : 'card master', id },
     cardHead(h, 'sparkle', title, sub),
     lead,
     h('p', { class: 'master-verdict' }, badge ? h('span', { class: `badge ${badge.cls || ''}`, text: badge.text }) : null, badge ? ' ' : null, verdict),
@@ -30,7 +31,7 @@ export function masterCard({ title = '老師怎麼看', sub = '斷語、原因�
         h('ol', { class: 'plan' }, r.steps.map((t, i) => h('li', { style: { '--i': String(i) }, text: t }))),
         r.note ? h('p', { class: 'muted small', text: r.note }) : null)),
     ] : null,
-    boosts.length ? h('details', { class: 'more' }, h('summary', { text: '好的地方怎麼用' }), h('ul', { class: 'reasons' }, boosts.map((t) => h('li', { class: 'tone-good', text: t })))) : null,
+    boosts.length ? h('details', { class: 'more' }, h('summary', { text: boostTitle }), h('ul', { class: 'reasons' }, boosts.map((t) => h('li', { class: 'tone-good', text: t })))) : null,
     extra,
     combos.length && onGo ? [
       h('h3', { text: '搭配看，看得更準' }),

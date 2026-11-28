@@ -183,7 +183,7 @@ test('切換查看的人：頁首同一個選單，在命盤換人，今日、�
   await expect(who).toHaveValue(ME.id);
   await tab(page, 'destiny');
   await who.selectOption(MOM.id);
-  await expect(page.locator('#view-destiny')).toContainText('媽媽的綜合解讀');
+  await expect(page.locator('#view-destiny')).toContainText('媽媽的老師解盤');
   await tab(page, 'today');
   await expect(page.locator('#today-hero h2')).toHaveText('媽媽的今天');
   await expect(who).toHaveValue(MOM.id);
@@ -195,7 +195,7 @@ test('切換查看的人：頁首同一個選單，在命盤換人，今日、�
   await meSwitch.selectOption(ME.id);
   await tab(page, 'destiny');
   await expect(who).toHaveValue(ME.id);
-  await expect(page.locator('#view-destiny')).toContainText('我的綜合解讀');
+  await expect(page.locator('#view-destiny')).toContainText('我的老師解盤');
   await page.reload();
   await expect(page.getByRole('combobox', { name: '目前查看的人' })).toHaveValue(ME.id);
 });
@@ -370,10 +370,18 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await page.goto('/');
   await tab(page, 'destiny');
   const dv = page.locator('#view-destiny');
-  // 預設是綜合解讀：共同點至少兩個系統，七個面向
-  await expect(dv.locator('.trait').first()).toBeVisible();
-  await expect(dv.locator('.trait .count').first()).toHaveText(/[2-9] 個系統/);
+  // 預設是綜合解讀：最上面是老師解盤（只採用兩個以上系統一致的說法，括號寫依據），七個面向收在「各系統怎麼說」
+  const syn = dv.locator('section.master').first();
+  await expect(syn.locator('.master-verdict')).toContainText('老師看你的整體命盤：你最明顯的特質是「愛思考、會分析」和「會照顧人、重家庭」（各有 3 個系統一致）');
+  await expect(syn.locator('.master-verdict')).toContainText('一句話：你適合');
+  await expect(syn.locator('li', { hasText: '個性「愛思考、會分析」' })).toContainText('紫微（命宮天機）');
+  await expect(syn.locator('li', { hasText: '事業：' })).toContainText('最多系統指向');
+  await expect(syn.locator('li', { hasText: /^2026 年：/ })).toBeVisible();
+  // 只有一個系統說的不進結論，收在摺疊裡
+  await expect(syn.locator('#syn-singles summary')).toContainText('只有一個系統提到的');
+  await expect(syn).not.toContainText(/undefined|null|NaN/);
   await expect(dv.locator('details.area')).toHaveCount(7);
+  await expect(dv.locator('details.area[open]')).toHaveCount(0);
   // 瑪雅銀河印記也在綜合解讀裡：個性（印記＋調性）和今年（流年印記）
   // 七個面向固定順序：第一個是個性、最後一個是今年（「個性」兩字也會出現在健康的內文裡，不用文字找）
   await expect(dv.locator('details.area').first()).toContainText('銀河印記 KIN 109「超頻紅月」');
@@ -383,6 +391,11 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   const tool = dv.getByRole('combobox', { name: '選擇命理工具' });
   await tool.selectOption('bazi');
   await expect(dv.locator('table.pillars tr.big').first()).toContainText('庚甲壬癸');
+  // 八字的老師怎麼看是讀盤：日主像什麼、喜用是哪一種十神（白話）、十神最多的是幫手還是負擔、格局
+  const bzm = dv.locator('section.master');
+  await expect(bzm.locator('.master-verdict')).toContainText('日主壬水（像大江大海），而且力量很足，所以最需要的是「火」——對你來說是「財」');
+  await expect(bzm.locator('.master-verdict')).toContainText('格局是偏印格');
+  await expect(bzm.locator('details.remedy summary').first()).toHaveText('補「火」（財）：把能力變現、務實累積');
   // 格局：申月本氣庚透年干 → 偏印格；印章與成敗說明都在
   await expect(dv.locator('.geju-head h3')).toContainText('格局：偏印格');
   await expect(dv.locator('.seal')).toHaveText('偏印格');
@@ -407,7 +420,13 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   // 一打開就示範命宮的三方四正：連線、三個被照會的宮；命宮格局列出機月同梁
   await expect(dv.locator('.sf-lines polygon')).toHaveCount(1);
   await expect(dv.locator('.palace.sf-on')).toHaveCount(3);
-  await expect(dv.locator('ul.reasons li', { hasText: '機月同梁' })).toBeVisible();
+  await expect(dv.locator('section.card:not(.master) ul.reasons li', { hasText: '機月同梁' })).toBeVisible();
+  // 紫微的老師怎麼看是讀盤：命宮主星＋格局和三方四正一起講＋生年祿忌＋現在的大限
+  const zm = dv.locator('section.master');
+  await expect(zm.locator('.master-verdict')).toContainText('命宮天機、天梁');
+  await expect(zm.locator('.master-verdict')).toContainText('命宮有機月同梁（吉格）');
+  await expect(zm.locator('.master-verdict')).toContainText('化祿在夫妻宮、化忌在財帛宮');
+  await expect(zm.locator('.master-verdict')).toContainText(/現在走.+大限/);
   await dv.locator('.palace', { hasText: '財帛' }).click();
   await expect(dv.locator('.palace-detail h3')).toContainText('財帛');
   await expect(dv.locator('.palace-detail')).toContainText('同陰同宮');
@@ -422,6 +441,16 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await expect(dv.locator('.name-char .zy')).toHaveText(['ㄨㄤˊ', 'ㄒㄧㄠˇ', 'ㄇㄧㄥˊ']);
   await tool.selectOption('maya');
   await expect(dv.locator('.maya-cell')).toHaveCount(5);
+  // 銀河印記的老師解盤：五個位置對「你」是什麼（誰幫你、你缺什麼、迷惘時往哪走）
+  const sm = page.locator('#maya-self-master');
+  await expect(sm.locator('.master-verdict')).toContainText('老師看你的銀河印記：你是「超頻紅月」');
+  await expect(sm.locator('.master-verdict')).toContainText('最好的幫手是擅長「忠誠與陪伴」的人（支持位），最大的功課是「推動改變」（挑戰位）');
+  await expect(sm.locator('li', { hasText: '支持位「超頻白狗」' })).toBeVisible();
+  // 瑪雅密碼的老師解盤在摺疊裡（另一套算法，不和 KIN 混在一起看）
+  await dv.locator('details.maya-code > summary').click();
+  const cm = page.locator('#maya-code-master');
+  await expect(cm.locator('.master-verdict')).toContainText('外表和內心一致（表象 D、小宇宙 E 都是「承擔」）');
+  await expect(cm.locator('.master-verdict')).toContainText('卡關時別只用「包容、把事情收好尾」這個老方法，改成「回到初心想清楚」看看');
   // 瑪雅曆（13 月亮曆）：1990-08-15＝KIN 109 超頻紅月；五大神諭照規則算（引導同色、支持相加 19、挑戰差 10、隱藏相加 261）
   await expect(dv.locator('.kin-no')).toHaveText('KIN 109');
   await expect(dv.locator('.kin-title')).toHaveText('超頻紅月');
@@ -438,6 +467,10 @@ test('命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生�
   await expect(dv.locator('.seal-detail h3')).toHaveText('14. 白巫師（Ix）');
   await expect(dv.getByRole('button', { name: '14. 白巫師' })).toHaveAttribute('aria-pressed', 'true');
   await tool.selectOption('numerology');
+  // 生命靈數的老師解盤：主命數 6 在九宮格是空缺 → 從零練起（不再同時給「別把責任都扛在身上」這種相反的建議）
+  const nm = dv.locator('section.master');
+  await expect(nm.locator('.master-verdict')).toContainText('主命數 6 在九宮格裡是空缺');
+  await expect(nm.locator('details.remedy summary', { hasText: '主命數 6 的功課' })).toHaveCount(0);
   // 圓環只放主命數（整串放進去在 iPhone 會超出圓環），加總過程寫在旁邊
   await expect(dv.locator('.score-ring b')).toHaveText('6');
   await expect(dv.getByText('生日數字加總：33／6')).toBeVisible();
@@ -549,7 +582,8 @@ test('多胞胎：第 2 個出生時紫微借兄弟宮，解讀說明哪裡一�
   const dv = page.locator('#view-destiny');
   await expect(dv.getByText('多胞胎怎麼看')).toBeVisible();
   await expect(dv.getByText(/上升星座平均每 2 小時換一個/)).toBeVisible();
-  // 填了出生順序就要自動把出生時分加進瑪雅曆（否則兩個雙胞胎的瑪雅結果一模一樣）
+  // 填了出生順序就要自動把出生時分加進瑪雅曆（否則兩個雙胞胎的瑪雅結果一模一樣）；各系統原文收在「各系統怎麼說」
+  await dv.locator('details.area > summary', { hasText: '個性' }).click();
   await expect(dv.getByText(/已把出生時分加進計算/)).toBeVisible();
   await dv.getByRole('combobox', { name: '選擇命理工具' }).selectOption('ziwei');
   await expect(dv.getByText(/多胞胎第 2 個出生/)).toBeVisible();
@@ -574,7 +608,7 @@ test.describe('動畫開啟時', () => {
     await expect(page.locator('#view-today .balls .ball')).toHaveCount(6);
     await expect(page.locator('#view-today .hours .hour')).toHaveCount(13);
     await tab(page, 'destiny');
-    await expect(page.locator('#view-destiny .trait').first()).toBeVisible();
+    await expect(page.locator('#view-destiny section.master .master-verdict').first()).toBeVisible();
   });
 
   test('塔羅儀式：洗牌、扇形、點牌與停留抽牌、翻牌；關掉＝不抽；動畫強度「輕量」不進儀式', async ({ page }) => {
@@ -1228,6 +1262,8 @@ test('命盤：工作與方向、開運佈置（財庫、財位、九宮飛星�
   await expect(dv.getByRole('combobox', { name: '血型' })).toHaveValue('O');
   await expect(dv.getByText(/個性：目標明確/)).toBeVisible();
   await tool.selectOption('reading');
+  // 血型列在「各系統怎麼說」（預設收起，點開個性才看得到）
+  await dv.locator('details.area > summary', { hasText: '個性' }).click();
   await expect(dv.locator('.sys.sys-血型').first()).toBeVisible();
 });
 

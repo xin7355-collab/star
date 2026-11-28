@@ -5,16 +5,19 @@
 // 2. 統計標籤：兩個以上系統都提到的特質，就是「共同點」，可信度比單一系統高。
 // 3. 依個性、事業、財運、感情、健康、人際、今年七個面向，列出每個系統的看法與依據，最後用共同點寫一句總結。
 // 4. 多胞胎：說明哪些系統算出來一樣、哪些會不同，並套用紫微「借宮」的傳統看法（兩派都列出）。
+// 5. 另外整理成結構化的訊號（signals）：老師解盤（synthesis.js）用它挑「好幾個系統都指向同一件事」的結論，不用再拆文字。
 // 全部在手機上計算；解讀文字由本 App 撰寫，僅供參考。
 
 import { SIGNS, signAspect } from './zodiac.js';
 import { positionsAt } from './astro.js';
 import { MEANINGS } from './numerology.js';
-import { SHISHEN_TEXT, liunian, WUXING, yongShen } from './bazi.js';
+import { SHISHEN_TEXT, liunian, WUXING, yongShen, ganzhiTone } from './bazi.js';
 import { natalWealth, ziweiWealth } from './windfall.js';
 import { geju } from './geju.js';
 import { BLOOD } from './blood.js';
-import { mayaKin, yearKin, kinInfo } from './maya-kin.js';
+import { mayaKin, yearKin, kinInfo, dayRelation } from './maya-kin.js';
+import { sanFang } from './ziwei-pattern.js';
+import { GEJU_TAGS, PALACE_THEME, PILLAR_THEME, SHISHEN_YEAR, PERSONAL_YEAR_SIGNAL } from './synthesis-texts.js';
 import { SEAL_TEXT, TONE_TEXT } from './maya-texts.js';
 import { CHENGGU_PLAIN, DAYMASTER, LIFEPATH_DETAIL, MAYA_KEYWORD_TEXT, MOON_SIGN_TEXT, SEAL_TAGS, SHISHEN_GROUPS, SIGN_DETAIL, TAGS, WUXING_HEALTH, ZIWEI_STARS, STAR_KEYWORDS, PALACE_DOMAIN, RISING_TEXT, mutagenIn } from './reading-texts.js';
 
@@ -164,7 +167,11 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
   if (kin) vote('瑪雅', SEAL_TAGS[kin.seal.n], `瑪雅：銀河印記${kin.title}`);
   const blood = BLOOD[bloodType] || null;
   if (blood) vote('血型', blood.tags, `血型 ${bloodType} 型（流行文化）`);
-  const ranked = Object.entries(votes).map(([tag, sources]) => ({ tag, label: TAGS[tag].label, count: sources.length, sources })).sort((a, b) => b.count - a.count);
+  // 算「幾個系統」而不是「幾句話」：同一個系統的兩句（例如太陽和上升都說有主見）只算一個系統，不能說成好幾個系統一致
+  const ranked = Object.entries(votes).map(([tag, sources]) => {
+    const systems = [...new Set(said.filter((x) => x.tags.includes(tag)).map((x) => x.system))];
+    return { tag, label: TAGS[tag].label, count: systems.length, systems, sources };
+  }).sort((a, b) => b.count - a.count);
   const consensus = ranked.filter((t) => t.count >= 2).slice(0, 3);
   const top = consensus.length ? consensus : ranked.slice(0, 2);
 
@@ -253,19 +260,56 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     kin && { system: '瑪雅', text: oracleLine(kin) },
   ]);
 
-  // ── 8. 今年
+  // ── 8. 今年（yearSignals：每個系統對今年的好壞和點名的主題，老師解盤用來找「好幾個系統都指向的事」）
   const yearPoints = [];
+  const yearSignals = [];
+  const signal = (system, tone, text) => {
+    const sig = { system, tone, text, good: [], bad: [], focus: [], reasons: {} };
+    yearSignals.push(sig);
+    return sig;
+  };
+  // reasons：每個主題是這個系統的哪一項點名的（老師解盤寫「為什麼」用）
+  const put = (sig, pol, theme, reason) => {
+    if (!theme) return;
+    if (!sig[pol].includes(theme)) sig[pol].push(theme);
+    if (reason) sig.reasons[theme] = sig.reasons[theme] ? `${sig.reasons[theme]}、${reason}` : reason;
+  };
   if (bazi && bazi.ok) {
     const [ln] = liunian(bazi, [today.y]);
     yearPoints.push({ system: '八字', text: `${today.y} 流年 ${ln.ganzhi} 是你的「${ln.shishen}」年：${ln.shishenText}` });
     if (ln.taisui.length) yearPoints.push({ system: '八字', text: `今年${ln.taisui.join('、')}：民俗上會安太歲；重點是凡事多一分謹慎，重大變動先規劃。` });
     for (const t of ln.triggers) yearPoints.push({ system: '八字', text: t.text });
     for (const r of ln.relations.slice(0, 2)) yearPoints.push({ system: '八字', text: r.text });
+    // 好壞：流年干支對你的喜忌；主題：流年十神（喜忌不明顯時看十神本身）、沖到哪一柱、犯太歲
+    let tone = gzTone(ln.tone);
+    const sig = signal('八字', tone, `流年${ln.ganzhi}是「${ln.shishen}」年${ln.tone ? `（天干${ln.tone.gan}、地支${ln.tone.zhi}）` : ''}${ln.taisui.length ? `、${ln.taisui.join('、')}` : ''}`);
+    const sy = SHISHEN_YEAR[ln.shishen];
+    if (sy) {
+      const pol = tone === 'good' ? 'good' : tone === 'bad' ? 'bad' : sy.nature;
+      put(sig, pol, sy.theme, `${ln.ganzhi}是${ln.shishen}年`);
+      // 女命的官殺、男命的財星也代表伴侶（傳統看法）
+      if ((gender === '女' && ['正官', '七殺'].includes(ln.shishen)) || (gender === '男' && ['正財', '偏財'].includes(ln.shishen))) put(sig, pol, '感情', `${ln.shishen}是${gender === '女' ? '夫星' : '妻星'}`);
+    }
+    for (const r of ln.relations) {
+      if (r.type === '六沖') put(sig, 'bad', PILLAR_THEME[r.pillar], `流年沖${r.pillar}`);
+      else if (r.type === '六合') put(sig, 'good', PILLAR_THEME[r.pillar], `流年合${r.pillar}`);
+    }
+    if (ln.taisui.length || ln.triggers.some((t) => t.type !== '歲運並臨')) {
+      put(sig, 'bad', '變動', [...ln.taisui, ...ln.triggers.filter((t) => t.type !== '歲運並臨').map((t) => t.type)].join('、'));
+      tone = tone === 'good' ? 'mixed' : tone === 'neutral' ? 'bad' : tone;
+    }
+    sig.tone = tone;
   }
   if (zw && zw.horoscope) {
     const [lu, quan, ke, ji] = zw.horoscope.yearlyMutagen || [];
     const where = (star) => zw.palaces.find((p) => [...p.major, ...p.minor].some((s) => s.name === star))?.name;
     if (lu) yearPoints.push({ system: '紫微', text: `流年化祿（${lu}）在${where(lu) || '盤外'}、化權（${quan}）在${where(quan) || '盤外'}、化科（${ke}）在${where(ke) || '盤外'}：這些宮位代表的事今年比較順；化忌（${ji}）在${where(ji) || '盤外'}，這方面要多花心力。` });
+    // 紫微每年都同時有祿和忌，不算整體好壞，只提供主題
+    if (lu && ji) {
+      const sig = signal('紫微', 'neutral', `流年化祿在${where(lu) || '盤外'}、化忌在${where(ji) || '盤外'}`);
+      [['化祿', lu], ['化權', quan], ['化科', ke]].forEach(([m, st]) => put(sig, 'good', PALACE_THEME[where(st)], `流年${m}在${where(st)}`));
+      put(sig, 'bad', PALACE_THEME[where(ji)], `流年化忌在${where(ji)}`);
+    }
   }
   if (sun !== null) {
     const pos = positionsAt(Date.UTC(today.y, today.m - 1, today.d, 4));
@@ -278,15 +322,79 @@ export function buildReading({ natal = null, bazi = null, ziwei = null, birth, m
     else if (sa.tone === 'tension') saText = '責任與考驗變多，穩紮穩打最重要。';
     else if (sa.tone === 'harmony') saText = '壓力可控，適合長期規劃、累積實力。';
     yearPoints.push({ system: '占星', text: `木星在${signName(pos.Jupiter.sign)}，和你的太陽成${ja.name}：${good(ja) ? '今年機會與貴人比較多，適合擴展。' : '好運要自己去創造，別只等機會。'}土星在${signName(pos.Saturn.sign)}，和你成${sa.name}：${saText}` });
+    // 木星合太陽是好事，土星合太陽是考驗：同一個「合」對兩顆星意思相反
+    const jGood = good(ja);
+    const sBad = sa.tone === 'strong' || sa.tone === 'tension';
+    signal('占星', jGood && sBad ? 'mixed' : sBad ? 'bad' : jGood || sa.tone === 'harmony' ? 'good' : 'neutral', `木星和你的太陽成${ja.name}、土星成${sa.name}`);
   }
   const py = personalYearNumber(birth, today.y);
   yearPoints.push({ system: '生命靈數', text: `今年是你的流年數 ${py}：${PERSONAL_YEAR[py]}` });
+  const pys = PERSONAL_YEAR_SIGNAL[py];
+  put(signal('生命靈數', pys.tone, `流年數 ${py}`), pys.tone === 'good' ? 'good' : 'focus', pys.theme, `流年數 ${py}`);
   const yk = yearKin(birth, today, mayaCount);
   if (yk) yearPoints.push({ system: '瑪雅', text: `流年印記是 KIN ${yk.kin}「${yk.title}」（${yk.from.y}/${yk.from.m}/${yk.from.d} 生日起的一年）：關鍵字「${SEAL_TEXT[yk.seal.n].keys.join('、')}」，這一年常問自己：${TONE_TEXT[yk.tone.n].q}` });
+  if (yk && kin) {
+    const rel = dayRelation(yk.kin, kin.kin);
+    signal('瑪雅', ['return', 'analog', 'guide', 'occult'].includes(rel) ? 'good' : rel === 'antipode' ? 'bad' : 'neutral', `流年印記${yk.title}${YEAR_KIN_REL[rel]}`);
+  }
   add('year', `${today.y} 年重點`, yearPoints.length > 2 ? '把下面幾個系統的提醒合起來看：哪件事被提到兩次以上，就是今年最該花心思的地方。' : '', yearPoints);
 
-  return { traits: top, ranked, said, areas, twins, lifePathNumber: lp };
+  // ── 9. 結構化的訊號（老師解盤用）：事業、感情、財運、這十年
+  const career = [];
+  if (zw) for (const s of palaceStars(zw, '官祿').stars) if (ZIWEI_STARS[s.name]) career.push({ system: '紫微', source: `紫微：官祿宮${s.name}`, tags: ZIWEI_STARS[s.name].tags });
+  if (mc !== null) career.push({ system: '占星', source: `占星：天頂${signName(mc)}`, tags: SIGN_DETAIL[mc].tags });
+  if (ge && GEJU_TAGS[ge.kind]) career.push({ system: '八字', source: `八字：${ge.name}`, tags: GEJU_TAGS[ge.kind] });
+  const loveStyle = [];
+  if (venus !== null) loveStyle.push({ system: '占星', source: `占星：金星${signName(venus)}`, tags: SIGN_DETAIL[venus].tags });
+  if (zw) for (const s of palaceStars(zw, '夫妻').stars) if (ZIWEI_STARS[s.name]) loveStyle.push({ system: '紫微', source: `紫微：夫妻宮${s.name}`, tags: ZIWEI_STARS[s.name].tags });
+  // 緣分的多寡：八字的配偶星（沒有性別就不判斷，男女看的星不同）、紫微夫妻宮的三方四正
+  const loveFate = [];
+  if (bazi && bazi.ok && (gender === '男' || gender === '女')) {
+    const n = spouseStars(bazi, gender);
+    loveFate.push({ system: '八字', level: n === 0 ? 'low' : n >= 3 ? 'high' : 'mid', source: `${gender === '女' ? '官殺' : '財星'}${n === 0 ? '不明顯' : n >= 3 ? '很多' : '適中'}` });
+  }
+  if (zw) {
+    const sf = sanFang(zw, zw.palaces.find((p) => p.name === '夫妻'));
+    loveFate.push({ system: '紫微', level: sf.tone === 'good' ? 'high' : sf.tone === 'bad' ? 'low' : 'mid', source: `夫妻宮三方四正${sf.tone === 'good' ? '偏吉' : sf.tone === 'bad' ? '偏辛苦' : '平穩'}` });
+  }
+  const wealthSig = [];
+  if (nw) wealthSig.push({ system: '八字', kind: nw.pian >= 1.5 ? 'pian' : nw.pian === 0 ? 'zheng' : 'some', source: nw.pian >= 1.5 ? `偏財星 ${nw.pian} 個` : nw.pian === 0 ? '沒有偏財星' : '偏財星不多' });
+  if (zwW && zwW.lines[0]) {
+    const kind = zwW.lines[0].includes('偏財型') ? 'pian' : zwW.lines[0].includes('正財型') ? 'zheng' : 'some';
+    wealthSig.push({ system: '紫微', kind, source: `財帛宮${kind === 'pian' ? '偏財型' : kind === 'zheng' ? '正財型' : '看個人經營'}` });
+  }
+  const decade = [];
+  if (curYun) {
+    const idx = bazi.yun.list.indexOf(curYun);
+    const next = bazi.yun.list[idx + 1] || null;
+    decade.push({ system: '八字', tone: gzTone(ganzhiTone(bazi, curYun.ganzhi)), source: `大運${curYun.ganzhi}（${curYun.startYear}–${curYun.endYear}）`, next: next ? { source: `大運${next.ganzhi}`, startYear: next.startYear, tone: gzTone(ganzhiTone(bazi, next.ganzhi)) } : null });
+  }
+  if (zw && zw.horoscope) {
+    const pal = zw.palaces.find((p) => p.index === zw.horoscope.decadalIndex);
+    if (pal) {
+      const sf = sanFang(zw, pal);
+      decade.push({ system: '紫微', tone: sf.tone === 'good' ? 'good' : sf.tone === 'bad' ? 'bad' : 'neutral', source: `${pal.name}大限（${pal.decadal[0]}–${pal.decadal[1]} 歲）` });
+    }
+  }
+  const signals = { year: yearSignals, career, loveStyle, loveFate, wealth: wealthSig, decade };
+
+  return { traits: top, ranked, said, areas, twins, lifePathNumber: lp, signals };
 }
+
+/** 干支喜忌 → 好壞：有喜有忌是好壞參半，喜加平算好、忌加平算要小心 */
+function gzTone(t) {
+  if (!t) return 'neutral';
+  const parts = [t.gan, t.zhi];
+  const good = parts.includes('喜');
+  const bad = parts.includes('忌');
+  return good && bad ? 'mixed' : good ? 'good' : bad ? 'bad' : 'neutral';
+}
+
+/** 流年印記落在你五大神諭的哪個位置（老師解盤的依據文字） */
+const YEAR_KIN_REL = {
+  return: '是你的主印記（銀河生日年）', seal: '和你同圖騰', analog: '是你的支持位', antipode: '是你的挑戰位',
+  occult: '是你的隱藏推動位', guide: '是你的引導位', color: '和你同色', none: '和你的神諭沒有直接關係',
+};
 
 function wuxingBalance(bazi) {
   const c = bazi.wuxing.withHidden;
@@ -297,16 +405,23 @@ function wuxingBalance(bazi) {
   return `五行（含藏干）：${WUXING.map((w) => `${w}${c[w]}`).join('、')}。日主${ys.strength}，喜用五行是「${ys.primary}」（${ys.roles.primary}），其次「${ys.secondary}」；生活上多接觸「${ys.primary}」相關的顏色、環境與興趣來平衡（「開運佈置」有完整做法）。${extra}`;
 }
 
-function spouseLine(bazi, gender) {
+/** 配偶星的份量：女命看官殺、男命看財星（天干算 1、藏干算 0.5，日柱天干是自己不算） */
+function spouseStars(bazi, gender) {
   const stars = gender === '女' ? ['正官', '七殺'] : ['正財', '偏財'];
-  const label = gender === '女' ? '官殺（女命看夫星）' : '財星（男命看妻星）';
   let n = 0;
   for (const p of bazi.pillars.filter(Boolean)) {
     if (p.label !== '日柱' && stars.includes(p.shishen)) n += 1;
     for (const h of p.hidden) if (stars.includes(h.shishen)) n += 0.5;
   }
+  return n;
+}
+
+function spouseLine(bazi, gender) {
+  const label = gender === '女' ? '官殺（女命看夫星）' : '財星（男命看妻星）';
+  const n = spouseStars(bazi, gender);
   const dayZhi = bazi.pillars[2].zhi;
-  const base = !gender ? '（沒有性別資料，以財星與官星一起看）' : '';
+  // 沒有性別時只看了財星：以前寫「財星與官星一起看」，實際上沒有算官星
+  const base = !gender ? '（沒有性別資料，先用財星看）' : '';
   const amount = n === 0 ? '不明顯，感情通常來得比較晚或要主動經營' : n >= 3 ? '很多，異性緣好、選擇多，也要小心感情複雜' : '適中，感情能自然發展';
   return `${label}${base}在命盤裡${amount}。日支（配偶宮）是「${dayZhi}」，代表你心裡伴侶的位置。`;
 }

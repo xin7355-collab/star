@@ -12,7 +12,7 @@ import { loadProfile } from './profile.js';
 import { wuxingWheel, loader } from '../ui/charts.js';
 import { shareFile } from '../ui/poster.js';
 import { masterCard } from '../ui/master.js';
-import { baziMaster, ziweiMaster, yearMaster } from '../core/master-texts.js';
+import { baziMaster, ziweiMaster, yearMaster, numerologyMaster } from '../core/master-texts.js';
 import { MAYA_COUNTS, ZIWEI_SCHOOLS, ZIWEI_YEARS } from '../core/schools.js';
 
 // 匿名試算的名字：只放在這次開著的 App 記憶體裡，不存檔、不進紀錄，換人也保留（不屬於任何人）；重開 App 就清掉
@@ -217,7 +217,14 @@ export function mountDestiny(root, ctx) {
     const ys = yongShen(b);
     const g = geju(b);
     const curYun = b.yun ? b.yun.list.find((d) => d.current) : null;
-    const bm = ys ? baziMaster({ name: p.self ? '你' : p.name, ys, gejuStatus: g ? g.status : null, dayun: curYun ? { ganzhi: curYun.ganzhi, tone: ganzhiTone(b, curYun.ganzhi) } : null }) : null;
+    const nextYun = curYun ? b.yun.list[b.yun.list.indexOf(curYun) + 1] : null;
+    // 老師怎麼看：讀盤版（日主像什麼、喜用是哪一種十神、十神最多的是幫手還是負擔、格局、換運）
+    const bm = ys ? baziMaster({
+      name: p.self ? '你' : p.name, ys, gejuStatus: g ? g.status : null,
+      dayun: curYun ? { ganzhi: curYun.ganzhi, tone: ganzhiTone(b, curYun.ganzhi) } : null,
+      dm: b.dayMaster, image: DAYMASTER[b.dayMaster.gan].text.split('：')[0].replace(`${b.dayMaster.gan}${b.dayMaster.wx}`, ''),
+      dom, geju: g, nextYun: nextYun ? { ganzhi: nextYun.ganzhi, startYear: nextYun.startYear, tone: ganzhiTone(b, nextYun.ganzhi) } : null, year: opts.today.y,
+    }) : null;
     const cols = b.pillars;
     const cell = (fn) => cols.map((c) => h('td', {}, c ? fn(c) : '—'));
     const table = h(
@@ -641,7 +648,12 @@ export function mountDestiny(root, ctx) {
       const m = (list || []).find((x) => x.mutagen === '化忌');
       return m ? { star: m.star, palace: palaceKey(m.palace) } : null;
     };
-    const zm = ziweiMaster({ name: p.self ? '你' : p.name, natalJi: jiOf(S.mutagens), yearJi: S.year ? jiOf(S.year.mutagens) : null, year: opts.today.y });
+    // 讀盤版：命宮、三方四正、生年祿忌、強弱宮、身宮、現在的大限合成一段
+    const pats = mingPatterns(z);
+    const zm = ziweiMaster({
+      name: p.self ? '你' : p.name, natalJi: jiOf(S.mutagens), yearJi: S.year ? jiOf(S.year.mutagens) : null, year: opts.today.y,
+      summary: S, mingTone: sanFang(z, z.palaces.find((q) => q.name === '命宮')).tone, pattern: pats[0] || null,
+    });
     return [masterOf(zm), summaryCard, h(
       'section',
       { class: 'card' },
@@ -656,7 +668,6 @@ export function mountDestiny(root, ctx) {
       detail,
       h('h3', { text: '命宮格局' }),
       (() => {
-        const pats = mingPatterns(z);
         return pats.length
           ? h('ul', { class: 'reasons' }, pats.map((x) => h('li', { class: PATTERN_TONE[x.tone] }, h('b', { text: `${x.name}：` }), h('span', { text: x.text }))))
           : h('p', { text: '命宮沒有符合常見的特殊格局：照主星與三方四正的吉凶看即可，一般格局反而少大起大落。' });
@@ -717,7 +728,11 @@ export function mountDestiny(root, ctx) {
         h('p', { class: 'hint', text: '用生日數字加總的另一套算法（你先前提供的 V1 規則），和上面的 13 月亮曆銀河印記不是同一個系統，兩邊的數字不用互相對照。' }),
         h('div', { class: 'maya-grid' }, r.items.map((it) => h('div', { class: `maya-cell${it.key === 'C' ? ' wide' : ''}` }, h('div', { class: 'muted small', text: it.label }), h('div', { class: 'maya-value', text: it.value === null ? '—' : String(it.value) }), h('div', { text: it.keyword ? `${it.value % 10}｜${it.keyword}` : '不適用' })))),
         r.exception ? h('p', { class: 'hint', text: '1910–1921、2010–2021 年出生：依規則 A、B 不適用，C 為 10。' }) : null,
-        h('details', { class: 'more', open: true }, h('summary', { text: '白話解說：每個位置代表什麼' }), h('ul', { class: 'plain' }, r.items.map((it) => h('li', {}, h('b', { text: MAYA_POSITION_TEXT[it.key] }), it.keyword ? h('div', { class: 'muted', text: `你的數字 ${it.value}「${it.keyword}」：${MAYA_KEYWORD_TEXT[it.keyword]}` }) : null)))),
+        (() => {
+          const cm = MM.mayaCodeMaster(r, { name: p.self ? '你' : p.name });
+          return masterCard({ title: '老師怎麼看（瑪雅密碼）', sub: '五個位置合起來看：主題、外表和內心、天生和課題', badge: cm.badge, verdict: cm.verdict, why: cm.why, whyTitle: '每個位置對你來說', remedies: cm.remedies, remedyTitle: '卡關時怎麼辦', boosts: cm.boosts, inline: true, id: 'maya-code-master' });
+        })(),
+        h('details', { class: 'more' }, h('summary', { text: '每個位置的定義（通用說明）' }), h('ul', { class: 'plain' }, r.items.map((it) => h('li', {}, h('b', { text: MAYA_POSITION_TEXT[it.key] }), it.keyword ? h('div', { class: 'muted', text: `你的數字 ${it.value}「${it.keyword}」：${MAYA_KEYWORD_TEXT[it.keyword]}` }) : null)))),
         h('label', { class: 'check', for: 'maya-twin' }, twinBox, h('span', { text: input.time ? '雙胞胎分流（加上出生的時＋分）' : '雙胞胎分流需要出生時間' })),
         compareBlock,
         h('p', { class: 'hint', text: '計算規則依你提供的 V1 計算器重寫（規則原始出處沒驗到）；數字的關鍵字依個位數對照，文字為本 App 撰寫，可能與其他老師的版本不同。' }),
@@ -729,6 +744,23 @@ export function mountDestiny(root, ctx) {
   function mayaKinCards(p, input, MK, MT, MG, { MM, codeOf, count = 'dreamspell' }) {
     const mine = MK.mayaKin(input.date, count);
     if (!mine) return [warnCard('生日不在 1800～2200 年之間，算不出瑪雅曆。')];
+    // 老師怎麼看：主印記、調性、顏色、四個神諭位置、波符、流年印記合成一段（使用者回饋「沒有大師的說明、沒有整併」）
+    const sm = MM.mayaSelfMaster(mine, { name: p.self ? '你' : p.name, yearKin: MK.yearKin(input.date, zoneToday(DEFAULT_TZ), count) });
+    const selfMaster = masterCard({
+      title: '老師怎麼看（銀河印記）',
+      sub: '主印記、調性、五大神諭合起來看',
+      badge: sm.badge,
+      lead: count === 'traditional' ? [h('p', { class: 'hint', text: '目前用傳統馬雅曆算圖騰；神諭位置是 13 月亮曆的規則（混合做法）。' })] : [],
+      verdict: sm.verdict,
+      why: sm.why,
+      whyTitle: '五個位置各代表什麼（對你來說）',
+      remedies: sm.remedies,
+      remedyTitle: '卡住時怎麼辦',
+      boosts: sm.boosts,
+      combos: sm.combos,
+      onGo: (view, o) => (view === 'destiny' && o && o.tool ? switchTool(o.tool) : ctx.go(view, o)),
+      id: 'maya-self-master',
+    });
     const { kin, seal, tone, oracle } = mine;
     const ST = MT.SEAL_TEXT[seal.n];
     const TT = MT.TONE_TEXT[tone.n];
@@ -893,7 +925,7 @@ export function mountDestiny(root, ctx) {
       h('details', { class: 'more' }, h('summary', { text: '四種顏色' }),
         h('ul', { class: 'plain' }, Object.values(MT.COLOR_TEXT).map((c) => h('li', {}, h('b', { text: `${c.name}（${c.key}）：` }), h('span', { text: c.text }))))),
       h('p', { class: 'hint', text: MT.MAYA_NOTE }));
-    return [hero, oracleCard, pairCard, pairMaster, methodCard, gridCard, allCard].filter(Boolean);
+    return [selfMaster, hero, oracleCard, pairCard, pairMaster, methodCard, gridCard, allCard].filter(Boolean);
   }
 
   // ── 合盤的算法對照：同一對人用不同算法各算一次（使用者回饋：別人用瑪雅算說我們不合，這裡沒有）。
@@ -937,7 +969,9 @@ export function mountDestiny(root, ctx) {
     const lines = svg('svg', { viewBox: '0 0 208 208', class: 'nine-lines', 'aria-hidden': 'true' },
       g.lines.map((l, i) => svg('line', { x1: POS[l.nums[0]][0], y1: POS[l.nums[0]][1], x2: POS[l.nums[2]][0], y2: POS[l.nums[2]][1], pathLength: 1, class: 'nine-line', style: { '--i': String(i) } })));
     const extraLines = alt.lines.filter((l) => !g.lines.includes(l));
-    return h(
+    // 老師怎麼看：主命數、天賦數、連線、空缺、太多的數字、流年數合起來講（以前只有各項分開列）
+    const nm = numerologyMaster({ name: p.self ? '你' : p.name, lp, grid: g, py, meanings: MEANINGS, missingText: MISSING_TEXT, manyText: MANY_TEXT, pyText: PERSONAL_YEAR, detail: LIFEPATH_DETAIL });
+    return [masterOf(nm), h(
       'section',
       { class: 'card' },
       h('h2', { text: `${p.name}的生命靈數` }),
@@ -967,7 +1001,7 @@ export function mountDestiny(root, ctx) {
         : null,
       h('p', { class: 'hint', text: '以西元生日計算；連線名稱為台灣常見說法，各派略有不同。解說為本 App 撰寫，僅供參考。' }),
       actions(p, 'numerology', '生命靈數', `${lp.label} ${lp.title}`, { title: `${p.name}的生命靈數`, big: lp.label, bigLabel: lp.title, lines: [lp.text, g.lines.length ? `連線：${g.lines.map((l) => l.name).join('、')}` : '', g.missing.length ? `空缺數：${g.missing.join('、')}` : ''].filter(Boolean) }),
-    );
+    )];
   }
 
   // ── 袁天罡稱骨
@@ -1041,18 +1075,15 @@ export function mountDestiny(root, ctx) {
   }
 
   async function drawReading(p, input, opts) {
-    const [prof, TC] = await Promise.all([loadProfile(ctx, p, input, opts, { mayaTime: mayaTwinTime(p, input) }), import('../core/trait-check.js')]);
+    const [prof, TC, SY] = await Promise.all([loadProfile(ctx, p, input, opts, { mayaTime: mayaTwinTime(p, input) }), import('../core/trait-check.js'), import('../core/synthesis.js')]);
     const r = prof.reading;
     const { missing, edgeNote } = prof;
-    const traitList = h('div', { class: 'traits' }, r.traits.map((t) => h(
-      'div',
-      { class: 'trait' },
-      h('div', { class: 'trait-head' }, h('b', { text: t.label }), h('span', { class: 'count', text: `${t.count} 個系統` })),
-      h('div', { class: 'muted small', text: t.sources.join('・') }),
-    )));
-    const areas = r.areas.map((a, i) => h(
+    const who = p.self ? '你' : p.name;
+    // 老師解盤：只採用兩個以上系統一致的說法；有測驗就用測驗當裁判（使用者回饋「綜合解讀只是各別加起來」）
+    const syn = SY.synthesize(r, { quiz: p.quiz || null, name: who, year: opts.today.y });
+    const areas = r.areas.map((a) => h(
       'details',
-      { class: 'area', open: i === 0 },
+      { class: 'area' },
       h('summary', { text: a.title }),
       h('div', { class: 'area-body' },
         a.summary ? h('p', { class: 'gold', text: a.summary }) : null,
@@ -1061,23 +1092,45 @@ export function mountDestiny(root, ctx) {
         a.id === 'year' ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '看未來 10 年的人生時間軸', onclick: () => switchTool('liunian') })) : null,
         a.id === 'career' ? h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn small', text: '看工作與未來方向（含新興產業）', onclick: () => switchTool('career') })) : null),
     ));
-    const cards = [
-      h(
-        'section',
-        { class: 'card feature' },
-        cardHead(h, 'book', `${p.name}的綜合解讀`, '星座・八字・紫微・生命靈數・瑪雅・姓名・稱骨・血型'),
-        edgeNote ? h('p', { class: 'warn', text: edgeNote }) : null,
-        h('h3', { text: '各系統的共同點' }),
-        r.traits.length ? traitList : h('p', { class: 'muted', text: '資料還不夠多，補上出生時間與性別會更準。' }),
-        h('p', { class: 'hint', text: '同一個特質被兩個以上的系統提到，代表比較可信；只出現一次的看法列在各面向裡當參考。' }),
-        missing.length ? h('p', { class: 'warn', text: `補上這些資料會更完整：${missing.join('、')}。` }) : null,
+    const master = masterCard({
+      title: `${p.name}的老師解盤`,
+      sub: `${syn.systems.length} 個系統合起來看，只採用說法一致的`,
+      badge: syn.badge,
+      lead: edgeNote ? [h('p', { class: 'warn', text: edgeNote })] : [],
+      verdict: syn.verdict,
+      why: syn.why,
+      whyTitle: '各方面怎麼看（括號是依據）',
+      remedies: syn.remedies,
+      remedyTitle: '要注意的地方',
+      boosts: syn.boosts,
+      extra: [
+        syn.conflicts.length ? [h('h3', { text: '說法不一致的地方' }), h('ul', { class: 'reasons syn-conflicts' }, syn.conflicts.map((t) => h('li', { class: 'tone-info', text: t })))] : null,
+        syn.singles.length ? h('details', { class: 'more', id: 'syn-singles' }, h('summary', { text: `只有一個系統提到的（${syn.singles.length} 項，沒寫進結論）` }),
+          h('ul', { class: 'plain small' }, syn.singles.map((x) => h('li', {}, h('b', { text: `${x.label}：` }), h('span', { text: x.text }))))) : null,
+        !p.quiz ? h('div', { class: 'actions' }, h('span', { class: 'muted small', text: '做了興趣與性格測驗，這裡會用測驗當裁判：命盤說你有、測驗說不像的，不寫成你的特質。' }), h('button', { type: 'button', class: 'btn small ghost', text: '去做測驗', onclick: () => switchTool('career', 'quiz-card') })) : null,
+        missing.length ? h('p', { class: 'warn', text: `補上這些資料，參與的系統會更多：${missing.join('、')}。` }) : null,
         missing.length ? h('div', { class: 'actions' },
           h('button', { type: 'button', class: 'btn small', text: '到「我的」補資料', onclick: () => ctx.go('me') }),
           !input.time ? hoursBtn() : null) : null,
-      ),
+        h('details', { class: 'more', id: 'syn-how' }, h('summary', { text: '老師解盤怎麼整合的' }),
+          h('ul', { class: 'plain small' },
+            h('li', { text: `參與的系統：${syn.systems.join('、')}。每個系統依你的盤面說你有哪些特質、今年哪些事順、哪些要小心。` }),
+            h('li', { text: '兩個以上系統一致的才寫進結論；只有一個系統說的放在「只有一個系統提到」。血型性格是流行文化，算半個系統。' }),
+            h('li', { text: '做了測驗的話，測驗當裁判：命盤說你有、測驗說不像的特質不寫成你的特質，列在「說法不一致」。' }),
+            h('li', { text: '方向相反的說法（求穩和求變、理性和感性）照實講，不硬湊成一句。各系統的對照方式是本 App 整理的，命理僅供參考。' }))),
+      ],
+      combos: [
+        { label: '工作與未來方向', why: '具體的職業、薪水和準備度', go: ['destiny', { tool: 'career' }] },
+        { label: '人生時間軸', why: '未來 10 年哪幾年順、哪幾年要守', go: ['destiny', { tool: 'liunian' }] },
+      ],
+      onGo: (view, o) => (view === 'destiny' && o && o.tool ? switchTool(o.tool) : ctx.go(view, o)),
+    });
+    const cards = [
+      master,
       traitCheckCard(p, r, TC),
-      h('section', { class: 'card' }, cardHead(h, 'star', '七個面向', '點開看各系統怎麼說'), areas, h('p', { class: 'hint', text: '解讀文字由本 App 撰寫，命理與星座僅供參考；健康相關請以醫師意見為準。' }),
-        actions(p, 'reading', '綜合解讀', r.traits.map((t) => `${t.label}（${t.count} 系統）`).join('、') || '綜合解讀', { title: `${p.name}的綜合解讀`, subtitle: '多個命理系統的共同點', lines: [...r.traits.map((t) => `${t.label}｜${t.sources.join('、')}`), ...r.areas.slice(1, 4).map((a) => `${a.title}：${a.summary}`)] })),
+      h('section', { class: 'card', id: 'reading-systems' }, cardHead(h, 'star', '各系統怎麼說（原始資料）', '老師解盤的依據：點開看每個系統的原文'), areas,
+        h('p', { class: 'hint', text: '解讀文字由本 App 撰寫，命理與星座僅供參考；健康相關請以醫師意見為準。' }),
+        actions(p, 'reading', '綜合解讀', syn.verdict, { title: `${p.name}的老師解盤`, subtitle: `${syn.systems.length} 個系統合起來看`, lines: syn.posterLines })),
     ];
     if (r.twins) {
       cards.push(h('section', { class: 'card' }, cardHead(h, 'twins', '多胞胎怎麼看', `第 ${p.birthOrder} 個出生`), h('ul', { class: 'reasons' }, r.twins.lines.map((t) => h('li', { class: 'tone-info', text: t })))));

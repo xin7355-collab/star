@@ -1,10 +1,13 @@
-// 瑪雅合盤的「老師怎麼看」：把兩個人的銀河印記（主要關係、圖騰的天賦和卡點、顏色、調性）和瑪雅密碼的同異，
+// 瑪雅曆的「老師怎麼看」：個人盤（mayaSelfMaster）、瑪雅密碼（mayaCodeMaster）、合盤（mayaPairMaster）。
+//
+// 合盤：把兩個人的銀河印記（主要關係、圖騰的天賦和卡點、顏色、調性）和瑪雅密碼的同異，
 // 組成一段指名道姓的解盤。使用者回饋「內容很普通，不知道在講什麼」：上一版只列規則和通用的句子，
 // 這裡每一句都帶入兩個人的名字和圖騰，講清楚「誰的長處補誰的卡點」、卡住時誰可以做什麼。
 // 文字由本 App 依 13 月亮曆的神諭規則和各圖騰的說明組成，參考就好。
 
 import { dayRelation, kinOf, kinInfo, validDate, pairSummary, kinWithLeapDays, compositeKin } from './maya-kin.js';
-import { SEAL_TEXT, TONE_TEXT, COLOR_TEXT, PAIR_MAIN, PAIR_RELATION_TEXT, COLOR_PAIR_TEXT } from './maya-texts.js';
+import { SEAL_TEXT, TONE_TEXT, COLOR_TEXT, PAIR_MAIN, PAIR_RELATION_TEXT, COLOR_PAIR_TEXT, SEAL_SELF, TONE_HOW, YEAR_KIN_TEXT, CODE_KW } from './maya-texts.js';
+import { MAYA_KEYWORD_TEXT } from './reading-texts.js';
 
 // 句子裡只取第一段（「；」前面），整句放進引號太長
 const short = (t) => t.split('；')[0].replace(/。$/, '');
@@ -207,4 +210,129 @@ export function methodCompare(a, b) {
     leap && ds && (leap.a.kin !== ds.a.kin || leap.b.kin !== ds.b.kin) ? leap : null,
   ].filter(Boolean);
   return { rows, composite: ds ? kinInfo(compositeKin(ds.a.kin, ds.b.kin)) : null };
+}
+
+
+const who = (name) => (name && name !== '你' ? name : '你');
+
+/**
+ * 個人盤的老師解盤：把主印記、調性、顏色、四個神諭位置、波符合成一段話。
+ * 使用者回饋「沒有大師的說明、白話還是看不懂、沒有整併」：上面各卡是規則的通用說明（「挑戰位是讓你成長的位置」），
+ * 這裡改講「這個位置的圖騰對你是什麼」——誰幫你、你缺什麼、迷惘時往哪走、壓力大時會冒出什麼。
+ * @param mine mayaKin 的結果；yearKin：yearKin 的結果（流年印記，沒有就不講今年）
+ */
+export function mayaSelfMaster(mine, { name = '你', yearKin = null } = {}) {
+  const W = who(name);
+  const { seal, tone, oracle, wavespell: ws } = mine;
+  const S = SEAL_SELF[seal.n];
+  const [g, an, ap, oc] = ['guide', 'analog', 'antipode', 'occult'].map((k) => ({ ...SEAL_SELF[oracle[k].seal], title: kinInfo(oracle[k].kin).title }));
+  const guideSelf = oracle.guide.seal === seal.n;
+  const color = COLOR_TEXT[seal.color];
+  const why = [
+    // 不引用圖騰的天賦原文：有些圖騰的天賦句子和挑戰位的功課字面上打架（紅月「也能帶動改變」、挑戰位藍風暴是「推動改變」）
+    { tone: 'good', text: `主印記「${mine.title}」（${SEAL_TEXT[seal.n].keys.join('、')}）：${S.role}，最拿手的是「${S.skill}」；要小心的是${SEAL_TEXT[seal.n].shadow.replace(/。$/, '')}。` },
+    { tone: 'info', text: `調性 ${tone.n}「${tone.name}」：做事的方式是${TONE_HOW[tone.n]}。${color.name}家族（${color.key}）在一件事裡${COLOR_ROLE[seal.color]}。` },
+    guideSelf
+      ? { tone: 'good', text: `引導位就是你自己（調性 1、6、11 的引導是自己的圖騰）：迷惘時不用到處問，回到自己最拿手的「${S.skill}」就找得到方向。` }
+      : { tone: 'info', text: `引導位「${g.title}」：迷惘時，想想擅長「${g.skill}」的人會怎麼做，跟著這個方向走最不容易偏。` },
+    { tone: 'good', text: `支持位「${an.title}」：最能幫${W}的是擅長「${an.skill}」的人；${W}也可以借這股力量：${an.practice}。` },
+    { tone: 'bad', text: `挑戰位「${ap.title}」：「${ap.skill}」是${W}比較不擅長、最常卡住的地方，遇到這種人也容易覺得不舒服；學會一點，${W}會更完整。` },
+    { tone: 'info', text: `隱藏推動「${oc.title}」：平常不太察覺，壓力大或關鍵時刻，${W}身上會冒出「${oc.skill}」的力量。` },
+    ws.seal.n === seal.n
+      ? { tone: 'info', text: `出生在${ws.seal.name}波符的第一天：波符的主題就是你自己的圖騰，人生的主題很集中——把「${S.skill}」做到最好。` }
+      : { tone: 'info', text: `出生在「${ws.seal.name}波符」的第 ${ws.day} 天：人生大方向的主題是「${SEAL_SELF[ws.seal.n].skill}」，${W}用${tone.name}的方式參與它。` },
+  ];
+  let yearRel = null;
+  if (yearKin) {
+    yearRel = dayRelation(yearKin.kin, mine.kin);
+    why.push({ tone: yearRel === 'antipode' ? 'bad' : ['return', 'analog', 'guide', 'occult'].includes(yearRel) ? 'good' : 'info', text: `今年（${yearKin.from.m}/${yearKin.from.d} 生日起）的流年印記「${yearKin.title}」${yearRel === 'return' ? '：' : ''}${YEAR_KIN_TEXT[yearRel]}` });
+  }
+  const verdict = `老師看${W}的銀河印記：${W}是「${mine.title}」，${S.role}，做事習慣${TONE_HOW[tone.n]}。`
+    + `一句話：${W}的長處是「${S.skill}」，最好的幫手是擅長「${an.skill}」的人（支持位），最大的功課是「${ap.skill}」（挑戰位）`
+    + `${guideSelf ? '；迷惘時相信自己就好（引導位是自己）' : `；迷惘時往「${g.skill}」的方向走（引導位）`}。`;
+  const remedies = [{
+    title: `卡住時（${SEAL_TEXT[seal.n].shadow.split(/[，；]/)[0]}）`,
+    steps: [
+      SEAL_TEXT[seal.n].tip,
+      guideSelf ? '做決定時先問自己：「我真正的直覺是什麼？」你的引導就是你自己。' : `做決定時問自己：「擅長${g.skill}的人會怎麼做？」（引導位${g.title}）`,
+      `每週練一點挑戰位的功課：${ap.practice}。`,
+    ],
+  }];
+  const boosts = [
+    `找擅長「${an.skill}」的人一起做事：${W}負責「${S.skill}」，對方補上你沒有的。`,
+    `${color.name}家族${COLOR_ROLE[seal.color]}：一件事交到${W}手上，${{ red: '開頭', white: '整理', blue: '轉變', yellow: '收成' }[seal.color]}的階段最能發揮。`,
+    '重要的事挑支持日、引導日做：「今日」會顯示當天的瑪雅印記和你的關係。',
+  ];
+  return {
+    badge: { text: `${mine.title}`, cls: 'good' },
+    verdict,
+    why,
+    remedies,
+    boosts,
+    yearRel,
+    combos: [
+      { label: '今日', why: '每天的瑪雅印記和你的關係', go: ['today', {}] },
+      { label: '綜合解讀', why: '瑪雅和八字、紫微、星盤一起看，哪些說法一致', go: ['destiny', { tool: 'reading' }] },
+    ],
+  };
+}
+
+// 瑪雅密碼五個位置的短名稱（解盤句子裡用）
+const CODE_NAME = { A: '前世 A', B: '今生 B', C: '潛意識 C', D: '表象 D', E: '小宇宙 E' };
+
+/**
+ * 瑪雅密碼 A～E 的老師解盤：同一個關鍵字放在不同位置要講不同的話（CODE_KW），再找出整套密碼的重點——
+ * 重複出現的關鍵字是主題；表象 D 和小宇宙 E 一不一樣（外表和內心）；前世 A 和今生 B（天生的習慣和這輩子的課題）。
+ * @param maya computeMaya 的結果
+ */
+export function mayaCodeMaster(maya, { name = '你' } = {}) {
+  const W = who(name);
+  const it = Object.fromEntries(maya.items.map((x) => [x.key, x]));
+  const K = (k) => (it[k] && it[k].keyword ? CODE_KW[it[k].keyword] : null);
+  const kw = (k) => it[k] && it[k].keyword;
+  // 主題：出現兩次以上的關鍵字（只有 D、E 兩個一樣時，下面「外表和內心一致」已經講了，不另外當主題）
+  const seen = new Map();
+  for (const x of maya.items) if (x.keyword) seen.set(x.keyword, [...(seen.get(x.keyword) || []), x.key]);
+  const top = [...seen].filter(([, keys]) => keys.length >= 2).sort((a, b) => b[1].length - a[1].length)[0] || null;
+  const theme = top && !(top[1].length === 2 && top[1].includes('D') && top[1].includes('E')) ? { word: top[0], keys: top[1] } : null;
+  const parts = [];
+  if (theme) parts.push(`「${theme.word}」出現在${theme.keys.map((k) => CODE_NAME[k]).join('、')}，是${W}這套密碼的主題：${MAYA_KEYWORD_TEXT[theme.word].replace(/。$/, '')}。`);
+  if (K('D') && K('E')) {
+    parts.push(kw('D') === kw('E')
+      ? `外表和內心一致（表象 D、小宇宙 E 都是「${kw('D')}」）：看起來${K('D').look}，熟了以後也是這樣。`
+      : `外表看起來${K('D').look}（表象 D「${kw('D')}」），內心其實${K('E').core}（小宇宙 E「${kw('E')}」）：別人容易只看到外表，熟了才懂${W}。`);
+  }
+  if (K('A') && K('B')) {
+    parts.push(kw('A') === kw('B')
+      ? `天生擅長的也是這輩子要練的（前世 A、今生 B 都是「${kw('A')}」）：把這個天賦用到極致，就是${W}的功課。`
+      : `${W}天生${K('A').gift}（前世 A「${kw('A')}」），這輩子要練的是${K('B').lesson}（今生 B「${kw('B')}」）：卡關時別只用「${K('A').verb}」這個老方法，改成「${K('B').verb}」看看。`);
+  }
+  if (K('C')) parts.push(`心裡真正想要的是${K('C').drive}（潛意識 C「${kw('C')}」）。`);
+  const verdict = `老師看${W}的瑪雅密碼：${parts.join('')}`;
+  const line = (k, field, lead) => (K(k) ? { tone: 'info', text: `${CODE_NAME[k]}「${kw(k)}」：${lead}${K(k)[field]}。` } : { tone: 'info', text: `${CODE_NAME[k]}：不適用（1910–1921、2010–2021 年出生的規則）。` });
+  const why = [
+    line('A', 'gift', '天生'),
+    line('B', 'lesson', '這輩子要練的是'),
+    line('C', 'drive', '心裡真正想要的是'),
+    line('D', 'look', '別人第一眼看到的你：'),
+    line('E', 'core', '內心其實'),
+  ];
+  const remedies = [];
+  const lesson = K('B') || (theme ? CODE_KW[theme.word] : null);
+  if (lesson) remedies.push({ title: `卡關時：練「${K('B') ? kw('B') : theme.word}」`, steps: [lesson.practice, K('A') && K('B') && kw('A') !== kw('B') ? `提醒自己：「${K('A').verb}」是你的老習慣，不一定是這次最好的做法。` : null].filter(Boolean) });
+  if (K('D') && K('E') && kw('D') !== kw('E')) {
+    remedies.push({ title: '讓別人看見內在的你', steps: [`對親近的人，主動說出你心裡「${K('E').core}」的那一面。`, '剛認識的人只看到外表、誤會你，不用急著解釋，相處久了自然會懂。'] });
+  }
+  const boosts = [];
+  if (theme) boosts.push(`「${theme.word}」是你的主題：用在工作和關係上最能發揮。`);
+  if (K('C')) boosts.push(`做決定時問自己：「這件事有沒有讓我更接近${K('C').drive}？」`);
+  if (maya.twin) boosts.push('已經把出生的時、分加進計算（多胞胎分流），和手足的結果會不同。');
+  return {
+    badge: theme ? { text: `主題：${theme.word}`, cls: 'good' } : { text: kw('D') === kw('E') ? '表裡一致' : '外表和內心不同', cls: 'alt' },
+    verdict,
+    why,
+    remedies,
+    boosts,
+    theme: theme ? theme.word : null,
+  };
 }

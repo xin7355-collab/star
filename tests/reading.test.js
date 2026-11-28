@@ -30,7 +30,9 @@ test('共同點：至少兩個系統一致才算，並附上來源', () => {
   const r = buildReading({ natal, bazi, ziwei, birth: INPUT.date, today: TODAY, gender: '男' });
   for (const t of r.traits) {
     assert.ok(t.count >= 2);
-    assert.equal(t.sources.length, t.count);
+    // 算的是「幾個系統」：同一個系統說兩句（太陽、上升都說有主見）只算一個
+    assert.equal(new Set(t.systems).size, t.count);
+    assert.ok(t.sources.length >= t.count);
     assert.ok(new Set(t.sources.map((s) => s.split('：')[0].split(' ')[0])).size >= 2, '要來自不同系統');
   }
   assert.ok(r.areas[0].summary.includes('至少兩個系統一致'));

@@ -364,3 +364,13 @@ AR 星空,data_view,long_content,DONE,code:css/app.css .ar-list-items 最多 28v
 興趣與性格測驗,data_view,error,DONE,code:js/views/quiz-card.js 存檔失敗跳出原因；作答進度壞掉時從頭開始,
 興趣與性格測驗,data_view,populated,DONE,e2e:興趣與性格測驗：（結果、興趣代碼、分數條）,
 興趣與性格測驗,data_view,long_content,DONE,code:js/views/quiz-card.js 一題一頁；說明收在摺疊,
+綜合解讀老師解盤,data_view,loading,DONE,code:js/views/destiny.js 和原本一樣顯示「排盤中…」，算完一次畫出整張卡,
+綜合解讀老師解盤,data_view,empty,DONE,code:js/core/synthesis.js 沒有兩個以上系統一致時說「說法分散、不適合定型」；有測驗改用測驗最明顯的兩項,
+綜合解讀老師解盤,data_view,error,DONE,code:js/views/destiny.js 排盤失敗走原本的「計算失敗」卡片並說明怎麼做,
+綜合解讀老師解盤,data_view,populated,DONE,e2e:命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生命靈數、稱骨都算得出來,
+綜合解讀老師解盤,data_view,long_content,DONE,npm run qa:design（long-reading：20 字英文名字）；只有一個系統說的、整合方式收在摺疊,
+瑪雅個人盤老師解盤,data_view,populated,DONE,e2e:命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生命靈數、稱骨都算得出來,
+瑪雅個人盤老師解盤,data_view,empty,NA,,一定算得出 KIN；生日超出 1800～2200 年時整個瑪雅曆改顯示說明
+瑪雅密碼老師解盤,data_view,populated,DONE,e2e:命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生命靈數、稱骨都算得出來,
+瑪雅密碼老師解盤,data_view,empty,DONE,code:js/core/maya-master.js 例外年份 A、B 不適用時照實寫、斷語只講其他位置,
+生命靈數老師解盤,data_view,populated,DONE,e2e:命盤：綜合解讀、八字、流年、紫微、姓名、瑪雅、生命靈數、稱骨都算得出來,
